@@ -1,0 +1,4 @@
+
+*.pyc
+*.gds
+tester.py
