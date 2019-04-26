@@ -55,7 +55,7 @@ class gdScript():
             if paramId == 0:
                 break
             elif paramId == 1:
-                params.append(int.from_bytes(reader.read(4), 'little'))
+                params.append(int.from_bytes(reader.read(4), 'little', signed = True))
             elif paramId == 2:
                 params.append(unpack("<f", reader.read(4))[0])
             elif paramId == 3:
@@ -100,7 +100,8 @@ class gdScript():
             print("GD: [GRAPHICS] ?? Fade out!")
             
 
-
+        elif command == b'\x10':
+            print("GD: [AUDIO   ] Play SWAV " + str(params[0]))
 
         # General puzzle commands
         elif command == b'\x1b':
@@ -127,6 +128,11 @@ class gdScript():
         elif command == b'\x38':
             print("GD: [PUZZLE  ] Set answer region!")
 
+        # Cup puzzle mode - Finished
+        elif command == b'\x3a':
+            print("GD: [PUZZLE  ] Place cup!\n               Sprite  : " + params[0] + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               SpwAnim : " + str(params[3]) + "\n               Capacity: " + str(params[4]) + "\n               Target  : " + str(params[5]))
+        
+
         elif command == b'\x48':
             print("GD: [PUZZLE  ] Select puzzle " + str(params[0]) + "!")
 
@@ -146,7 +152,9 @@ class gdScript():
 
         elif command == b'\x51':
             print("GD: [STATE   ] ?? Set environment type: " + params[0])
-
+        elif command == b'\x5c':
+            print("GD: [GRAPHICS] Draw animated sprite!\n               Name   : " + params[2] + "\n               Loc    : (" + str(params[0]) + ", " + str(params[1]) + ")")
+        
         # On Off puzzle mode - ? 
         elif command == b'\x5d':
             print("GD: [PUZZLE  ] Draw interactable sprite " + params[2] + ["", ", solution"][params[3]] + "\n               SpawnFr: " + str(params[4]))  
@@ -180,9 +188,16 @@ class gdScript():
 
         elif command == b'\xb6':
             print("GD: [DEBUG   ] " + params[1] + "\t: " + params[0])
+            
 
         elif command == b'\xc3':
-            print("GD: [PUZZLE  ] Set puzzle " + str(params[0]) + " picarot decay!\nStage 0: " + str(params[1]) + "\nStage 1: " + str(params[2]) + "\nStage 2: " + str(params[3]))            
+            print("GD: [PUZZLE  ] Set puzzle " + str(params[0]) + " picarot decay!\nStage 0: " + str(params[1]) + "\nStage 1: " + str(params[2]) + "\nStage 2: " + str(params[3]))
+
+        elif command == b'\xdc':
+            print("GD: [PUZZLE  ] Add puzzle DB entry!\n               ID     : " + str(params[0]) + "\n               Type   : " + str(params[1]) + "\n               Loc    : " + str(params[2]))
+        elif command == b'\xd3':
+            print("GD: [VIDEO   ] Play MODS " + str(params[0]))
+            
 
             
         # DrawInput puzzle mode - Finish
@@ -195,19 +210,9 @@ class gdScript():
                     print("               Inconsistent secondary index!")
         elif command == b'\xfc':
             print("GD: [PUZZLE  ] Change answer box to alternative image " + params[0])
-
-
+        elif command == b'\xfd':
+            print("GD: [VIDEO   ] Display subtitle!\n               File   : " + self.filename.split("\\")[-1][0:-4] + "_" + str(params[0]) + ".txt\n               Start  : " + str(params[1]) + "\n               Length : " + str(params[2]))
         
-        # Cup puzzle mode - Finished
-        elif command == b'\x3a':
-            print("GD: [PUZZLE  ] Place cup!\n               Sprite  : " + params[0] + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               SpwAnim : " + str(params[3]) + "\n               Capacity: " + str(params[4]) + "\n               Target  : " + str(params[5]))
-        
-        elif command == b'\x10':
-            print("GD: [AUDIO   ] Play SWAV " + str(params[0]))
-
-
-        elif command == b'\xd3':
-            print("GD: [VIDEO   ] Play MODS " + str(params[0]))
         else:
             print("--  Unimplemented command: " + str(command))
             for param in params:
