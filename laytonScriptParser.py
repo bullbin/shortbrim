@@ -45,7 +45,6 @@ class gdScript():
 
         # '#?' is substituted by the selected language
 
-        
         command = reader.read(1)
         reader.read(1)
 
@@ -60,7 +59,6 @@ class gdScript():
                 params.append(unpack("<f", reader.read(4))[0])
             elif paramId == 3:
                 params.append(reader.read(int.from_bytes(reader.read(2), 'little')).decode("ascii")[0:-1])
-                
 
             # Unk params
             elif paramId == 6:
@@ -71,11 +69,6 @@ class gdScript():
                 pass
             elif paramId == 9:
                 pass
-            elif paramId == 14:
-                pass
-            elif paramId == 18:
-                pass
-
             
             elif reader.tell() == self.offsetEofc + 4:
                 if paramId != 12:
@@ -98,10 +91,11 @@ class gdScript():
             print("GD: [GRAPHICS] ?? Fade in!")
         elif command == b'\x05':
             print("GD: [GRAPHICS] ?? Fade out!")
-            
 
         elif command == b'\x10':
-            print("GD: [AUDIO   ] Play SWAV " + str(params[0]))
+            # After testing, this command is audio related, but changing the value causes the audio to not be played
+            # This could maybe be an offset for the sound bank or something - there is invalidation checking
+            print("GD: [AUDIO   ] ?? Play SWAV " + str(params[0]))
 
         # General puzzle commands
         elif command == b'\x1b':
@@ -131,11 +125,9 @@ class gdScript():
         # Cup puzzle mode - Finished
         elif command == b'\x3a':
             print("GD: [PUZZLE  ] Place cup!\n               Sprite  : " + params[0] + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               SpwAnim : " + str(params[3]) + "\n               Capacity: " + str(params[4]) + "\n               Target  : " + str(params[5]))
-        
 
         elif command == b'\x48':
             print("GD: [PUZZLE  ] Select puzzle " + str(params[0]) + "!")
-
 
         # UNK Event-related stuff
 
@@ -152,6 +144,9 @@ class gdScript():
 
         elif command == b'\x51':
             print("GD: [STATE   ] ?? Set environment type: " + params[0])
+        elif command == b'\x53':
+            # Carried from reversing notes - untested
+            print("GD: [STATE   ] ?? Set room index " + str(params[0]))
         elif command == b'\x5c':
             print("GD: [GRAPHICS] Draw animated sprite!\n               Name   : " + params[2] + "\n               Loc    : (" + str(params[0]) + ", " + str(params[1]) + ")")
         
@@ -164,8 +159,7 @@ class gdScript():
         elif command == b'\x6c':
             print("GD: [GRAPHICS] Draw static image!")
         elif command == b'\x6d':
-            print("GD: [GRAPHICS] Draw animated image!")
-            
+            print("GD: [GRAPHICS] Draw animated image!")   
           
         # Tile puzzle mode - Finished
         elif command == b'\x73':
@@ -177,7 +171,6 @@ class gdScript():
         elif command == b'\x76':
             print("GD: [PUZZLE  ] Set amount of valid solutions!")
 
-
         elif command == b'\x9c':
             print("GD: [PUZZLE  ] Select right character event script " + str(params[0]) + "!")
         elif command == b'\x9d':
@@ -188,7 +181,6 @@ class gdScript():
 
         elif command == b'\xb6':
             print("GD: [DEBUG   ] " + params[1] + "\t: " + params[0])
-            
 
         elif command == b'\xc3':
             print("GD: [PUZZLE  ] Set puzzle " + str(params[0]) + " picarot decay!\nStage 0: " + str(params[1]) + "\nStage 1: " + str(params[2]) + "\nStage 2: " + str(params[3]))
@@ -197,8 +189,7 @@ class gdScript():
             print("GD: [PUZZLE  ] Add puzzle DB entry!\n               ID     : " + str(params[0]) + "\n               Type   : " + str(params[1]) + "\n               Loc    : " + str(params[2]))
         elif command == b'\xd3':
             print("GD: [VIDEO   ] Play MODS " + str(params[0]))
-            
-
+        # D4 is another draw command, params location, unk, isAnswer
             
         # DrawInput puzzle mode - Finish
         elif command == b'\xfb':
