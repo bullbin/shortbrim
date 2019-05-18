@@ -99,20 +99,27 @@ class gdScript():
 
         # General puzzle commands
         elif command == b'\x1b':
-            print("GD: [PUZZLE  ] Set puzzle applet!\n               Handler: " + params[0])
+            print("GD: [PUZZLE  ] Set puzzle applet!\n               Handler : " + params[0])
         elif command == b'\x1c':
             if params[0] == 3:
                 print("GD: [PUZZLE  ] 0x1C Constant 3")
             else:
                 print("GD: [PUZZLE  ] UNK 0x1C")
         elif command == b'\x1f':
-            print("GD: [PUZZLE  ] Set internal puzzle reference!\n               ID     : " + str(params[0]))
+            print("GD: [PUZZLE  ] Set internal puzzle reference!\n               ID      : " + str(params[0]))
             if params[1] != 0:
                 print("               Inconsistent secondary index!")
-                
-        # Matchstick puzzle mode - Finished
+
+        # Coin puzzle mode - Finished
+        elif command == b'\x25':
+            print("GD: [PUZZLE  ] Place coin!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        elif command == b'\x26':
+            print("GD: [PUZZLE  ] Set coin target!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        
         elif command == b'\x27':
             print("GD: [PUZZLE  ] Set move limit to " + str(params[0]))
+
+        # Matchstick puzzle mode - Finished
         elif command == b'\x2a':
             print("GD: [PUZZLE  ] Place match!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")" + "\n               Rotation: " + str(params[2]) + " degrees")
         elif command == b'\x2b':
@@ -120,21 +127,38 @@ class gdScript():
 
         # Scale puzzle mode
         elif command == b'\x2d':
-            print("GD: [PUZZLE  ] Set weight quantity!\n               Max weight " + str(params[0]))
-        
+            print("GD: [PUZZLE  ] Set weight quantity!\n               CntWght : " + str(params[0]))
+
+        # Connect puzzle mode - Finished
+        elif command == b'\x31':
+            print("GD: [PUZZLE  ] Place chick!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        elif command == b'\x32':
+            print("GD: [PUZZLE  ] Place wolf!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+
         # Drag puzzle mode                    
         elif command == b'\x38':
-            print("GD: [PUZZLE  ] Set answer region!")
+            print("GD: [PUZZLE  ] Set answer location!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        elif command == b'\x39':
+            print("GD: [PUZZLE  ] Set target rotation!\n               Rotation: " + str(params[0]) + " degrees")
 
         # Cup puzzle mode - Finished
         elif command == b'\x3a':
             print("GD: [PUZZLE  ] Place cup!\n               Sprite  : " + params[0] + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               SpwAnim : " + str(params[3]) + "\n               Capacity: " + str(params[4]) + "\n               Target  : " + str(params[5]))
 
+        # Queens puzzle mode
+        elif command == b'\x3b':
+            print("GD: [PUZZLE  ] Set board parameters!\n               tlCorner: (" + str(params[0]) + ", " + str(params[1]) + ")\n               BoardSze: " + str(params[2]))
+        elif command == b'\x3c':
+            print("GD: [PUZZLE  ] Set piece quantity!\n               CntQueen: " + str(params[0]))
+        elif command == b'\x3d':
+            print("GD: [PUZZLE  ] Set pre-placed piece!\n               BoardLoc: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        elif command == b'\x3e':
+            print("GD: [PUZZLE  ] Set chess board solving method!\n               Cndition: " + ["No intersections", "No remaining useable board space"][params[0]])
+        
         # Trace Button mode
         elif command == b'\x3f':
             print("GD: [PUZZLE  ] Set trace answer location!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
 
-        
         elif command == b'\x48':
             print("GD: [PUZZLE  ] Select puzzle " + str(params[0]) + "!")
 
@@ -161,25 +185,35 @@ class gdScript():
         
         # On Off puzzle mode - ? 
         elif command == b'\x5d':
-            print("GD: [PUZZLE  ] Draw interactable sprite " + params[2] + ["", ", solution"][params[3]] + "\n               SpawnFr: " + str(params[4]))  
+            print("GD: [PUZZLE  ] Draw interactable sprite " + params[2] + ["", ", solution"][params[3]] + "\n               SpawnFrm: " + str(params[4]))  
 
+        # Place Target mode
+        elif command == b'\x5e':
+            print("GD: [PUZZLE  ] Set sprite target!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               Radius  : " + str(params[3]) + "\n               Unknown : " + str(params[4]))
+        
         elif command == b'\x6b':
             print("GD: [GRAPHICS] Pause for " + str(params[0]) + " frames (" + str(round(params[0]/60, 2)) + " seconds)")
         elif command == b'\x6c':
-            print("GD: [GRAPHICS] Draw static image!")
+            print("GD: [GRAPHICS] Draw static image!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwnAnim: " + params[3])
         elif command == b'\x6d':
             print("GD: [GRAPHICS] Draw animated image!")   
           
         # Tile puzzle mode - Finished
         elif command == b'\x73':
-            print("GD: [PUZZLE  ] Place moveable tile!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwAnim : " + str(params[3]))
+            print("GD: [PUZZLE  ] Place moveable tile!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwnAnim : " + str(params[3]))
         elif command == b'\x74':
             print("GD: [PUZZLE  ] Set tile target!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
         elif command == b'\x75':
             print("GD: [PUZZLE  ] Map tile to target!\n               Map     : " + str(params[0]) + " -> " + str(params[1]))
         elif command == b'\x76':
-            print("GD: [PUZZLE  ] Set amount of valid solutions!")
+            print("GD: [PUZZLE  ] Set amount of valid solutions!\n               Max     : " + str(params[0]))
 
+        # River Cross 2 mode
+        elif command == b'\x8a':
+            print("GD: [PUZZLE  ] Place cabbage!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        elif command == b'\x8b':
+            print("GD: [PUZZLE  ] Place sheep!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        
         elif command == b'\x9c':
             print("GD: [PUZZLE  ] Select right character event script " + str(params[0]) + "!")
         elif command == b'\x9d':
@@ -192,11 +226,17 @@ class gdScript():
             print("GD: [PUZZLE  ] Define node connection!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")" + " to (" + str(params[2]) + ", " + str(params[3]) + ")")
 
         # Slide puzzles use a range of commands from a4 to aa
+        elif command == b'\xa6':
+            if params[2] < 4:
+                print("GD: [PUZZLE  ] Draw sliding component! (slidepuzzle.arc)\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+                print("               CompType: " + str(params[2]) + ", " + {0:"Horizontal", 1:"Vertical", 2:"Boundary", 3:"Solution"}[params[2]] + "\n               SpawnAnm: " + params[3])
+            else:
+                print("GD: [PUZZLE  ] Draw sliding component! (slidepuzzle2.arc)\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+                print("               CompType: " + str(params[2]) + ", " + {4:"External asset"}[params[2]] + "\n               SpawnAnm: " + params[3])
 
-        
         elif command == b'\xba':
             print("GD: [PUZZLE  ] Set puzzle title!\n               ID     : " + str(params[0]) + "\n               Name   : " + params[1])
-
+        
         elif command == b'\xb6':
             print("GD: [DEBUG   ] " + params[1] + "\t: " + params[0])
 
@@ -206,17 +246,15 @@ class gdScript():
         elif command == b'\xd3':
             print("GD: [VIDEO   ] Play MODS " + str(params[0]))
         elif command == b'\xd4':
-            print("GD: [PUZZLE  ] Set interactable region!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Unknown : " + str(params[2]) + "\n               IsAnswer: " + str(params[3]))
+            print("GD: [PUZZLE  ] Set interactable region!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Radius  : " + str(params[2]) + "\n               IsAnswer: " + str(params[3]))
         elif command == b'\xdc':
             print("GD: [PUZZLE  ] Add puzzle DB entry!\n               ID     : " + str(params[0]) + "\n               Type   : " + str(params[1]) + "\n               Loc    : " + str(params[2]))
             
         # DrawInput puzzle mode - Finish
         elif command == b'\xfa':
-            print("GD: [PUZZLE  ] Set character recognition box!\n               Unknown : " + str(params[0]) + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               BoxLen  : " + str(params[3]))
+            print("GD: [PUZZLE  ] Set character recognition box!\n               AnsIndex: " + str(params[0]) + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               BoxLen  : " + str(params[3]))
         elif command == b'\xfb':
-            print("GD: [PUZZLE  ] Set HL puzzle answer!")
-            for param in params:
-                print("               " + str(param))
+            print("GD: [PUZZLE  ] Set HL puzzle answer!\n               AnsIndex: " + str(params[0]) + "\n               Answer  : " + str(params[1]))
         elif command == b'\xfc':
             print("GD: [PUZZLE  ] Change answer box to alternative image " + params[0])
         elif command == b'\xfd':
