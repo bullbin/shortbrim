@@ -160,20 +160,7 @@ class gdScript():
             print("GD: [PUZZLE  ] Set trace answer location!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
 
         elif command == b'\x48':
-            print("GD: [PUZZLE  ] Select puzzle " + str(params[0]) + "!")
-
-        # UNK Event-related stuff
-
-        elif command == b'n':
-            if len(params) == 2:
-                print("GD: [GRAPHICS] ?? Set anim for character " + str(params[0]) + ": " + params[1])
-            else:
-                print("GD: [GRAPHICS] ??")
-        elif command == b'o':
-            if len(params) == 2:
-                print("GD: [GRAPHICS] ?? Set alt anim for character " + str(params[0]) + ": " + params[1])
-            else:
-                print("GD: [GRAPHICS] ??")
+            print("GD: [EVENT   ] Select puzzle " + str(params[0]) + "!")
 
         elif command == b'\x51':
             print("GD: [STATE   ] ?? Set environment type: " + params[0])
@@ -196,7 +183,19 @@ class gdScript():
         elif command == b'\x6c':
             print("GD: [GRAPHICS] Draw static image!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwnAnim: " + params[3])
         elif command == b'\x6d':
-            print("GD: [GRAPHICS] Draw animated image!")   
+            print("GD: [GRAPHICS] Draw animated image!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwnAnim: " + params[3] + "\n               SpawnFrm: " + str(params[4]))
+
+        # Event-related stuff (untested)
+        elif command == b'\x6e':
+            if len(params) == 2:
+                print("GD: [EVENT   ] ?? Set anim for character " + str(params[0]) + ": " + params[1])
+            else:
+                print("GD: [EVENT   ] ??")
+        elif command == b'\x6f':
+            if len(params) == 2:
+                print("GD: [EVENT   ] ?? Set alt anim for character " + str(params[0]) + ": " + params[1])
+            else:
+                print("GD: [EVENT   ] ??")
           
         # Tile puzzle mode - Finished
         elif command == b'\x73':
@@ -213,12 +212,24 @@ class gdScript():
             print("GD: [PUZZLE  ] Place cabbage!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
         elif command == b'\x8b':
             print("GD: [PUZZLE  ] Place sheep!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
-        
-        elif command == b'\x9c':
-            print("GD: [PUZZLE  ] Select right character event script " + str(params[0]) + "!")
-        elif command == b'\x9d':
-            print("GD: [PUZZLE  ] Select left character event script " + str(params[0]) + "!")
 
+
+        # More event-related codes
+        elif command == b'\x9c':
+            print("GD: [EVENT   ] Select right character event script!\n               TextIndx: " + str(params[0]) + "\n               ChrIndex: " + str(params[1]))
+            if len(params) > 2: 
+                for param in params[2:]:
+                    print("               Unknown : " + str(param))
+        elif command == b'\x9d':
+            print("GD: [EVENT   ] Select left character event script!\n               TextIndx: " + str(params[0]) + "\n               ChrIndex: " + str(params[1]))
+            if len(params) > 2: 
+                for param in params[2:]:
+                    print("               Unknown : " + str(param))      
+
+
+
+
+        
         # Cut Puzzle mode
         elif command == b'\xa0':
             print("GD: [PUZZLE  ] Define cut node!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
