@@ -6,6 +6,7 @@ pygame.init()
 pathLaytonAssetRoot = r"C:\Users\USERNAME\Documents\GitHub\layton1\assets\\"
 
 class AnimatedImage():
+    def __init__(self, imagePath, x=0,y=0):
         self.image = pygame.image.load(pathLaytonAssetRoot + imagePath)
         self.pos = (x,y)
     def draw(self, gameDisplay):
