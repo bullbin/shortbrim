@@ -4,135 +4,112 @@ import gdsLib, pygame
 from os import path
 
 pygame.init()
-pathLaytonAssetRoot = path.dirname(path.dirname(path.dirname(path.realpath(__file__)))) + r"\assets\\"
+
+# CONSTANTS
+LAYTON_ASSET_ROOT   = path.dirname(path.dirname(path.dirname(path.realpath(__file__)))) + r"\assets\\"
+LAYTON_ASSET_LANG   = "en"
+LAYTON_PUZZLE_FONT  = pygame.font.SysFont('freesansbold', 17)
 
 class AnimatedImage():
     def __init__(self, imagePath, x=0,y=0):
-        self.image = pygame.image.load(pathLaytonAssetRoot + imagePath)
+        self.image = pygame.image.load(LAYTON_ASSET_ROOT + imagePath)
         self.pos = (x,y)
     def draw(self, gameDisplay):
         gameDisplay.blit(self.image, self.pos)
 
-class Fader():
-    def __init__(self, colour):
-        self.drawIncomplete = True
+class AnimatedText():
+    def __init__(self, initString = ""):
+        self.text = initString
+        self.textRender = LAYTON_PUZZLE_FONT.render(self.text,True,(0,0,0),None)
     def update(self):
-        if self.drawIncomplete:
-            pass
+        self.textRender = LAYTON_PUZZLE_FONT.render(self.text,True,(0,0,0),None)
 
 class TextScroller():
-    def __init__(self, textInput):
-        self.textInput = textInput
-        self.lastNewline = 0
-        self.textPos = 1
-        self.drawIncomplete = True
-        self.font = pygame.font.Font('freesansbold.ttf', 12)
-        self.text = [self.font.render(self.textInput[0:self.textPos], True, (0,255,0), (0,0,255))]
+    def __init__(self, textInput, textPosOffset=(4,24)):
+         self.textInput = textInput
+         self.textNewline = 0
+         self.textPos = 0
+         self.textPosOffset = textPosOffset
+         self.textRects = []
+         self.drawIncomplete = True
 
-    def draw(self, gameDisplay):
+    def update(self):
         if self.drawIncomplete:
-            if self.textPos <= len(self.textInput):
-                self.textPos += 1
-            if self.textInput[self.textPos - 2] == "\n":
-                self.text[-1] = self.font.render(self.textInput[self.lastNewline:self.textPos - 2], True, (0,255,0), (0,0,255))
-                print(self.textInput[self.lastNewline:self.textPos - 1])
-                self.text.append(self.font.render(self.textInput[self.lastNewline + 1:self.textPos], True, (0,255,0), (0,0,255)))
-                self.lastNewline = self.textPos - 1
+            if self.textInput[self.textPos] == "\n" or self.textPos == 0:
+                self.textRects.append(AnimatedText())
+                if self.textPos == 0:
+                    self.textNewline = self.textPos
+                else:
+                    self.textNewline = self.textPos + 1
             else:
-                self.text[-1] = self.font.render(self.textInput[self.lastNewline:self.textPos], True, (0,255,0), (0,0,255))
+                self.textRects[-1].text = self.textInput[self.textNewline:self.textPos + 1]
+                
+            if self.textPos < len(self.textInput) -1:
+                self.textPos += 1
+            else:
+                self.drawIncomplete = False
 
-        y = 0
-        for text in self.text:
-            textRect = text.get_rect()
+    def skip(self):
+        if self.drawIncomplete:
+            skipText = self.textInput.split("\n")
+            self.textRects = []
+            for line in skipText:
+                self.textRects.append(AnimatedText(initString = line))
+            self.drawIncomplete = False
+    
+    def draw(self, gameDisplay):
+        x, y = self.textPosOffset
+        for animText in self.textRects:
+            animText.update()
+            textRect = animText.textRender.get_rect()
             centX, centY = textRect.center
-            centY += y
+            centY += y; centX += x
             textRect.center = (centX, centY)
-            gameDisplay.blit(text, textRect)
-            y += 12
+            gameDisplay.blit(animText.textRender, textRect)
+            y += LAYTON_PUZZLE_FONT.get_height()
 
-class LaytonPuzzle():
+class LaytonPuzzleHandler():
+
+    backgroundTs = pygame.image.load(LAYTON_ASSET_ROOT + "bg\\" + LAYTON_ASSET_LANG + r"\q_bg.png")
+    
     def __init__(self, puzzleIndex):
         self.puzzleIndex = puzzleIndex
-        self.backgroundTs = pygame.image.load(pathLaytonAssetRoot + "bg\en\q_bg.png")
-        self.backgroundBs = pygame.image.load(pathLaytonAssetRoot + "bg\q" + str(self.puzzleIndex) + "_bg.png")
-        with open(pathLaytonAssetRoot + r"qtext\en\q000\q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
-            self.backgroundText = TextScroller(qText.read())
+        self.backgroundBs = pygame.image.load(LAYTON_ASSET_ROOT + "bg\\" + LAYTON_ASSET_LANG + r"\q_bg.png")
+        if puzzleIndex < 100:
+            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q000\\"
+        elif puzzleIndex < 200:
+            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q100\\"
+        else:
+            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q200\\"
+            
+        # Load the puzzle qText
+        with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
+            self.puzzleQText = TextScroller(qText.read())
 
-        self.textDrawIncomplete = True
+    def update(self):
+        self.puzzleQText.update()
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.backgroundTs, (0,0))
-        gameDisplay.blit(self.backgroundBs, (0,192))
-        self.backgroundText.draw(gameDisplay)
-
-class PuzzleSliding(LaytonPuzzle):
-    def __init__(self, puzzleIndex):
-        LaytonPuzzle.__init__(self, puzzleIndex)
-
-class PuzzleTrace(LaytonPuzzle):
-    def __init__(self, puzzleIndex):
-        LaytonPuzzle.__init__(self, puzzleIndex)
-
-class PuzzleDrawInput2(LaytonPuzzle):
-    def __init__(self, puzzleIndex):
-        LaytonPuzzle.__init__(self, puzzleIndex)
+        gameDisplay.blit(LaytonPuzzleHandler.backgroundTs, (0,0))
+        self.puzzleQText.draw(gameDisplay)
 
 class LaytonPuzzlePlayer():
     def __init__(self, puzzleIndex):
+        self.puzzleIndex = puzzleIndex
         self.gameDisplay = pygame.display.set_mode((256, 384))
-        pygame.display.set_caption("LAYTON")
-        self.script = gdsLib.gdScript(pathLaytonAssetRoot + r"\script\qscript\q" + str(puzzleIndex) + "_param.gds")
-        
-        self.puzzle = None
-        for command in self.script.commands:
-            if command.opcode == b'\x1b':
-                if command.operands[0] in ["Draw Input2", "Match"]:
-                    self.puzzle = PuzzleDrawInput2(puzzleIndex)
-                else:
-                    print(command.operands[0])
-        
+        pygame.display.set_caption("Curious Future")
         self.clock = pygame.time.Clock()
         self.currentFrameStep = 0
-
-    def loadIntroSequence(self):
-        self.backgroundTs = AnimatedImage(r"\bg\en\judge_l114_bg.png")
-        self.backgroundBs = AnimatedImage(r"\bg\en\picarat_bg.png")
-        self.backgroundTs.pos = (0, 192)
-        self.backgroundBs.pos = (0, 192)
-
-    def update(self, drawIntro, drawIntroComplete):
-        
-        if self.puzzle != None:
-            if drawIntro:
-                resX, resY = self.backgroundTs.pos
-                if resY > 0:
-                    resY -= 12
-                    self.backgroundTs.pos = (resX, resY)
-                else:
-                    drawIntroComplete = True
-                    
-                self.backgroundBs.draw(self.gameDisplay)
-                self.backgroundTs.draw(self.gameDisplay)
-
-                if drawIntroComplete:
-                    drawIntro = False
-
-            else:
-                self.puzzle.draw(self.gameDisplay)
-            pygame.display.update()
     
     def play(self):
         isActive = True
-        
-        drawIntro = False
-        drawIntroComplete = False
-        
-        if drawIntro:
-            self.loadIntroSequence()
+        testHandler = LaytonPuzzleHandler(self.puzzleIndex)
         
         while isActive:
-            
-            self.update(drawIntro, drawIntroComplete)
+
+            testHandler.update()
+            testHandler.draw(self.gameDisplay)
+            pygame.display.update()
             
             for event in pygame.event.get():
                 
