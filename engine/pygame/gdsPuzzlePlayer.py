@@ -1,9 +1,10 @@
 # PyGame Implementation of Professor Layton Puzzle Game
 
 import gdsLib, pygame
+from os import path
 
 pygame.init()
-pathLaytonAssetRoot = r"C:\Users\USERNAME\Documents\GitHub\layton1\assets\\"
+pathLaytonAssetRoot = path.dirname(path.dirname(path.dirname(path.realpath(__file__)))) + r"\assets\\"
 
 class AnimatedImage():
     def __init__(self, imagePath, x=0,y=0):
@@ -60,9 +61,9 @@ class LaytonPuzzle():
         self.textDrawIncomplete = True
 
     def draw(self, gameDisplay):
+        gameDisplay.blit(self.backgroundTs, (0,0))
+        gameDisplay.blit(self.backgroundBs, (0,192))
         self.backgroundText.draw(gameDisplay)
-        #gameDisplay.blit(self.backgroundTs, (0,0))
-        #gameDisplay.blit(self.backgroundBs, (0,192))
 
 class PuzzleSliding(LaytonPuzzle):
     def __init__(self, puzzleIndex):
