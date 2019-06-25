@@ -12,20 +12,23 @@ LAYTON_ASSET_LANG           = "en"
 LAYTON_PUZZLE_FONT          = pygame.font.SysFont('freesansbold', 17)
 LAYTON_PUZZLE_DATA          = {}
 
+def getHintText():
+    pass
+
 def loadPuzzleNames():
     if len(LAYTON_PUZZLE_DATA) == 0:
         loadPuzzleData()
     qscript = gdsLib.gdScript(LAYTON_ASSET_ROOT + "script\\qinfo\\" + LAYTON_ASSET_LANG + "\\qscript.gds")
     for instruction in qscript.commands:
         if instruction.opcode == b'\xdc':
-            # Set puzzle titles and handlers (not required as puzzle scripts contain handler)
+            # Set puzzle titles and formal categories
             try:
                 LAYTON_PUZZLE_DATA[instruction.operands[0]].name = instruction.operands[2]
-                LAYTON_PUZZLE_DATA[instruction.operands[0]].handler = instruction.operands[1]
+                LAYTON_PUZZLE_DATA[instruction.operands[0]].category = instruction.operands[1]
             except KeyError:
                 LAYTON_PUZZLE_DATA[instruction.operands[0]] = LaytonPuzzleDataEntry([])
                 LAYTON_PUZZLE_DATA[instruction.operands[0]].name = instruction.operands[2]
-                LAYTON_PUZZLE_DATA[instruction.operands[0]].handler = instruction.operands[1]
+                LAYTON_PUZZLE_DATA[instruction.operands[0]].category = instruction.operands[1]
 
 def loadPuzzleData():
     pscript = gdsLib.gdScript(LAYTON_ASSET_ROOT + "script\\pcarot\\pscript.gds")
@@ -37,7 +40,7 @@ def loadPuzzleData():
 class LaytonPuzzleDataEntry():
     def __init__(self, decayValues):
         self.name = ""
-        self.handler = None
+        self.category = None
         self.decayState = 0
         self.decayValues = decayValues
     def getValue(self):
@@ -110,12 +113,24 @@ class TextScroller():
 class LaytonPuzzleHandler():
 
     backgroundTs = pygame.image.load(LAYTON_ASSET_ROOT + "bg\\" + LAYTON_ASSET_LANG + r"\q_bg.png")
+    buttonSkip = None
     
-    def __init__(self, puzzleIndex, puzzleEnable = True):
+    def __init__(self, puzzleIndex, puzzleScript, puzzleEnable = True):
         
-        self.backgroundBs = pygame.image.load(LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
-        
+        try:
+            with open(LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png", 'rb') as imgTest:
+                pass
+            self.backgroundBs = pygame.image.load(LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
+        except FileNotFoundError:
+            self.backgroundBs = LaytonPuzzleHandler.backgroundTs
+            for command in puzzleScript.commands:
+                if command.opcode == b'\x0b':
+                    # Replace the background with script's stored alternative
+                    print("Replace background: " + command.operands[0])
+                    break
+                
         self.puzzleEnable           = puzzleEnable
+        self.puzzleScript           = puzzleScript
         self.puzzleIndex            = puzzleIndex
         self.puzzleInputWaiting     = True
         self.puzzleQText            = TextScroller("")
@@ -126,12 +141,12 @@ class LaytonPuzzleHandler():
         
     def load(self):
         # Load a fresh puzzle state, useful when restarting the puzzle
-        if self.puzzleIndex < 100:
+        if self.puzzleIndex < 50:
             puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q000\\"
-        elif self.puzzleIndex < 200:
-            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q100\\"
+        elif self.puzzleIndex < 100:
+            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q050\\"
         else:
-            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q200\\"
+            puzzlePath = LAYTON_ASSET_ROOT + "qtext\\" + LAYTON_ASSET_LANG + "\\q100\\"
             
         # Load the puzzle qText
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
@@ -164,34 +179,106 @@ class LaytonPuzzleHandler():
             self.skip()
             self.puzzleInputWaiting = False
 
+    def drawFade(self):
+        pass
+
+    def hideFade(self):
+        pass
+
+class LaytonPuzzleDrawInput(LaytonPuzzleHandler):
+
+    buttonEntry = None
+    buttonClear = pygame.image.load(LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + LAYTON_ASSET_LANG + r"\clear.png")
+    buttonBack = pygame.image.load(LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + LAYTON_ASSET_LANG + r"\back.png")
+    buttonErase = pygame.image.load(LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + LAYTON_ASSET_LANG + r"\erase.png")
+    
+    def __init__(self, puzzleIndex, puzzleScript, puzzleEnable = True):
+        LaytonPuzzleHandler.__init__(self, puzzleIndex, puzzleScript, puzzleEnable)
+
+        self.drawTransitioning = False
+        self.modeEntry = False
+        self.modeQuestion = True
+        self.regions = []
+
+    def load(self):
+        super().load()
+
+    def update(self):
+        super().update()
+
+    def skip(self):
+        super().skip()
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.puzzleEnable:
+            self.skip()
+            self.puzzleInputWaiting = False
+
+class LaytonPuzzleSlidePuzzle(LaytonPuzzleHandler):
+    
+    def __init__(self, puzzleIndex, puzzleScript, puzzleEnable = True):
+        LaytonPuzzleHandler.__init__(self, puzzleIndex, puzzleScript, puzzleEnable)
+
+    def load(self):
+        super().load()
+
+    def update(self):
+        super().update()
+
+    def skip(self):
+        super().skip()
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+
+    def handleEvent(self, event):
+        super().handleEvent(event)
+
 class LaytonPuzzlePlayer():
     # This is only used to run the puzzle handler, each handler contains its own display code
     def __init__(self, puzzleIndex):
         self.puzzleIndex = puzzleIndex
+        self.puzzleScript = gdsLib.gdScript(LAYTON_ASSET_ROOT + "script\\qscript\\q" + str(self.puzzleIndex) + "_param.gds")
         self.gameDisplay = pygame.display.set_mode((256, 384))
-        pygame.display.set_caption("Curious Future")
-        self.clock = pygame.time.Clock()
+        self.gameClock = pygame.time.Clock()
+
+        for command in self.puzzleScript.commands:
+            if command.opcode == b'\x1b':
+                if (command.operands[0]) == "Draw Input2":
+                    print("Spawn DrawInput2")
+                    self.puzzleHandler = LaytonPuzzleDrawInput(self.puzzleIndex, self.puzzleScript)
+                elif (command.operands[0]) == "Slide Puzzle":
+                    print("Spawn SlidePuzzle")
+                    self.puzzleHandler = LaytonPuzzleSlidePuzzle(self.puzzleIndex, self.puzzleScript)
+                else:
+                    self.puzzleHandler = LaytonPuzzleHandler(self.puzzleIndex, self.puzzleScript)
+                    print(command.operands[0])
+                    print("Puzzle handler unknown!")
+                break
+        
+        pygame.display.set_caption("Curious Village")
         
     def play(self):
         isActive = True
-        testHandler = LaytonPuzzleHandler(self.puzzleIndex)
-        
         while isActive:
 
-            testHandler.update()
-            testHandler.draw(self.gameDisplay)
+            self.puzzleHandler.update()
+            self.puzzleHandler.draw(self.gameDisplay)
             pygame.display.update()
-            
+
             for event in pygame.event.get():
                 
                 if event.type == pygame.QUIT:
                     isActive = False
                 else:
-                    testHandler.handleEvent(event)
+                    self.puzzleHandler.handleEvent(event)
                     
-            self.clock.tick(LAYTON_ENGINE_FPS)
+            self.gameClock.tick(LAYTON_ENGINE_FPS)
 
 loadPuzzleData()
 loadPuzzleNames()
-puzzleInstance = LaytonPuzzlePlayer(25)
+puzzleInstance = LaytonPuzzlePlayer(80)
 puzzleInstance.play()
