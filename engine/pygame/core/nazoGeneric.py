@@ -1,11 +1,15 @@
 import coreProp, coreAnim, pygame
 
-class LaytonPuzzleHandler():
+class HintScreen():
+    def __init__(self, puzzleIndex):
+        pass
 
+class LaytonPuzzleHandler():
+    
     backgroundTs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + r"\q_bg.png")
     buttonSkip = None
     
-    def __init__(self, puzzleIndex, puzzleScript, puzzleEnable = True):
+    def __init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable = True):
         
         try:
             with open(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png", 'rb') as imgTest:
@@ -13,14 +17,16 @@ class LaytonPuzzleHandler():
             self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
         except FileNotFoundError:
             print("[NZGEN] No default background found!")
-                
+            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
+
+        self.playerState            = playerState
         self.puzzleEnable           = puzzleEnable
         self.puzzleScript           = puzzleScript
         self.puzzleIndex            = puzzleIndex
         self.puzzleInputWaiting     = True
         self.puzzleQText            = coreAnim.TextScroller("")
         self.puzzleIndexText        = coreAnim.AnimatedText(initString=str(self.puzzleIndex))
-        self.puzzlePicarotsText     = coreAnim.AnimatedText(initString=str(coreProp.LAYTON_PUZZLE_DATA[self.puzzleIndex].getValue()))
+        self.puzzlePicarotsText     = coreAnim.AnimatedText(initString=str(self.playerState.puzzleData[self.puzzleIndex].getValue()))
 
         self.puzzleMoveLimit = None
         
@@ -47,7 +53,7 @@ class LaytonPuzzleHandler():
 
         self.executeGdScript()
         self.puzzleInputWaiting = True
-        self.puzzlePicarotsText = coreAnim.AnimatedText(initString=str(coreProp.LAYTON_PUZZLE_DATA[self.puzzleIndex].getValue()))
+        self.puzzlePicarotsText = coreAnim.AnimatedText(initString=str(self.playerState.puzzleData[self.puzzleIndex].getValue()))
         
     def update(self):
         if self.puzzleEnable:
@@ -57,6 +63,9 @@ class LaytonPuzzleHandler():
         # Play the skip sound as well
         if self.puzzleEnable:
             self.puzzleQText.skip()
+
+    def drawUi(self, gameDisplay):
+        pass
     
     def draw(self, gameDisplay):
         gameDisplay.blit(LaytonPuzzleHandler.backgroundTs, (0,0))
@@ -68,13 +77,10 @@ class LaytonPuzzleHandler():
             # Draw the 'touch' waitscreen
             pass
 
+    def getUpdatedPlayerState(self):
+        return self.playerState
+    
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.puzzleEnable:
             self.skip()
             self.puzzleInputWaiting = False
-
-    def drawFade(self):
-        pass
-
-    def hideFade(self):
-        pass

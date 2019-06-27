@@ -2,10 +2,41 @@
 
 import coreProp, pygame
 
+class AnimatedCollection():
+    def __init__(self, initElements=[]):
+        self.elements = initElements
+    def draw(self, gameDisplay):
+        for element in self.elements:
+            element.draw(gameDisplay)
+    def update(self):
+        for element in self.elements:
+            element.update()
+
+class AnimatedImageFrameAnimation():
+    def __init__(self, animName, frameIndices, framerate):
+        self.name = animName
+        self.frames = frameIndices
+        self.framerate = framerate
+
 class AnimatedImage():
-    def __init__(self, imagePath, x=0,y=0):
+    def __init__(self, imagePath, x=0,y=0, frameCount=1):
         self.image = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + imagePath)
         self.pos = (x,y)
+
+    def fromTiles(self, imagePath, tileCount=1, framesPerTile=1):
+        pass
+
+    def fromStrip(self, imagePath, framesPerStrip=1):
+        pass
+    
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.image, self.pos)
+
+class StaticImage():
+    def __init__(self, imagePath, x=0, y=0):
+        self.image = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + imagePath)
+        self.pos = (x,y)
+
     def draw(self, gameDisplay):
         gameDisplay.blit(self.image, self.pos)
 
@@ -23,6 +54,16 @@ class AnimatedText():
         centY += y; centX += x
         textRect.center = (centX, centY)
         gameDisplay.blit(self.textRender, textRect)
+
+class Fader():
+    def __init__(self):
+        pass
+
+    def draw(self):
+        pass
+
+    def update(self):
+        pass
 
 class TextScroller():
     def __init__(self, textInput, textPosOffset=(4,24)):

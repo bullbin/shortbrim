@@ -7,8 +7,8 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
     buttonBack = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\back.png")
     buttonErase = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\erase.png")
     
-    def __init__(self, puzzleIndex, puzzleScript, puzzleEnable = True):
-        nazoGeneric.LaytonPuzzleHandler.__init__(self, puzzleIndex, puzzleScript, puzzleEnable)
+    def __init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable = True):
+        nazoGeneric.LaytonPuzzleHandler.__init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable)
 
         self.drawTransitioning = False
         self.modeEntry = False

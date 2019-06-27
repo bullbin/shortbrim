@@ -2,8 +2,8 @@ import coreProp, coreAnim, pygame, nazoGeneric
 
 class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
     
-    def __init__(self, puzzleIndex, puzzleScript, puzzleEnable = True):
-        nazoGeneric.LaytonPuzzleHandler.__init__(self, puzzleIndex, puzzleScript, puzzleEnable)
+    def __init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable = True):
+        nazoGeneric.LaytonPuzzleHandler.__init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable)
 
     def load(self):
         super().load()
