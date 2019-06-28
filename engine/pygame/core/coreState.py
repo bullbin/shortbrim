@@ -42,4 +42,17 @@ class LaytonPlayerState():
             if instruction.opcode == b'\xc3':
                 # Set picarot decay
                 self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry(instruction.operands[1:])
-        
+
+class LaytonContext():
+    def __init__(self):
+        self.screen = None
+        self.isContextFinished = False
+    def getContextState(self):
+        return self.isContextFinished
+
+class LaytonContextStack():
+    # Stack used to hold Layton contexts, eg puzzle frames or faders
+    def __init__(self):
+        self.stack = []
+    def getCurrentItem(self):
+        return self.stack[-1]

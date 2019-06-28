@@ -1,15 +1,13 @@
-import coreProp, coreAnim, pygame
+import coreProp, coreState, coreAnim, pygame
 
-class HintScreen():
-    def __init__(self, puzzleIndex):
-        pass
-
-class LaytonPuzzleHandler():
+class LaytonPuzzleHandler(coreState.LaytonContext):
     
     backgroundTs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + r"\q_bg.png")
     buttonSkip = None
     
     def __init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable = True):
+
+        coreState.LaytonContext.__init__(self)
         
         try:
             with open(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png", 'rb') as imgTest:
@@ -27,6 +25,7 @@ class LaytonPuzzleHandler():
         self.puzzleQText            = coreAnim.TextScroller("")
         self.puzzleIndexText        = coreAnim.AnimatedText(initString=str(self.puzzleIndex))
         self.puzzlePicarotsText     = coreAnim.AnimatedText(initString=str(self.playerState.puzzleData[self.puzzleIndex].getValue()))
+        self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
 
         self.puzzleMoveLimit = None
         
@@ -58,6 +57,7 @@ class LaytonPuzzleHandler():
     def update(self):
         if self.puzzleEnable:
             self.puzzleQText.update()
+            self.puzzleHintCoinsText.update()
 
     def skip(self):
         # Play the skip sound as well
@@ -71,12 +71,21 @@ class LaytonPuzzleHandler():
         gameDisplay.blit(LaytonPuzzleHandler.backgroundTs, (0,0))
         gameDisplay.blit(self.backgroundBs, (0,192))
         self.puzzleIndexText.draw(gameDisplay, location=(30, 6))
-        self.puzzlePicarotsText.draw(gameDisplay, location=(232,6))
+        self.puzzlePicarotsText.draw(gameDisplay, location=(88,6))
+        self.puzzleHintCoinsText.draw(gameDisplay, location=(231,6))
         self.puzzleQText.draw(gameDisplay)
         if self.puzzleInputWaiting:
             # Draw the 'touch' waitscreen
             pass
 
+    def setLoss(self):
+        print("Player loses.")
+        pass
+
+    def setVictory(self):
+        print("Player wins.")
+        pass
+    
     def getUpdatedPlayerState(self):
         return self.playerState
     

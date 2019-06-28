@@ -1,6 +1,6 @@
 # PyGame Implementation of Professor Layton Puzzle Game
 
-import gdsLib, pygame, coreProp, coreState, coreAnim, nazoGeneric, nazoDrawInput2, nazoSlidePuzzle, nazoMatch
+import gdsLib, pygame, coreProp, coreState, coreAnim, nazoGeneric, nazoDrawInput2, nazoSlidePuzzle, nazoMatch, nazoFreeButton
 from os import path
 
 def getHintText():
@@ -9,7 +9,8 @@ def getHintText():
 class LaytonPuzzlePlayer():
     # This is only used to run the puzzle handler, each handler contains its own display code
 
-    puzzleSpawner = {"Draw Input2":nazoDrawInput2.LaytonPuzzleHandler, "Slide Puzzle":nazoSlidePuzzle.LaytonPuzzleHandler, "Match":nazoMatch.LaytonPuzzleHandler}
+    puzzleSpawner = {"Draw Input2":nazoDrawInput2.LaytonPuzzleHandler, "Slide Puzzle":nazoSlidePuzzle.LaytonPuzzleHandler, "Match":nazoMatch.LaytonPuzzleHandler,
+                     "Free Button":nazoFreeButton.LaytonPuzzleHandler}
     
     def __init__(self, puzzleIndex):
 
@@ -54,5 +55,5 @@ class LaytonPuzzlePlayer():
 
         self.playerState = self.puzzleHandler.getUpdatedPlayerState()
 
-puzzleInstance = LaytonPuzzlePlayer(52)
+puzzleInstance = LaytonPuzzlePlayer(48)
 puzzleInstance.play()

@@ -2,10 +2,11 @@ import coreProp, coreAnim, pygame, nazoGeneric
 
 class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
 
-    buttonEntry = None
-    buttonClear = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\clear.png")
-    buttonBack = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\back.png")
-    buttonErase = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\erase.png")
+    buttonEntry = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_kotae.png")
+    buttonEntry.pos = (60, coreProp.LAYTON_SCREEN_HEIGHT * 2 - buttonEntry.image.get_height())
+    buttonClear = coreAnim.AnimatedImage("ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\clear.png")
+    buttonBack = coreAnim.AnimatedImage("ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\back.png")
+    buttonErase = coreAnim.AnimatedImage("ani\\nazo\\drawinput\\" + coreProp.LAYTON_ASSET_LANG + r"\erase.png")
     
     def __init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable = True):
         nazoGeneric.LaytonPuzzleHandler.__init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable)
@@ -26,8 +27,20 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
 
     def draw(self, gameDisplay):
         super().draw(gameDisplay)
+        if self.modeQuestion:
+            LaytonPuzzleHandler.buttonEntry.draw(gameDisplay)
 
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and self.puzzleEnable:
-            self.skip()
-            self.puzzleInputWaiting = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.puzzleEnable:
+                if self.puzzleInputWaiting:
+                    self.skip()
+                    self.puzzleInputWaiting = False
+                    
+                elif not(self.drawTransitioning):
+                    if self.modeQuestion:
+                        if LaytonPuzzleHandler.buttonEntry.wasClicked(event.pos):
+                            # self.drawTransitioning = True
+                            # self.modeQuestion = False
+                            print("Switch internal context: answer input!")
+    

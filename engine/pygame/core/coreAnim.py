@@ -21,6 +21,7 @@ class AnimatedImageFrameAnimation():
 class AnimatedImage():
     def __init__(self, imagePath, x=0,y=0, frameCount=1):
         self.image = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + imagePath)
+        self.dimensions = (self.image.get_width(), self.image.get_height())
         self.pos = (x,y)
 
     def fromTiles(self, imagePath, tileCount=1, framesPerTile=1):
@@ -32,6 +33,19 @@ class AnimatedImage():
     def draw(self, gameDisplay):
         gameDisplay.blit(self.image, self.pos)
 
+    def setAnimation(self, anim):
+        print("Animation setting unimplemented: " + str(anim))
+
+    def wasClicked(self, mousePos):
+        mX, mY = mousePos
+        pX, pY = self.pos
+        dX, dY = self.dimensions
+
+        if pX + dX >= mX and mX >= pX:
+            if pY + dY >= mY and mY >= pY:
+                return True
+        return False
+        
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0):
         self.image = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + imagePath)
