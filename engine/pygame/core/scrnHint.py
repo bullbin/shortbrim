@@ -6,20 +6,22 @@ class HintTab():
 
 class Screen(coreState.LaytonContext):
 
+    buttonQuit = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
+    buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
+
     def __init__(self, puzzleIndex):
         coreState.LaytonContext.__init__(self)
-        self.upCount = 0
 
     def draw(self, gameDisplay):
         pygame.draw.rect(gameDisplay,
                          (255,255,255,255),
                          (0,coreProp.LAYTON_SCREEN_HEIGHT,coreProp.LAYTON_SCREEN_WIDTH,coreProp.LAYTON_SCREEN_HEIGHT))
+        Screen.buttonQuit.draw(gameDisplay)
 
     def update(self):
-        self.upCount += 1
-        if self.upCount >= 10:
-            self.isContextFinished = True
-            print("Context finished!")
+        pass
     
     def handleEvent(self, event):
-        pass
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if Screen.buttonQuit.wasClicked(event.pos):
+                self.isContextFinished = True

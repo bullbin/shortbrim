@@ -160,9 +160,6 @@ class LaytonPuzzleHandler(coreState.LaytonContext):
 
                 elif event.type == pygame.MOUSEBUTTONDOWN and LaytonPuzzleHandler.buttonHint.wasClicked(event.pos):
                     self.puzzleSubcontexts.stack.append(scrnHint.Screen(self.puzzleIndex))
-                    #self.puzzleSubcontexts.transitioning = True
-                    #self.puzzleSubcontexts.transitioningIn = True
-                    #self.puzzleSubcontexts.transitioningOut = False
                     
                 else:
                     self.handleEventAsGameLogic(event)

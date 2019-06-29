@@ -1,4 +1,4 @@
-import coreProp, coreAnim, pygame, nazoGeneric
+import coreProp, coreAnim, pygame, nazoGeneric, scrnHint
 
 class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
 
@@ -11,9 +11,6 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
     def __init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable = True):
         nazoGeneric.LaytonPuzzleHandler.__init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable)
 
-        self.drawTransitioning = False
-        self.modeEntry = False
-        self.modeQuestion = True
         self.regions = []
 
     def load(self):
@@ -25,22 +22,12 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
     def skip(self):
         super().skip()
 
-    def draw(self, gameDisplay):
-        super().draw(gameDisplay)
-        if self.modeQuestion:
-            LaytonPuzzleHandler.buttonEntry.draw(gameDisplay)
+    def drawAsGameLogic(self, gameDisplay):
+        super().drawAsGameLogic(gameDisplay)
+        LaytonPuzzleHandler.buttonEntry.draw(gameDisplay)
 
-    def handleEvent(self, event):
+    def handleEventAsGameLogic(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.puzzleEnable:
-                if self.puzzleInputWaiting:
-                    self.skip()
-                    self.puzzleInputWaiting = False
-                    
-                elif not(self.drawTransitioning):
-                    if self.modeQuestion:
-                        if LaytonPuzzleHandler.buttonEntry.wasClicked(event.pos):
-                            # self.drawTransitioning = True
-                            # self.modeQuestion = False
-                            print("Switch internal context: answer input!")
-    
+            if LaytonPuzzleHandler.buttonEntry.wasClicked(event.pos):
+                print("Switch internal context: answer input!")
+                self.puzzleSubcontexts.stack.append(scrnHint.Screen(self.puzzleIndex))
