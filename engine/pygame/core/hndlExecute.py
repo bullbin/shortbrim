@@ -53,7 +53,6 @@ class LaytonPuzzlePlayer():
                     
             self.gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
 
-        self.playerState = self.puzzleHandler.getUpdatedPlayerState()
-
 puzzleInstance = LaytonPuzzlePlayer(48)
 puzzleInstance.play()
+print(puzzleInstance.playerState.remainingHintCoins)

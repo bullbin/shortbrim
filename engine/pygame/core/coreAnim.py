@@ -1,6 +1,7 @@
 # Animation Components of LAYTON1
 
 import coreProp, pygame
+from math import ceil
 
 class AnimatedCollection():
     def __init__(self, initElements=[]):
@@ -71,13 +72,13 @@ class AnimatedText():
 
 class Fader():
     def __init__(self):
-        pass
+        self.strength = 0
 
-    def draw(self):
-        pass
-
-    def update(self):
-        pass
+    def draw(self, gameDisplay):
+        faderSurface = pygame.Surface((255,255))
+        faderSurface.set_alpha(ceil(self.strength * 255))
+        faderSurface.fill((0,0,0))
+        gameDisplay.blit(faderSurface, (0,0))
 
 class TextScroller():
     def __init__(self, textInput, textPosOffset=(4,24)):

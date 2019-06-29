@@ -46,6 +46,7 @@ class LaytonPlayerState():
 class LaytonContext():
     def __init__(self):
         self.screen = None
+        self.useTransitions = False
         self.isContextFinished = False
     def getContextState(self):
         return self.isContextFinished
@@ -54,5 +55,8 @@ class LaytonContextStack():
     # Stack used to hold Layton contexts, eg puzzle frames or faders
     def __init__(self):
         self.stack = []
+        self.transitioning = False
+        self.transitioningIn = False
+        self.transitioningOut = False
     def getCurrentItem(self):
         return self.stack[-1]

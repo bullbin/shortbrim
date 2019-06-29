@@ -6,9 +6,11 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
 
         self.interactableElements = []
         self.drawFlagsInteractableElements = []
-        self.solutionElement = None
+        self.solutionElements = []
         
         nazoGeneric.LaytonPuzzleHandler.__init__(self, playerState, puzzleIndex, puzzleScript, puzzleEnable)
+
+        self.playerState.remainingHintCoins = 0
 
     def executeGdScript(self):
         for command in self.puzzleScript.commands:
@@ -18,7 +20,7 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
                     imageName = imageName[0:-4] + ".png"
 
                 if command.operands[3] == 1:
-                    self.solutionElement = len(self.interactableElements)
+                    self.solutionElements.append(len(self.interactableElements))
                 
                 self.interactableElements.append(coreAnim.AnimatedImage("ani\\" + imageName,
                                                  x=command.operands[0],
@@ -35,31 +37,24 @@ class LaytonPuzzleHandler(nazoGeneric.LaytonPuzzleHandler):
 
     def skip(self):
         super().skip()
-
-    def draw(self, gameDisplay):
-        super().draw(gameDisplay)
+    
+    def drawAsGameLogic(self, gameDisplay):
+        super().drawAsGameLogic(gameDisplay)
         for elementIndex in range(len(self.interactableElements)):
             if self.drawFlagsInteractableElements[elementIndex]:
                 self.interactableElements[elementIndex].draw(gameDisplay)
 
-    def handleEvent(self, event):
-        
+    def handleEventAsGameLogic(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.puzzleEnable:
-                if self.puzzleInputWaiting:
-                    self.skip()
-                    self.puzzleInputWaiting = False
-                else:
-                    for elementIndex in range(len(self.interactableElements)):
-                        if self.interactableElements[elementIndex].wasClicked(event.pos):
-                            self.drawFlagsInteractableElements[elementIndex] = True
+            for elementIndex in range(len(self.interactableElements)):
+                if self.interactableElements[elementIndex].wasClicked(event.pos):
+                    self.drawFlagsInteractableElements[elementIndex] = True
                         
         elif event.type == pygame.MOUSEBUTTONUP:
             for elementIndex in range(len(self.interactableElements)):
                 if self.drawFlagsInteractableElements[elementIndex] == 1:
-                    if elementIndex == self.solutionElement:
+                    if elementIndex in self.solutionElements:
                         self.setVictory()
                     else:
                         self.setLoss()
                 self.drawFlagsInteractableElements[elementIndex] = False
-                        

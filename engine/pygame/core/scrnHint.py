@@ -1,16 +1,21 @@
-import coreProp, coreAnim, pygame
+import coreProp, coreAnim, coreState, pygame
 
-class Screen():
+class HintTab():
+    def __init__(self):
+        pass
 
-    HINT_IMAGES = [[],
-                   [],
-                   []]
+class Screen(coreState.LaytonContext):
 
     def __init__(self, puzzleIndex):
-        pass
+        coreState.LaytonContext.__init__(self)
 
     def draw(self, gameDisplay):
-        pass
+        pygame.draw.rect(gameDisplay,
+                         (255,255,255,255),
+                         (0,0,256,256))
 
     def update(self):
+        pass
+    
+    def handleEvent(self, event):
         pass
