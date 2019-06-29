@@ -73,9 +73,10 @@ class AnimatedText():
 class Fader():
     def __init__(self):
         self.strength = 0
+        self.interval = 0.1
 
     def draw(self, gameDisplay):
-        faderSurface = pygame.Surface((255,255))
+        faderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH,coreProp.LAYTON_SCREEN_HEIGHT * 2))
         faderSurface.set_alpha(ceil(self.strength * 255))
         faderSurface.fill((0,0,0))
         gameDisplay.blit(faderSurface, (0,0))

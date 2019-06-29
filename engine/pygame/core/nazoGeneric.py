@@ -64,29 +64,40 @@ class LaytonPuzzleHandler(coreState.LaytonContext):
             self.puzzleQText.update()
             self.puzzleHintCoinsText.update()
 
-        if len(self.puzzleSubcontexts) > 0:
+        if len(self.puzzleSubcontexts.stack) > 0:
+            
             if self.puzzleSubcontexts.getCurrentItem().isContextFinished:
-                pass
+                if self.puzzleSubcontexts.getCurrentItem().useTransitions:
+                    if self.puzzleSubcontexts.transitioning:
+                        if self.puzzleFader.strength == 0:
+                            self.puzzleSubcontexts.stack.pop()
+                            self.puzzleSubcontexts.transitioning = False
+
+                        elif self.puzzleFader.strength == 1:
+                            self.puzzleSubcontexts.transitioningIn = True
+                            self.puzzleSubcontexts.transitioningOut = False
+
+                    else:
+                        self.puzzleSubcontexts.transitioning = True
+                        self.puzzleSubcontexts.transitioningOut = True
+                        self.puzzleSubcontexts.transitioningIn = False
+                else:
+                    self.puzzleSubcontexts.stack.pop()
+            else:
+                self.puzzleSubcontexts.getCurrentItem().update()
 
         if self.puzzleSubcontexts.transitioning:
-            if self.puzzleSubcontexts.transitioningIn:
-                if self.puzzleFader.strength < 1:
-                    self.puzzleFader.strength += 0.1
-                elif self.puzzleFader.strength >= 1:
-                    # The fader has finished fading in
-                    self.puzzleFader.strength = 1
-                    self.puzzleSubcontexts.transitioningIn = False
-                    self.puzzleSubcontexts.transitioningOut = True
+            if self.puzzleFader.interval > 0:
+                # Fader is transitioning in
+                if self.puzzleFader.strength >= 1:
+                    self.puzzleFader.interval *= -1
 
-            else:
-                if self.puzzleFader.strength > 0:
-                    self.puzzleFader.strength -= 0.1
-                else:
-                    # The fader has finished fading out
-                    self.puzzleFader.strength = 0
-                    # Fading now complete, free context switching lock
-                    self.puzzleSubcontexts.transitioning = False
-                    self.puzzleSubcontexts.transitioningOut = False
+            self.puzzleFader.strength += self.puzzleFader.interval
+
+            if self.puzzleFader.strength > 1:
+                self.puzzleFader.strength = 1
+            if self.puzzleFader.strength < 0:
+                self.puzzleFader.strength = 0
 
     def skip(self):
         # Play the skip sound as well
@@ -100,7 +111,7 @@ class LaytonPuzzleHandler(coreState.LaytonContext):
         if self.puzzleSubcontexts.transitioning:
             if self.puzzleSubcontexts.transitioningIn:
                 # Draw the lower layer, then the fader
-                if len(self.puzzleSubcontexts.stack) == 1:
+                if len(self.puzzleSubcontexts.stack) < 2:
                     self.drawAsGameLogic(gameDisplay)
                     self.drawUi(gameDisplay)
                 else:
