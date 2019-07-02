@@ -11,6 +11,10 @@ class Screen(coreState.LaytonContext):
 
     def __init__(self, puzzleIndex):
         coreState.LaytonContext.__init__(self)
+        self.screenIsOverlay        = True
+        self.screenBlockInput       = True
+        self.transitionsEnableIn    = False
+        self.transitionsEnableOut   = False
 
     def draw(self, gameDisplay):
         pygame.draw.rect(gameDisplay,

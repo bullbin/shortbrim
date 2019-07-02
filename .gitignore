@@ -2,3 +2,4 @@
 assets/
 *.pyc
 tester.py
+engine/pygame/core/.vscode/settings.json
