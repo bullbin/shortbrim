@@ -33,8 +33,7 @@ class LaytonPuzzleUi(coreState.LaytonContext):
             self.puzzleQText = coreAnim.TextScroller(qText.read())
         
     def update(self):
-        self.puzzleHintCoinsText.update()
-        self.puzzlePicarotsText.update()
+        self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
         self.puzzleQText.update()
 
     def draw(self, gameDisplay):
@@ -51,7 +50,7 @@ class LaytonPuzzleUi(coreState.LaytonContext):
                 self.puzzleQText.skip()
                 self.screenBlockInput = False       # Free other contexts to use inputs
             elif LaytonPuzzleUi.buttonHint.wasClicked(event.pos):
-                self.screenNextObject = scrnHint.Screen(self.puzzleIndex)
+                self.screenNextObject = scrnHint.Screen(self.puzzleIndex, self.playerState)
 
 class LaytonPuzzleBackground(coreState.LaytonContext):
 
@@ -76,9 +75,6 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
     def draw(self, gameDisplay):
         gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
         gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
-
-# puzzleSpawner = {"Draw Input2":nazoDrawInput2.LaytonPuzzleHandler, "Slide Puzzle":nazoSlidePuzzle.LaytonPuzzleHandler, "Match":nazoMatch.LaytonPuzzleHandler,
-#                      "Free Button":nazoFreeButton.LaytonPuzzleHandler}
 
 class LaytonContextPuzzle(coreState.LaytonContext):
     def __init__(self):
@@ -167,9 +163,9 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
         self.commandFocus = None
-        self.stack.append(LaytonPuzzleBackground(puzzleIndex, playerState))
+        self.addToStack(LaytonPuzzleBackground(puzzleIndex, playerState))
         self.executeGdScript(gdsLib.gdScript(coreProp.LAYTON_ASSET_ROOT + "script\\qscript\\q" + str(puzzleIndex) + "_param.gds"))
-        self.stack.append(LaytonPuzzleUi(puzzleIndex, playerState))
+        self.addToStack(LaytonPuzzleUi(puzzleIndex, playerState))
 
     def executeGdScript(self, puzzleScript):
 
@@ -178,7 +174,7 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
                 print("Replace background: " + command.operands[0])
             elif command.opcode == b'\x1b':
                 if command.operands[0] in LaytonPuzzleHandler.defaultHandlers.keys():
-                    self.stack.append(LaytonPuzzleHandler.defaultHandlers[command.operands[0]]())
+                    self.addToStack(LaytonPuzzleHandler.defaultHandlers[command.operands[0]]())
                     self.commandFocus = self.stack[-1]
                 else:
                     print("ErrNoHandler: " + str(command.operands[0]))
@@ -224,5 +220,5 @@ def play(puzzleIndex, playerState):
 playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
-playerState.remainingHintCoins = 50
+playerState.remainingHintCoins = 10
 play(48, playerState)    # 25:Match, 48:FreeButton

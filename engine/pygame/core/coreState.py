@@ -135,6 +135,7 @@ class LaytonScreen():
 class LaytonSubscreen(LaytonScreen):
     def __init__(self):
         LaytonScreen.__init__(self)
+        self.isContextFinished = False
     
     def update(self):
         super().update()
