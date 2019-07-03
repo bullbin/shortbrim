@@ -28,7 +28,7 @@ class Screen(coreState.LaytonContext):
     buttonNo = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png")
     buttonNo.pos = (140, coreProp.LAYTON_SCREEN_HEIGHT + 128)
     
-    def __init__(self, puzzleIndex, playerState):
+    def __init__(self, puzzleIndex, playerState, puzzleHintCount):
         coreState.LaytonContext.__init__(self)
         self.screenIsOverlay        = True
         self.screenBlockInput       = True
@@ -43,8 +43,8 @@ class Screen(coreState.LaytonContext):
         self.hintLevelActive = self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel
         self.hintTabs = []
         self.hintStateChanged = True
-        if self.hintLevelActive > 2:
-            self.hintLevelActive = 2
+        if self.hintLevelActive > puzzleHintCount - 1:
+            self.hintLevelActive = puzzleHintCount - 1
         
         tempTabX = 0
         
@@ -55,7 +55,7 @@ class Screen(coreState.LaytonContext):
         else:
             puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q100\\"
 
-        for hintTabIndex in range(3):
+        for hintTabIndex in range(puzzleHintCount):
             with open(puzzlePath + "h_" + str(self.puzzleIndex) + "_" + str(hintTabIndex + 1) + ".txt", 'r') as hText:
                 self.hintTabs.append(HintTab(hText.read(), hintTabIndex, (tempTabX, coreProp.LAYTON_SCREEN_HEIGHT)))
             if playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > hintTabIndex:

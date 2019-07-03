@@ -1,15 +1,29 @@
 import coreProp, coreState, coreAnim, pygame, nazoElements, scrnHint, gdsLib
 
 # Testing only
+import ctypes; ctypes.windll.user32.SetProcessDPIAware()
 pygame.init()
 
-class LaytonPuzzleUi(coreState.LaytonContext):
+class LaytonContextPuzzlet(coreState.LaytonContext):
+    def __init__(self):
+        coreState.LaytonContext.__init__(self)
+        self.registerVictory = False
+        self.registerLoss = False
+        self.registerQuit = False
+    def setVictory(self):
+        self.registerVictory = True
+        self.registerLoss = False
+    def setLoss(self):
+        self.registerVictory = False
+        self.registerLoss = True
+
+class LaytonPuzzleUi(LaytonContextPuzzlet):
 
     buttonHint = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.png")
     buttonHint.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonHint.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
 
-    def __init__(self, puzzleIndex, playerState):
-        coreState.LaytonContext.__init__(self)
+    def __init__(self, puzzleIndex, playerState, puzzleHintCount):
+        LaytonContextPuzzlet.__init__(self)
         self.screenIsOverlay        = True
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
@@ -20,6 +34,7 @@ class LaytonPuzzleUi(coreState.LaytonContext):
         self.puzzleIndexText        = coreAnim.AnimatedText(initString=str(self.puzzleIndex))
         self.puzzlePicarotsText     = coreAnim.AnimatedText(initString=str(self.playerState.puzzleData[self.puzzleIndex].getValue()))
         self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
+        self.puzzleHintCount        = puzzleHintCount
 
         if self.puzzleIndex < 50:
             puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q000\\"
@@ -37,7 +52,8 @@ class LaytonPuzzleUi(coreState.LaytonContext):
         self.puzzleQText.update()
 
     def draw(self, gameDisplay):
-        LaytonPuzzleUi.buttonHint.draw(gameDisplay)
+        if self.puzzleHintCount > 0:
+            LaytonPuzzleUi.buttonHint.draw(gameDisplay)
         self.puzzleQText.draw(gameDisplay)
         self.puzzleIndexText.draw(gameDisplay, location=(30, 6))
         self.puzzlePicarotsText.draw(gameDisplay, location=(88,6))
@@ -49,8 +65,8 @@ class LaytonPuzzleUi(coreState.LaytonContext):
             if self.screenBlockInput:
                 self.puzzleQText.skip()
                 self.screenBlockInput = False       # Free other contexts to use inputs
-            elif LaytonPuzzleUi.buttonHint.wasClicked(event.pos):
-                self.screenNextObject = scrnHint.Screen(self.puzzleIndex, self.playerState)
+            elif self.puzzleHintCount > 0 and LaytonPuzzleUi.buttonHint.wasClicked(event.pos):
+                self.screenNextObject = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount)
 
 class LaytonPuzzleBackground(coreState.LaytonContext):
 
@@ -76,31 +92,19 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
         gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
         gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
 
-class LaytonContextPuzzle(coreState.LaytonContext):
-    def __init__(self):
-        coreState.LaytonContext.__init__(self)
-        self.registerVictory = False
-        self.registerLoss = False
-    def setVictory(self):
-        self.registerVictory = True
-        self.registerLoss = False
-    def setLoss(self):
-        self.registerVictory = False
-        self.registerLoss = True
-
-class LaytonInteractableMatchContext(LaytonContextPuzzle):
+class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
 
     matchImage = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_match.png")
     matchShadowImage = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_shadow.png")
 
     def __init__(self):
-        LaytonContextPuzzle.__init__(self)
+        LaytonContextPuzzlet.__init__(self)
         self.matches = []
         self.puzzleMoveLimit = None
     
     def executeCommand(self, command):
         if command.opcode == b'\x2a':
-            self.matches.append(nazoElements.Match(LaytonInteractableMatchContext.matchImage, LaytonInteractableMatchContext.matchShadowImage,
+            self.matches.append(nazoElements.Match(PuzzletInteractableMatchContext.matchImage, PuzzletInteractableMatchContext.matchShadowImage,
                                                    command.operands[0],command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT,
                                                    command.operands[2]))
         elif command.opcode == b'\x27':
@@ -113,10 +117,10 @@ class LaytonInteractableMatchContext(LaytonContextPuzzle):
         for match in self.matches:
             match.draw(gameDisplay)
 
-class LaytonInteractableFreeButtonContext(LaytonContextPuzzle):
+class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
 
     def __init__(self):
-        LaytonContextPuzzle.__init__(self)
+        LaytonContextPuzzlet.__init__(self)
         self.interactableElements = []
         self.drawFlagsInteractableElements = []
         self.solutionElements = []
@@ -135,6 +139,8 @@ class LaytonInteractableFreeButtonContext(LaytonContextPuzzle):
                                                                     y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
             self.drawFlagsInteractableElements.append(False)
             self.interactableElements[-1].setAnimation(command.operands[4])
+        else:
+            print("ErrUnrecognised: " + str(command.opcode))
     
     def draw(self, gameDisplay):
         for elementIndex in range(len(self.interactableElements)):
@@ -156,16 +162,30 @@ class LaytonInteractableFreeButtonContext(LaytonContextPuzzle):
                         self.setLoss()
                 self.drawFlagsInteractableElements[elementIndex] = False
 
+class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
+    def __init__(self):
+        PuzzletInteractableFreeButtonContext.__init__(self)
+    
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for elementIndex in range(len(self.interactableElements)):
+                if self.interactableElements[elementIndex].wasClicked(event.pos):
+                    self.drawFlagsInteractableElements[elementIndex] = not(self.drawFlagsInteractableElements[elementIndex])
+
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
-    defaultHandlers = {"Match":LaytonInteractableMatchContext, "Free Button":LaytonInteractableFreeButtonContext}
+    defaultHandlers = {"Match":PuzzletInteractableMatchContext, "Free Button":PuzzletInteractableFreeButtonContext,
+                       "On Off":PuzzletInteractableOnOff}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
         self.commandFocus = None
+        
+        self.puzzleHintCount = 0
+
         self.addToStack(LaytonPuzzleBackground(puzzleIndex, playerState))
         self.executeGdScript(gdsLib.gdScript(coreProp.LAYTON_ASSET_ROOT + "script\\qscript\\q" + str(puzzleIndex) + "_param.gds"))
-        self.addToStack(LaytonPuzzleUi(puzzleIndex, playerState))
+        self.addToStack(LaytonPuzzleUi(puzzleIndex, playerState, self.puzzleHintCount))
 
     def executeGdScript(self, puzzleScript):
 
@@ -178,6 +198,8 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
                     self.commandFocus = self.stack[-1]
                 else:
                     print("ErrNoHandler: " + str(command.operands[0]))
+            elif command.opcode == b'\x1c':
+                self.puzzleHintCount = command.operands[0]
             elif self.commandFocus == None:
                 self.executeCommand(command)
             else:
@@ -194,6 +216,8 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
             elif self.commandFocus.registerLoss:
                 print("Loss received.")
                 self.commandFocus.registerLoss = False
+            elif self.commandFocus.registerQuit:
+                self.isContextFinished = True
 
 def play(puzzleIndex, playerState):
     isActive = True
@@ -221,4 +245,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(48, playerState)    # 25:Match, 48:FreeButton
+play(48, playerState)    # 25:Match, 26:OnOff, 48:FreeButton

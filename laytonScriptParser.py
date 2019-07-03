@@ -85,12 +85,6 @@ class gdScript():
             print("GD: [GRAPHICS] Draw TS image " + params[0])
         elif command == b'\x0b':
             print("GD: [GRAPHICS] Draw BS image " + params[0])
-        elif command == b'\x0e':
-            print("GD: [GRAPHICS] ?? Init stack")
-        elif command == b'\x0f':
-            print("GD: [GRAPHICS] ?? Fade in!")
-        elif command == b'\x05':
-            print("GD: [GRAPHICS] ?? Fade out!")
 
         elif command == b'\x10':
             # After testing, this command is audio related, but changing the value causes the audio to not be played
@@ -101,10 +95,7 @@ class gdScript():
         elif command == b'\x1b':
             print("GD: [PUZZLE  ] Set puzzle applet!\n               Handler : " + params[0])
         elif command == b'\x1c':
-            if params[0] == 3:
-                print("GD: [PUZZLE  ] 0x1C Constant 3")
-            else:
-                print("GD: [PUZZLE  ] UNK 0x1C")
+            print("GD: [PUZZLE  ] ?? Set hint count!\n               Hints   : " + str(params[0]))
         elif command == b'\x1f':
             print("GD: [PUZZLE  ] Set internal puzzle reference!\n               ID      : " + str(params[0]))
             if params[1] != 0:
@@ -162,6 +153,12 @@ class gdScript():
         elif command == b'\x48':
             print("GD: [EVENT   ] Select puzzle " + str(params[0]) + "!")
 
+        elif command == b'\x50':
+            print("GD: [EVENT   ] Place object!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Bounding: (" + str(params[2]) + ", " + str(params[3]) + ")\n               ObjIndex: " + str(params[4]) + "\n               EvtIndex: " + str(params[5]))
+            if len(params) > 6:
+                for param in params[5:]:
+                    print(param)
+
         elif command == b'\x51':
             print("GD: [STATE   ] ?? Set environment type: " + params[0])
         elif command == b'\x53':
@@ -215,6 +212,12 @@ class gdScript():
 
 
         # More event-related codes
+
+        elif command == b'\x8e':
+            print("GD: [EVENT   ] ?? Reference event script!\n               ID      : " + str(params[0]))
+            for param in params[1:]:
+                    print("               Unknown : " + str(param))
+    
         elif command == b'\x9c':
             print("GD: [EVENT   ] Select right character event script!\n               TextIndx: " + str(params[0]) + "\n               ChrIndex: " + str(params[1]))
             if len(params) > 2: 
