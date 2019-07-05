@@ -60,11 +60,13 @@ class gdScript():
             elif paramId == 3:
                 tempOperands.append(reader.read(int.from_bytes(reader.read(2), 'little')).decode("ascii")[0:-1])
 
-            # Unknown parameter types
+            # Flow
             elif paramId == 6:
                 tempOperands.append(int.from_bytes(reader.read(4), 'little'))
             elif paramId == 7:
                 tempOperands.append(int.from_bytes(reader.read(4), 'little'))
+
+            # Unk
             elif paramId == 8:
                 pass
             elif paramId == 9:
@@ -77,6 +79,7 @@ class gdScript():
                 print(paramId)
                 return (False, None)
             
-        if opcode in commandsVerified:
-            return (True, gdOperation(opcode, tempOperands))
-        return (False, False)
+        # if opcode in commandsVerified:
+        #     return (True, gdOperation(opcode, tempOperands))
+        # return (False, False)
+        return (True, gdOperation(opcode, tempOperands))

@@ -60,11 +60,13 @@ class gdScript():
             elif paramId == 3:
                 params.append(reader.read(int.from_bytes(reader.read(2), 'little')).decode("ascii")[0:-1])
 
-            # Unk params
+            # Control parameters (conditional jumping?)
             elif paramId == 6:
                 params.append(int.from_bytes(reader.read(4), 'little'))
             elif paramId == 7:
                 params.append(int.from_bytes(reader.read(4), 'little'))
+
+            # Unk parameters
             elif paramId == 8:
                 pass
             elif paramId == 9:
@@ -150,6 +152,9 @@ class gdScript():
         elif command == b'\x3f':
             print("GD: [PUZZLE  ] Set trace answer location!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
 
+        elif command == b'\x43':
+            print("GD: [EVENT   ] Set tobj text region!\n               ChrIndex: " + str(params[0]) + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               Region  : (" + str(params[3]) + ", " + str(params[4]) + ")\n               TxtIndex: " + str(params[5]) + "\n               Unknown : " + str(params[6]))
+        
         elif command == b'\x48':
             print("GD: [EVENT   ] Select puzzle " + str(params[0]) + "!")
 
@@ -161,11 +166,13 @@ class gdScript():
 
         elif command == b'\x51':
             print("GD: [STATE   ] ?? Set environment type: " + params[0])
+        elif command == b'\x52':
+            print("GD: [STATE   ] ?? Hold environment type: " + params[0])
         elif command == b'\x53':
             # Carried from reversing notes - untested
             print("GD: [STATE   ] ?? Set room index " + str(params[0]))
         elif command == b'\x5c':
-            print("GD: [GRAPHICS] Draw animated sprite!\n               Name   : " + params[2] + "\n               Loc    : (" + str(params[0]) + ", " + str(params[1]) + ")")
+            print("GD: [GRAPHICS] Draw animated sprite!\n               Name    : " + params[2] + "\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
         
         # On Off puzzle mode - ? 
         elif command == b'\x5d':
