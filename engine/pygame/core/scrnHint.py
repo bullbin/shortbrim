@@ -74,7 +74,7 @@ class Screen(coreState.LaytonContext):
             Screen.buttonYes.draw(gameDisplay)
             Screen.buttonNo.draw(gameDisplay)
 
-    def update(self):
+    def update(self, gameClockDelta):
         # Images need to be preloaded here, this is inefficient
         if self.hintStateChanged:
             if self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > self.hintLevelActive:

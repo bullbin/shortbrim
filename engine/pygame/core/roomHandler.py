@@ -84,6 +84,11 @@ class LaytonRoomTapRegion():
         return LaytonRoomTapObject(self.indexCharacter, self.indexTobj)
 
 class LaytonRoomGraphics(coreState.LaytonContext):
+
+    animTap = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "touch_icon")
+    animTap.offset = 0
+    animTap.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\touch_icon.txt")
+
     def __init__(self):
         coreState.LaytonContext.__init__(self)
         self.screenBlockInput       = True
@@ -97,15 +102,20 @@ class LaytonRoomGraphics(coreState.LaytonContext):
         for sprite in self.animObjects:
             sprite.draw(gameDisplay)
 
+        LaytonRoomGraphics.animTap.draw(gameDisplay)
+
+    def update(self, gameClockDelta):
+        LaytonRoomGraphics.animTap.update(gameClockDelta)
+
     def executeCommand(self, command):
         if command.opcode == b'\x5c':
             if command.operands[2][-4:] == ".spr":
                 command.operands[2] = command.operands[2][0:-4] + ".png"
-            self.animObjects.append(coreAnim.AnimatedImage("ani\\" + command.operands[2],
+            self.animObjects.append(coreAnim.StaticImage("ani\\" + command.operands[2],
                                     x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
         elif command.opcode == b'\x50':
             if command.operands[4] not in self.drawnEvents:
-                self.animObjects.append(coreAnim.AnimatedImage("ani\\obj_" + str(command.operands[4]) + ".png",
+                self.animObjects.append(coreAnim.StaticImage("ani\\obj_" + str(command.operands[4]) + ".png",
                                         x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
                 self.drawnEvents.append(command.operands[4])
 
@@ -119,9 +129,15 @@ class LaytonRoomGraphics(coreState.LaytonContext):
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
+            eventTap = True
             for eventTobj in self.eventTap:
                 if eventTobj.wasClicked(event.pos):
                     self.screenNextObject = eventTobj.getContext()
+                    eventTap = False
+            if eventTap:
+                LaytonRoomGraphics.animTap.pos = (event.pos[0] - (LaytonRoomGraphics.animTap.dimensions[0] // 2),
+                                                  event.pos[1] - (LaytonRoomGraphics.animTap.dimensions[1] // 2))
+                LaytonRoomGraphics.animTap.setAnimationFromIndex(0)
 
 class LaytonRoomHandler(coreState.LaytonSubscreen):
 
@@ -154,9 +170,11 @@ def play(eventIndex, playerState):
 
     rootHandler = LaytonRoomHandler(eventIndex, playerState)
 
+    gameClockDelta = 0
+
     while isActive:
 
-        rootHandler.update()
+        rootHandler.update(gameClockDelta)
         rootHandler.draw(gameDisplay)
         pygame.display.update()
 
@@ -167,7 +185,7 @@ def play(eventIndex, playerState):
             else:
                 rootHandler.handleEvent(event)
                 
-        gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
+        gameClockDelta = gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
 
 playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()

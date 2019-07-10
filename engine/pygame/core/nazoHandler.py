@@ -19,7 +19,7 @@ class LaytonContextPuzzlet(coreState.LaytonContext):
 
 class LaytonPuzzleUi(LaytonContextPuzzlet):
 
-    buttonHint = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.png")
+    buttonHint = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.png")
     buttonHint.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonHint.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
 
     def __init__(self, puzzleIndex, playerState, puzzleHintCount):
@@ -47,9 +47,9 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
             self.puzzleQText = coreAnim.TextScroller(qText.read())
         
-    def update(self):
+    def update(self, gameClockDelta):
         self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
-        self.puzzleQText.update()
+        self.puzzleQText.update(gameClockDelta)
 
     def draw(self, gameDisplay):
         if self.puzzleHintCount > 0:
@@ -81,12 +81,10 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
         self.screenBlockInput       = True
 
         try:
-            with open(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png", 'rb') as imgTest:
-                pass
             self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
-        except FileNotFoundError:
+        except:
             print("[APPLET] BG: No default background found!")
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
+            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q_bg.png")
 
     def draw(self, gameDisplay):
         gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
@@ -208,7 +206,7 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
     def executeCommand(self, command):
         print("CommandNoTarget: " + str(command.opcode))
     
-    def updateSubscreenMethods(self):
+    def updateSubscreenMethods(self, gameClockDelta):
         if self.commandFocus != None:
             if self.commandFocus.registerVictory:
                 print("Victory received.")
@@ -223,12 +221,12 @@ def play(puzzleIndex, playerState):
     isActive = True
     gameDisplay = pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
     gameClock = pygame.time.Clock()
-
+    gameClockDelta = 0
     rootHandler = LaytonPuzzleHandler(puzzleIndex, playerState)
 
     while isActive:
-
-        rootHandler.update()
+        
+        rootHandler.update(gameClockDelta)
         rootHandler.draw(gameDisplay)
         pygame.display.update()
 
@@ -239,7 +237,7 @@ def play(puzzleIndex, playerState):
             else:
                 rootHandler.handleEvent(event)
                 
-        gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
+        gameClockDelta = gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
 
 playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()

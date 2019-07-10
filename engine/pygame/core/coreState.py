@@ -66,7 +66,7 @@ class LaytonScreen():
             self.stack[-1].draw(gameDisplay)
         self.fader.draw(gameDisplay)
     
-    def update(self):
+    def update(self, gameClockDelta):
 
         if len(self.stack) >= 1:
 
@@ -93,7 +93,7 @@ class LaytonScreen():
             
             invStackIndex = len(self.stack) - 1
             while invStackIndex >= 0:
-                self.stack[invStackIndex].update()
+                self.stack[invStackIndex].update(gameClockDelta)
                 if not(self.stack[invStackIndex].screenIsOverlay or self.stack[invStackIndex].screenIsBasicOverlay):
                     break
                 invStackIndex -= 1
@@ -146,11 +146,11 @@ class LaytonSubscreen(LaytonScreen):
         LaytonScreen.__init__(self)
         self.isContextFinished = False
     
-    def update(self):
-        super().update()
-        self.updateSubscreenMethods()
+    def update(self, gameClockDelta):
+        super().update(gameClockDelta)
+        self.updateSubscreenMethods(gameClockDelta)
     
-    def updateSubscreenMethods(self):
+    def updateSubscreenMethods(self, gameClockDelta):
         pass
 
 class LaytonContext():
@@ -179,7 +179,7 @@ class LaytonContext():
     def draw(self, gameDisplay):
         pass
     
-    def update(self):
+    def update(self, gameClockDelta):
         pass
     
     def handleEvent(self, event):

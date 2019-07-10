@@ -3,7 +3,7 @@ from os import path, environ
 
 pygame.init()
 
-LAYTON_ENGINE_FPS           = 30        # Game speed is tied to framerate
+LAYTON_ENGINE_FPS           = 60
 LAYTON_SAVE_PATH            = None
 LAYTON_ASSET_ROOT           = environ['ONEDRIVE'] + "\\assets\\"
 LAYTON_ASSET_LANG           = "en"
