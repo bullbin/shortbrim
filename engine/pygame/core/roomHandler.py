@@ -27,6 +27,62 @@ class LaytonRoomUi(coreState.LaytonContext):
         coreState.LaytonContext.__init__(self)
         self.screenIsOverlay        = True
 
+class LaytonRoomTapObject(coreState.LaytonContext):
+    
+    backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobj.png")
+    backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2,
+                     ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+    portraitPos = (backgroundPos[0] + 4,
+                   backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
+    cursorBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\cursor_wait.png")
+    cursorPos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.get_width() + 4),
+                 (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.get_height() + 4))
+
+    def __init__(self, indexCharacter, indexTobj):
+        coreState.LaytonContext.__init__(self)
+        self.screenIsOverlay        = True
+        self.transitionsEnableIn    = False         # The background actually fades in but the context switcher only supports fading to black
+        self.transitionsEnableOut   = False
+        self.screenBlockInput       = True
+        self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png")
+
+        with open(coreProp.LAYTON_ASSET_ROOT + r"room\tobj\en\tobj\t_" + str(indexTobj) + ".txt", 'r') as tText:
+            self.tobjText               = coreAnim.TextScroller(tText.read(),
+                                                                textPosOffset=(LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
+                                                                               LaytonRoomTapObject.backgroundPos[1]))
+
+        self.tobjText.skip()
+    
+    def draw(self, gameDisplay):
+        gameDisplay.blit(LaytonRoomTapObject.backgroundBs, LaytonRoomTapObject.backgroundPos)
+        gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.portraitPos)
+        gameDisplay.blit(LaytonRoomTapObject.cursorBs, LaytonRoomTapObject.cursorPos)
+        self.tobjText.draw(gameDisplay)
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.isContextFinished = True
+
+class LaytonRoomTapRegion():
+    def __init__(self, indexCharacter, pos, dimensions, indexTobj):
+        self.pos = pos
+        self.dimensions = dimensions
+        self.indexTobj = indexTobj
+        self.indexCharacter = indexCharacter
+
+    def wasClicked(self, mousePos):
+        mX, mY = mousePos
+        pX, pY = self.pos
+        dX, dY = self.dimensions
+
+        if pX + dX >= mX and mX >= pX:
+            if pY + dY >= mY and mY >= pY:
+                return True
+        return False
+
+    def getContext(self):
+        return LaytonRoomTapObject(self.indexCharacter, self.indexTobj)
+
 class LaytonRoomGraphics(coreState.LaytonContext):
     def __init__(self):
         coreState.LaytonContext.__init__(self)
@@ -35,6 +91,7 @@ class LaytonRoomGraphics(coreState.LaytonContext):
 
         self.animObjects = []
         self.drawnEvents = []
+        self.eventTap = []
     
     def draw(self, gameDisplay):
         for sprite in self.animObjects:
@@ -51,8 +108,20 @@ class LaytonRoomGraphics(coreState.LaytonContext):
                 self.animObjects.append(coreAnim.AnimatedImage("ani\\obj_" + str(command.operands[4]) + ".png",
                                         x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
                 self.drawnEvents.append(command.operands[4])
+
+        elif command.opcode == b'\x43':
+            self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
+                                                     (command.operands[3], command.operands[4]), command.operands[5]))
+            print(str(command.operands[1]) + ", " + str(command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT))
+
         else:
             print("UnkCommand: " + str(command.opcode))
+    
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for eventTobj in self.eventTap:
+                if eventTobj.wasClicked(event.pos):
+                    self.screenNextObject = eventTobj.getContext()
 
 class LaytonRoomHandler(coreState.LaytonSubscreen):
 

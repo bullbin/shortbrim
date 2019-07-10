@@ -49,8 +49,14 @@ class gdScript():
         reader.read(1)
 
         params = []
+        paramsType = {}
         while True:
             paramId = int.from_bytes(reader.read(2), 'little')
+            if len(params) in paramsType.keys():
+                paramsType[len(params)].append(paramId)
+            else:
+                paramsType[len(params)] = [paramId]
+            
             if paramId == 0:
                 break
             elif paramId == 1:
@@ -67,23 +73,21 @@ class gdScript():
                 params.append(int.from_bytes(reader.read(4), 'little'))
 
             # Unk parameters
-            elif paramId == 8:
-                pass
-            elif paramId == 9:
+            elif paramId in [8,9]:
                 pass
             
             elif reader.tell() == self.offsetEofc + 4:
                 if paramId != 12:
-                    print("End of file readed, bad command!")
-                    print(paramId)
-                    print(reader.tell())
+                    print("Reached EOFC late!")
+                    break
             else:
-                print("Unhandled command!")
-                print(paramId)
-                print(reader.tell())
+                print("Unhandled parameter " + str(paramId) + "@" + str(reader.tell()))
                 sys.exit()
 
-        if command == b'\x0c':
+        if command == b'\x01':
+            print("GD: [STATE   ] ?? Set marker!")
+        
+        elif command == b'\x0c':
             print("GD: [GRAPHICS] Draw TS image " + params[0])
         elif command == b'\x0b':
             print("GD: [GRAPHICS] Draw BS image " + params[0])
@@ -217,9 +221,7 @@ class gdScript():
         elif command == b'\x8b':
             print("GD: [PUZZLE  ] Place sheep!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
 
-
         # More event-related codes
-
         elif command == b'\x8e':
             print("GD: [EVENT   ] ?? Reference event script!\n               ID      : " + str(params[0]))
             for param in params[1:]:
@@ -234,11 +236,7 @@ class gdScript():
             print("GD: [EVENT   ] Select left character event script!\n               TextIndx: " + str(params[0]) + "\n               ChrIndex: " + str(params[1]))
             if len(params) > 2: 
                 for param in params[2:]:
-                    print("               Unknown : " + str(param))      
-
-
-
-
+                    print("               Unknown : " + str(param))
         
         # Cut Puzzle mode
         elif command == b'\xa0':
@@ -283,8 +281,14 @@ class gdScript():
         
         else:
             print("--  Unimplemented command: " + str(command))
-            for param in params:
-                print("\t" + str(param))
+            paramCount = 0
+            for paramIndex in range(len(params)):
+                for paramType in paramsType[paramIndex]:
+                    if paramType in [8,9]:
+                        print("\t" + str(paramType) + ":")
+                    else:
+                        print("\t" + str(paramType) + ": " + str(params[paramCount]))
+                        paramCount += 1
         
         return [command, params]
 

@@ -70,9 +70,18 @@ class LaytonScreen():
 
         if len(self.stack) >= 1:
 
-            self.stack.append(self.stack[-1].getFutureContext())
-            if self.stack[-1] == None:
-                self.stack.pop()
+            invStackIndex = len(self.stack) - 1
+            while invStackIndex >= 0:
+                self.stack.append(self.stack[invStackIndex].getFutureContext())
+                if self.stack[-1] == None:
+                    self.stack.pop()
+                else:
+                    invStackIndex -= 1
+
+                if self.stack[invStackIndex].screenBlockInput:
+                    break
+                    
+                invStackIndex -= 1
 
             # Fix the fader from going out of bounds.
 
