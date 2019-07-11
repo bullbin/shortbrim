@@ -33,6 +33,8 @@ class LaytonRoomTapObject(coreState.LaytonContext):
     backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobj.png").convert_alpha()
     backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2,
                      ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+    backgroundTransBs = backgroundBs.copy().convert()
+    backgroundTransBsDuration = 250
     portraitPos = (backgroundPos[0] + 6,
                    backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
 
@@ -50,25 +52,50 @@ class LaytonRoomTapObject(coreState.LaytonContext):
         self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png").convert()
 
         with open(coreProp.LAYTON_ASSET_ROOT + r"room\tobj\en\tobj\t_" + str(indexTobj) + ".txt", 'r') as tText:
-            self.tobjText               = coreAnim.TextScroller(tText.read(),
-                                                                textPosOffset=(LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
-                                                                               LaytonRoomTapObject.backgroundPos[1]))
-
+            tobjFillText = tText.read()
+        tobjTextPos = (LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
+                       LaytonRoomTapObject.backgroundPos[1] + ((LaytonRoomTapObject.backgroundBs.get_height() - (len(tobjFillText.split("\n")) * coreProp.LAYTON_PUZZLE_FONT.get_height())) // 2))
+        self.tobjText               = coreAnim.TextScroller(tobjFillText, textPosOffset=tobjTextPos)
         self.tobjText.skip()
+
         LaytonRoomTapObject.cursorBs.setAnimationFromIndex(0)
-    
+        self.transitioning = True
+        self.transitioningIn = True
+        self.backgroundAlpha = 0
+        self.transitioningTotal = 0
+
     def update(self, gameClockDelta):
-        LaytonRoomTapObject.cursorBs.update(gameClockDelta)
+        if self.transitioning == True:
+            self.transitioningTotal += gameClockDelta
+            if self.transitioningTotal >= LaytonRoomTapObject.backgroundTransBsDuration:
+                self.transitioningTotal = LaytonRoomTapObject.backgroundTransBsDuration
+                self.transitioning = False
+                if self.transitioningIn:
+                    self.transitioningIn = False
+                else:
+                    self.isContextFinished = True
+
+            intensity = round((self.transitioningTotal / LaytonRoomTapObject.backgroundTransBsDuration) * 255)
+            if self.transitioningIn:
+                LaytonRoomTapObject.backgroundTransBs.set_alpha(intensity)
+            else:
+                LaytonRoomTapObject.backgroundTransBs.set_alpha(255 - intensity)
+        else:
+            LaytonRoomTapObject.cursorBs.update(gameClockDelta)
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(LaytonRoomTapObject.backgroundBs, LaytonRoomTapObject.backgroundPos)
-        gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.portraitPos)
-        LaytonRoomTapObject.cursorBs.draw(gameDisplay)
-        self.tobjText.draw(gameDisplay)
+        if self.transitioning:
+            gameDisplay.blit(LaytonRoomTapObject.backgroundTransBs, LaytonRoomTapObject.backgroundPos)
+        else:
+            gameDisplay.blit(LaytonRoomTapObject.backgroundBs, LaytonRoomTapObject.backgroundPos)
+            gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.portraitPos)
+            LaytonRoomTapObject.cursorBs.draw(gameDisplay)
+            self.tobjText.draw(gameDisplay)
 
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            self.isContextFinished = True
+        if event.type == pygame.MOUSEBUTTONDOWN and self.transitioning == False:
+            self.transitioning = True
+            self.transitioningTotal = 0
 
 class LaytonRoomTapRegion():
     def __init__(self, indexCharacter, pos, dimensions, indexTobj):
@@ -138,7 +165,6 @@ class LaytonRoomGraphics(coreState.LaytonContext):
         elif command.opcode == b'\x43':                     # Add tobj
             self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
                                                      (command.operands[3], command.operands[4]), command.operands[5]))
-            print(str(command.operands[1]) + ", " + str(command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT))
 
         else:
             print("UnkCommand: " + str(command.opcode))

@@ -94,9 +94,7 @@ class AnimatedImage():
                     self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
                     imageIndex += 1
                 else:
-                    print(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
                     break
-            print("Imported " + str(len(self.frames)) + " frames.")
 
             self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
 
