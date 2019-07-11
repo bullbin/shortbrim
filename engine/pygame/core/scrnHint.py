@@ -1,5 +1,7 @@
 import coreProp, coreAnim, coreState, pygame
 
+pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
+
 class HintTab():
     def __init__(self, hintText, hintLevel, pos, isUnlocked=False):
         self.tabLocked = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
@@ -38,7 +40,7 @@ class Screen(coreState.LaytonContext):
         self.puzzleIndex = puzzleIndex
         self.playerState = playerState
 
-        self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_1_3.png")
+        self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_1_3.png").convert()
         
         self.hintLevelActive = self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel
         self.hintTabs = []
@@ -62,6 +64,13 @@ class Screen(coreState.LaytonContext):
                 self.hintTabs[-1].isUnlocked = True
             tempTabX += self.hintTabs[hintTabIndex].tabLocked.image.get_width()
 
+    def refresh(self):
+        self.isContextFinished = False
+        if not(self.hintTabs[-1].isUnlocked):
+            self.hintLevelActive = self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel
+        self.hintStateChanged = True
+        self.update(None)
+
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundBs, (0, coreProp.LAYTON_SCREEN_HEIGHT))
         Screen.buttonQuit.draw(gameDisplay)
@@ -78,12 +87,12 @@ class Screen(coreState.LaytonContext):
         # Images need to be preloaded here, this is inefficient
         if self.hintStateChanged:
             if self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > self.hintLevelActive:
-                self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\hint_" + str(self.hintLevelActive + 1)  + ".png")
+                self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\hint_" + str(self.hintLevelActive + 1)  + ".png").convert()
             else:
                 if self.playerState.remainingHintCoins >= coreProp.LAYTON_PUZZLE_HINT_COST:
-                    self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_2.png")
+                    self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_2.png").convert()
                 else:
-                    self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_3.png")
+                    self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_3.png").convert()
             self.hintStateChanged = False
 
     def handleEvent(self, event):

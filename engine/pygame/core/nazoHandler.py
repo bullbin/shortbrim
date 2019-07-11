@@ -47,6 +47,8 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
             self.puzzleQText = coreAnim.TextScroller(qText.read())
         
+        self.screenHint = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount)
+        
     def update(self, gameClockDelta):
         self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
         self.puzzleQText.update(gameClockDelta)
@@ -65,8 +67,10 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
             if self.screenBlockInput:
                 self.puzzleQText.skip()
                 self.screenBlockInput = False       # Free other contexts to use inputs
+                self.setStackUpdate()
             elif self.puzzleHintCount > 0 and LaytonPuzzleUi.buttonHint.wasClicked(event.pos):
-                self.screenNextObject = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount)
+                self.screenHint.refresh()
+                self.screenNextObject = self.screenHint
 
 class LaytonPuzzleBackground(coreState.LaytonContext):
 

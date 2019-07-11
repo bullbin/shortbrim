@@ -46,10 +46,12 @@ class LaytonPlayerState():
 class LaytonScreen():
     def __init__(self):
         self.stack = []
-        self.hasStackChanged = False
+        self.stackLastBackElement = 0
+        self.stackLastBlockElement = 0
+        self.hasStackChanged = True
         self.fader = coreAnim.Fader()
         self.transitioning = False
-    
+
     def addToStack(self, screenObject):
         self.stack.append(screenObject)
         self.hasStackChanged = True
@@ -65,39 +67,33 @@ class LaytonScreen():
                 self.stack[-2].draw(gameDisplay)
             self.stack[-1].draw(gameDisplay)
         self.fader.draw(gameDisplay)
-    
+
     def update(self, gameClockDelta):
-
         if len(self.stack) >= 1:
-
-            invStackIndex = len(self.stack) - 1
-            while invStackIndex >= 0:
-                self.stack.append(self.stack[invStackIndex].getFutureContext())
+            if self.hasStackChanged:            # Update stack pointers if stack has changed
+                self.stackLastBackElement = 0
+                self.stackLastBlockElement = 0
+                invStackIndex = len(self.stack) - 1
+                while invStackIndex >= 0:
+                    if not(self.stack[invStackIndex].screenIsBasicOverlay or self.stack[invStackIndex].screenIsOverlay) and self.stackLastBackElement < invStackIndex:
+                        self.stackLastBackElement = invStackIndex
+                    if self.stack[invStackIndex].screenBlockInput and self.stackLastBlockElement < invStackIndex:
+                        self.stackLastBlockElement = invStackIndex
+                    invStackIndex -= 1
+                self.hasStackChanged = False
+            
+            for indexUpdate in range(self.stackLastBackElement, len(self.stack)):
+                self.stack[indexUpdate].update(gameClockDelta)
+                self.stackChangePrior = self.hasStackChanged
+                self.addToStack(self.stack[indexUpdate].getFutureContext())
                 if self.stack[-1] == None:
                     self.stack.pop()
-                else:
-                    invStackIndex -= 1
-
-                if self.stack[invStackIndex].screenBlockInput:
-                    break
+                    if self.stackChangePrior == False:
+                        self.hasStackChanged = False
+                if self.stack[indexUpdate].screenStackUpdate:
+                    self.hasStackChanged = True
                     
-                invStackIndex -= 1
-
             # Fix the fader from going out of bounds.
-
-            if len(self.stack) > 1:
-                if self.stack[-1].screenIsOverlay:
-                    pass
-                elif self.stack[-1].screenIsBasicOverlay:
-                    pass
-            
-            invStackIndex = len(self.stack) - 1
-            while invStackIndex >= 0:
-                self.stack[invStackIndex].update(gameClockDelta)
-                if not(self.stack[invStackIndex].screenIsOverlay or self.stack[invStackIndex].screenIsBasicOverlay):
-                    break
-                invStackIndex -= 1
-
             self.transitioning = False
             if self.fader.strength > 1:
                 self.fader.strength = 1
@@ -115,7 +111,6 @@ class LaytonScreen():
                         self.fader.strength += self.fader.interval
                     else:
                         self.fader.strength = 0
-            
             else:
                 # The last object on the stack has finished operation, start deleting it.
                 if self.fader.strength >= 1:
@@ -134,12 +129,8 @@ class LaytonScreen():
 
     def handleEvent(self, event):
         if not(self.transitioning):
-            invStackIndex = len(self.stack) - 1
-            while invStackIndex >= 0:
-                self.stack[invStackIndex].handleEvent(event)
-                if self.stack[invStackIndex].screenBlockInput:
-                    break
-                invStackIndex -= 1
+            for indexUpdate in range(self.stackLastBlockElement, len(self.stack)):
+                self.stack[indexUpdate].handleEvent(event)
 
 class LaytonSubscreen(LaytonScreen):
     def __init__(self):
@@ -164,6 +155,7 @@ class LaytonContext():
         self.transitionsEnableIn    = True
         self.transitionsEnableOut   = True
 
+        self.screenStackUpdate = False
         self.isContextFinished = False
 
     def getContextState(self):
@@ -175,6 +167,9 @@ class LaytonContext():
             self.screenNextObject = None
             return screenNextObject
         return None
+    
+    def setStackUpdate(self):
+        self.screenStackUpdate = True
 
     def draw(self, gameDisplay):
         pass
