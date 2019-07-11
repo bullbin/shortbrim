@@ -120,7 +120,7 @@ class gdScript():
         elif command == b'\x2a':
             print("GD: [PUZZLE  ] Place match!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")" + "\n               Rotation: " + str(params[2]) + " degrees")
         elif command == b'\x2b':
-            print("GD: [PUZZLE  ] Set match answer region!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")" + "\n               Rotation: " + str(params[2]) + " degrees")
+            print("GD: [PUZZLE  ] Set match answer region!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")" + "\n               Rotation: " + str(params[2]) + " degrees\n               Region  : (" + str(params[3]) + ", " + str(params[4]) + ")" )
 
         # Scale puzzle mode
         elif command == b'\x2d':

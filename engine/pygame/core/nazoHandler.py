@@ -19,8 +19,10 @@ class LaytonContextPuzzlet(coreState.LaytonContext):
 
 class LaytonPuzzleUi(LaytonContextPuzzlet):
 
-    buttonHint = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.png")
-    buttonHint.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonHint.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonHint      = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\" + coreProp.LAYTON_ASSET_LANG, "hint_buttons")
+    buttonHint.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.txt")
+    buttonHint.pos  = (coreProp.LAYTON_SCREEN_WIDTH - buttonHint.dimensions[0], coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonHintFlashDelay = 15000
 
     def __init__(self, puzzleIndex, playerState, puzzleHintCount):
         LaytonContextPuzzlet.__init__(self)
@@ -47,11 +49,23 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
             self.puzzleQText = coreAnim.TextScroller(qText.read())
         
+        LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
+        self.buttonHintWaitTime = 0
         self.screenHint = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount)
         
     def update(self, gameClockDelta):
         self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
         self.puzzleQText.update(gameClockDelta)
+        if not(self.screenBlockInput):
+            LaytonPuzzleUi.buttonHint.update(gameClockDelta)
+            if LaytonPuzzleUi.buttonHint.animActive == None or LaytonPuzzleUi.buttonHint.animActiveFrame == None:
+                if LaytonPuzzleUi.buttonHint.animActiveFrame == None:
+                    LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
+                if self.buttonHintWaitTime < LaytonPuzzleUi.buttonHintFlashDelay:
+                    self.buttonHintWaitTime += gameClockDelta
+                else:
+                    LaytonPuzzleUi.buttonHint.setAnimationFromIndex(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
+                    self.buttonHintWaitTime = 0
 
     def draw(self, gameDisplay):
         if self.puzzleHintCount > 0:
@@ -96,8 +110,10 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
 
 class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
 
-    matchImage = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_match.png")
-    matchShadowImage = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_shadow.png")
+    matchImage          = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_match.png").convert_alpha()
+    matchShadowImage    = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_shadow.png").convert_alpha()
+    buttonSubmit        = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=22, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonReset         = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_3.png", x=99, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -109,6 +125,8 @@ class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
             self.matches.append(nazoElements.Match(PuzzletInteractableMatchContext.matchImage, PuzzletInteractableMatchContext.matchShadowImage,
                                                    command.operands[0],command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT,
                                                    command.operands[2]))
+        elif command.opcode == b'\x2b':
+            pass
         elif command.opcode == b'\x27':
             self.puzzleMoveLimit = command.operands[0]
             print("Set move limit: " + str(self.puzzleMoveLimit))
@@ -118,6 +136,23 @@ class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
     def draw(self, gameDisplay):
         for match in self.matches:
             match.draw(gameDisplay)
+        PuzzletInteractableMatchContext.buttonSubmit.draw(gameDisplay)
+        PuzzletInteractableMatchContext.buttonReset.draw(gameDisplay)
+    
+    def evaluateSolution(self):
+        pass
+    
+    def reset(self):
+        pass
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if PuzzletInteractableMatchContext.buttonSubmit.wasClicked(event.pos):
+                self.evaluateSolution()
+            elif PuzzletInteractableMatchContext.buttonReset.wasClicked(event.pos):
+                self.reset()
+
+
 
 class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
 
@@ -247,4 +282,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(48, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(25, playerState)    # 25:Match, 26:OnOff, 48:FreeButton

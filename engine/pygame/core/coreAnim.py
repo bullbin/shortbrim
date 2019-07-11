@@ -104,13 +104,12 @@ class AnimatedImage():
     def fromImages(self, animText):
         with open(animText, 'r') as animDb:
             lineIndex = 0
-            tempAnimName = ""
-            tempAnimFramerate = coreProp.LAYTON_ENGINE_FPS
-            tempAnimIndices = []
-            tempAnimLoop = False
             for line in animDb:
+                lineIndex = lineIndex % 4
                 if lineIndex == 0:
                     tempAnimName = line
+                    tempAnimIndices = []
+                    tempAnimLoop = False
                 elif lineIndex == 1:
                     tempAnimFramerate = int(line)
                 elif lineIndex == 2:
@@ -124,9 +123,8 @@ class AnimatedImage():
                     line = line.split(",")
                     for index in line:
                         tempAnimIndices.append(int(index) % len(self.frames))
+                    self.animMap[tempAnimName] = AnimatedFrameCollection(tempAnimFramerate, indices=tempAnimIndices, loop=tempAnimLoop)
                 lineIndex += 1
-
-        self.animMap[tempAnimName] = AnimatedFrameCollection(tempAnimFramerate, indices=tempAnimIndices, loop=tempAnimLoop)
 
     def fromTiles(self, tilePath, tileCount=1, framesPerTile=1):
         pass
@@ -162,6 +160,12 @@ class AnimatedImage():
             self.animActiveFrame = frameIndex
         else:
             self.animActiveFrame = frameIndex % len(self.frames)
+    
+    def wasClicked(self, mousePos):
+        if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
+            if self.pos[1] + self.dimensions[1] >= mousePos[1] and mousePos[1] >= self.pos[1]:
+                return True
+        return False
 
 class AnimatedText():
     def __init__(self, initString = "", colour=(0,0,0)):

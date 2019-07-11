@@ -31,17 +31,13 @@ class LaytonRoomUi(coreState.LaytonContext):
 class LaytonRoomTapObject(coreState.LaytonContext):
     
     backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobj.png").convert_alpha()
-    backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2,
-                     ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+    backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
     backgroundTransBs = backgroundBs.copy().convert()
     backgroundTransBsDuration = 250
-    portraitPos = (backgroundPos[0] + 6,
-                   backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
-
+    portraitPos = (backgroundPos[0] + 6, backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
     cursorBs = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "cursor_wait")
+    cursorBs.pos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.dimensions[0] + 4), (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.dimensions[1] + 4))
     cursorBs.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\cursor_wait.txt")
-    cursorBs.pos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.dimensions[0] + 4),
-                 (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.dimensions[1] + 4))
 
     def __init__(self, indexCharacter, indexTobj):
         coreState.LaytonContext.__init__(self)
@@ -152,12 +148,12 @@ class LaytonRoomGraphics(coreState.LaytonContext):
                 self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt")
                 self.animObjects[-1].setAnimationFromIndex(0)
             
-            else:
+            elif path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".png"):
                 self.animObjects.append(coreAnim.StaticImage("ani\\" + command.operands[2] + ".png",
                                         x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
 
         elif command.opcode == b'\x50':                     # Add interactable sprite
-            if command.operands[4] not in self.drawnEvents:
+            if command.operands[4] not in self.drawnEvents and path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\obj_" + str(command.operands[4]) + ".png"):
                 self.animObjects.append(coreAnim.StaticImage("ani\\obj_" + str(command.operands[4]) + ".png",
                                         x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
                 self.drawnEvents.append(command.operands[4])
@@ -233,4 +229,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(1, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(4, playerState)

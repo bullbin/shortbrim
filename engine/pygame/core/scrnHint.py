@@ -25,10 +25,8 @@ class Screen(coreState.LaytonContext):
 
     buttonQuit = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
     buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonYes = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png")
-    buttonYes.pos = (40, coreProp.LAYTON_SCREEN_HEIGHT + 128)
-    buttonNo = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png")
-    buttonNo.pos = (140, coreProp.LAYTON_SCREEN_HEIGHT + 128)
+    buttonYes = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
+    buttonNo = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
     
     def __init__(self, puzzleIndex, playerState, puzzleHintCount):
         coreState.LaytonContext.__init__(self)

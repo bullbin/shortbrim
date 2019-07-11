@@ -2,15 +2,19 @@ import pygame
 
 class Match():
 
+    MOVE_RADIUS = 5
     SHADOW_OFFSET = 2
     
     def __init__(self, surfaceMatch, surfaceShadow, posX, posY, rot):
         self.surfaceMatch = surfaceMatch
         self.surfaceShadow = surfaceShadow
         self.pos = (posX, posY)
-        self.rot = rot
+        self.rot = -rot
         self.region = 32
         self.drawShadow = True
+
+    def getRot(self):
+        return -self.rot
 
     def draw(self, gameDisplay):
         if self.drawShadow:
