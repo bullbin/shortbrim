@@ -132,11 +132,11 @@ class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
             if command.operands[3] == 1:
                 self.solutionElements.append(len(self.interactableElements))
             
-            self.interactableElements.append(coreAnim.AnimatedImage("ani\\" + imageName,
-                                                                    x=command.operands[0],
-                                                                    y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+            self.interactableElements.append(coreAnim.StaticImage("ani\\" + imageName,
+                                                                  x=command.operands[0],
+                                                                  y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
             self.drawFlagsInteractableElements.append(False)
-            self.interactableElements[-1].setAnimation(command.operands[4])
+            # self.interactableElements[-1].setAnimation(command.operands[4]) # Disabled until enough assets are available
         else:
             print("ErrUnrecognised: " + str(command.opcode))
     

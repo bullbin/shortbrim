@@ -2,8 +2,8 @@ import coreProp, coreAnim, coreState, pygame
 
 class HintTab():
     def __init__(self, hintText, hintLevel, pos, isUnlocked=False):
-        self.tabLocked = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
-        self.tabUnlocked = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + ".png")
+        self.tabLocked = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
+        self.tabUnlocked = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + ".png")
         self.hText = coreAnim.TextScroller(hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 24))
         self.hText.skip()
         self.tabUnlocked.pos = pos
@@ -21,11 +21,11 @@ class HintTab():
 
 class Screen(coreState.LaytonContext):
 
-    buttonQuit = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
+    buttonQuit = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
     buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonYes = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png")
+    buttonYes = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png")
     buttonYes.pos = (40, coreProp.LAYTON_SCREEN_HEIGHT + 128)
-    buttonNo = coreAnim.AnimatedImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png")
+    buttonNo = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png")
     buttonNo.pos = (140, coreProp.LAYTON_SCREEN_HEIGHT + 128)
     
     def __init__(self, puzzleIndex, playerState, puzzleHintCount):

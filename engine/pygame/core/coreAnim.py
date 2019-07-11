@@ -3,11 +3,16 @@
 import coreProp, pygame
 from os import path
 from math import ceil
+
+pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
         
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0):
-        self.image = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + imagePath)
+        self.image = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + imagePath).convert_alpha()
         self.pos = (x,y)
+
+    def update(self, gameClockDelta):
+        pass
 
     def draw(self, gameDisplay):
         gameDisplay.blit(self.image, self.pos)
@@ -21,15 +26,40 @@ class StaticImage():
 class AnimatedFrameCollection():
     def __init__(self, framerate, indices=[], loop=True):
         self.framerate = framerate
+        if coreProp.LAYTON_PERFORMANCE_MODE:
+            self.frameInterval = 1000/self.framerate
+            self.getUpdatedFrame = self.getAccurateUpdatedFrame
+        else:
+            self.frameInterval = 1000 // self.framerate
+            self.getUpdatedFrame = self.getFastUpdatedFrame
+
+        self.frameClosestInterval = 1000 // self.framerate
         self.loop = loop
         self.indices = indices
         self.currentIndex = 0
         self.timeSinceLastUpdate = 0
         self.isActive = True
-    
-    def getUpdatedFrame(self, gameClockDelta):
+
+    def getAccurateUpdatedFrame(self, gameClockDelta):
         if self.isActive:
-            if self.timeSinceLastUpdate >= 1000/self.framerate:
+            self.timeSinceLastUpdate += gameClockDelta
+            if self.timeSinceLastUpdate >= self.frameInterval:
+                frameStep = int(self.timeSinceLastUpdate // (self.frameClosestInterval))
+                if self.currentIndex + frameStep >= len(self.indices):
+                    if self.loop:
+                        self.currentIndex = (self.currentIndex + frameStep) % len(self.indices)
+                    else:
+                        self.isActive = False
+                        return (False, None)
+                else:
+                    self.currentIndex += frameStep
+                self.timeSinceLastUpdate -= (frameStep * (self.frameInterval))
+            return (True, self.indices[self.currentIndex])
+        return (False, None)
+    
+    def getFastUpdatedFrame(self, gameClockDelta):
+        if self.isActive:
+            if self.timeSinceLastUpdate >= self.frameInterval:
                 if self.currentIndex + 1 == len(self.indices):
                     if self.loop:
                         self.currentIndex = 0
@@ -61,7 +91,7 @@ class AnimatedImage():
             imageIndex = 0
             while True:
                 if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
-                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension))
+                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
                     imageIndex += 1
                 else:
                     print(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
@@ -86,8 +116,12 @@ class AnimatedImage():
                 elif lineIndex == 1:
                     tempAnimFramerate = int(line)
                 elif lineIndex == 2:
-                    if line == "True":
+                    line = line[0:-1].split(",")
+                    if line[0] == "True":                       # Set looping
                         tempAnimLoop = True
+                    if len(line) > 1 and line[1] == "True":     # Set chroma-key (temporary)
+                        for frame in self.frames:
+                            frame.set_colorkey(pygame.Color(int(line[2]), int(line[3]), int(line[4])))
                 else:
                     line = line.split(",")
                     for index in line:
@@ -152,7 +186,7 @@ class Fader():
         self.interval = 0.1
 
     def draw(self, gameDisplay):
-        faderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH,coreProp.LAYTON_SCREEN_HEIGHT * 2))
+        faderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH,coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert()
         faderSurface.set_alpha(ceil(self.strength * 255))
         faderSurface.fill((0,0,0))
         gameDisplay.blit(faderSurface, (0,0))

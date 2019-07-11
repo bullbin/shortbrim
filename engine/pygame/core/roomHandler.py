@@ -1,6 +1,7 @@
 import coreState, coreProp, coreAnim, gdsLib, pygame
 
 # Testing only
+from os import path
 import ctypes; ctypes.windll.user32.SetProcessDPIAware()
 pygame.init()
 
@@ -15,9 +16,9 @@ class LaytonRoomBackground(coreState.LaytonContext):
         self.screenBlockInput       = True
 
         try:
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\room_" + str(roomIndex) + "_bg.png")
+            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\room_" + str(roomIndex) + "_bg.png").convert()
         except:
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\en\\q_bg.png")
+            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\en\\q_bg.png").convert()
 
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
@@ -29,14 +30,16 @@ class LaytonRoomUi(coreState.LaytonContext):
 
 class LaytonRoomTapObject(coreState.LaytonContext):
     
-    backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobj.png")
+    backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobj.png").convert_alpha()
     backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2,
                      ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
-    portraitPos = (backgroundPos[0] + 4,
+    portraitPos = (backgroundPos[0] + 6,
                    backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
-    cursorBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\cursor_wait.png")
-    cursorPos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.get_width() + 4),
-                 (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.get_height() + 4))
+
+    cursorBs = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "cursor_wait")
+    cursorBs.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\cursor_wait.txt")
+    cursorBs.pos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.dimensions[0] + 4),
+                 (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.dimensions[1] + 4))
 
     def __init__(self, indexCharacter, indexTobj):
         coreState.LaytonContext.__init__(self)
@@ -44,7 +47,7 @@ class LaytonRoomTapObject(coreState.LaytonContext):
         self.transitionsEnableIn    = False         # The background actually fades in but the context switcher only supports fading to black
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png")
+        self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png").convert()
 
         with open(coreProp.LAYTON_ASSET_ROOT + r"room\tobj\en\tobj\t_" + str(indexTobj) + ".txt", 'r') as tText:
             self.tobjText               = coreAnim.TextScroller(tText.read(),
@@ -52,11 +55,15 @@ class LaytonRoomTapObject(coreState.LaytonContext):
                                                                                LaytonRoomTapObject.backgroundPos[1]))
 
         self.tobjText.skip()
+        LaytonRoomTapObject.cursorBs.setAnimationFromIndex(0)
     
+    def update(self, gameClockDelta):
+        LaytonRoomTapObject.cursorBs.update(gameClockDelta)
+
     def draw(self, gameDisplay):
         gameDisplay.blit(LaytonRoomTapObject.backgroundBs, LaytonRoomTapObject.backgroundPos)
         gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.portraitPos)
-        gameDisplay.blit(LaytonRoomTapObject.cursorBs, LaytonRoomTapObject.cursorPos)
+        LaytonRoomTapObject.cursorBs.draw(gameDisplay)
         self.tobjText.draw(gameDisplay)
 
     def handleEvent(self, event):
@@ -71,22 +78,21 @@ class LaytonRoomTapRegion():
         self.indexCharacter = indexCharacter
 
     def wasClicked(self, mousePos):
-        mX, mY = mousePos
-        pX, pY = self.pos
-        dX, dY = self.dimensions
-
-        if pX + dX >= mX and mX >= pX:
-            if pY + dY >= mY and mY >= pY:
+        if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
+            if self.pos[1] + self.dimensions[1] >= mousePos[1] and mousePos[1] >= self.pos[1]:
                 return True
         return False
 
     def getContext(self):
         return LaytonRoomTapObject(self.indexCharacter, self.indexTobj)
 
+class LaytonRoomEventSpawner():
+    def __init__(self, indexObj):
+        self.sprite = None
+
 class LaytonRoomGraphics(coreState.LaytonContext):
 
     animTap = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "touch_icon")
-    animTap.offset = 0
     animTap.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\touch_icon.txt")
 
     def __init__(self):
@@ -101,25 +107,35 @@ class LaytonRoomGraphics(coreState.LaytonContext):
     def draw(self, gameDisplay):
         for sprite in self.animObjects:
             sprite.draw(gameDisplay)
-
         LaytonRoomGraphics.animTap.draw(gameDisplay)
 
     def update(self, gameClockDelta):
+        for sprite in self.animObjects:
+            sprite.update(gameClockDelta)
         LaytonRoomGraphics.animTap.update(gameClockDelta)
 
     def executeCommand(self, command):
-        if command.opcode == b'\x5c':
+        if command.opcode == b'\x5c':                       # Add animated image
             if command.operands[2][-4:] == ".spr":
-                command.operands[2] = command.operands[2][0:-4] + ".png"
-            self.animObjects.append(coreAnim.StaticImage("ani\\" + command.operands[2],
-                                    x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-        elif command.opcode == b'\x50':
+                command.operands[2] = command.operands[2][0:-4]
+            
+            if path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt"):
+                self.animObjects.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", command.operands[2],
+                                                               x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+                self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt")
+                self.animObjects[-1].setAnimationFromIndex(0)
+            
+            else:
+                self.animObjects.append(coreAnim.StaticImage("ani\\" + command.operands[2] + ".png",
+                                        x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+
+        elif command.opcode == b'\x50':                     # Add interactable sprite
             if command.operands[4] not in self.drawnEvents:
                 self.animObjects.append(coreAnim.StaticImage("ani\\obj_" + str(command.operands[4]) + ".png",
                                         x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
                 self.drawnEvents.append(command.operands[4])
 
-        elif command.opcode == b'\x43':
+        elif command.opcode == b'\x43':                     # Add tobj
             self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
                                                      (command.operands[3], command.operands[4]), command.operands[5]))
             print(str(command.operands[1]) + ", " + str(command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT))
