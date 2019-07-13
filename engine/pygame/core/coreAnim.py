@@ -88,49 +88,51 @@ class AnimatedImage():
         self.animActiveFrame = None
         
         if path.exists(frameRootPath):
-            imageIndex = 0
-            while True:
-                if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
-                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
-                    imageIndex += 1
-                else:
-                    break
+            if path.exists(frameRootPath + "\\" + frameName + "_0." + frameRootExtension):
+                imageIndex = 0
+                while True:
+                    if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
+                        self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
+                        imageIndex += 1
+                    else:
+                        break
+                self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
 
-            self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+            elif path.exists(frameRootPath + "\\" + frameName + "." + frameRootExtension):
+                self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
 
         else:
             print("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
 
     def fromImages(self, animText):
-        with open(animText, 'r') as animDb:
-            lineIndex = 0
-            for line in animDb:
-                lineIndex = lineIndex % 4
-                if lineIndex == 0:
-                    tempAnimName = line
-                    tempAnimIndices = []
-                    tempAnimLoop = False
-                elif lineIndex == 1:
-                    tempAnimFramerate = int(line)
-                elif lineIndex == 2:
-                    line = line[0:-1].split(",")
-                    if line[0] == "True":                       # Set looping
-                        tempAnimLoop = True
-                    if len(line) > 1 and line[1] == "True":     # Set chroma-key (temporary)
-                        for frame in self.frames:
-                            frame.set_colorkey(pygame.Color(int(line[2]), int(line[3]), int(line[4])))
-                else:
-                    line = line.split(",")
-                    for index in line:
-                        tempAnimIndices.append(int(index) % len(self.frames))
-                    self.animMap[tempAnimName] = AnimatedFrameCollection(tempAnimFramerate, indices=tempAnimIndices, loop=tempAnimLoop)
-                lineIndex += 1
-
-    def fromTiles(self, tilePath, tileCount=1, framesPerTile=1):
-        pass
-
-    def fromStrip(self, imagePath, framesPerStrip=1):
-        pass
+        if path.exists(animText):
+            with open(animText, 'r') as animDb:
+                lineIndex = 0
+                for line in animDb:
+                    lineIndex = lineIndex % 4
+                    if lineIndex == 0:
+                        tempAnimName = line
+                        tempAnimIndices = []
+                        tempAnimLoop = False
+                    elif lineIndex == 1:
+                        tempAnimFramerate = int(line)
+                    elif lineIndex == 2:
+                        line = line[0:-1].split(",")
+                        if line[0] == "True":                       # Set looping
+                            tempAnimLoop = True
+                        if len(line) > 1 and line[1] == "True":     # Set chroma-key (temporary)
+                            for frame in self.frames:
+                                frame.set_colorkey(pygame.Color(int(line[2]), int(line[3]), int(line[4])))
+                    else:
+                        line = line.split(",")
+                        for index in line:
+                            tempAnimIndices.append(int(index) % len(self.frames))
+                        self.animMap[tempAnimName] = AnimatedFrameCollection(tempAnimFramerate, indices=tempAnimIndices, loop=tempAnimLoop)
+                    lineIndex += 1
+            return True
+        else:
+            print("AnimatedImage: Cannot import " + animText + " as it does not exist!")
+            return False
     
     def draw(self, gameDisplay):
         if self.animActiveFrame != None:
@@ -152,13 +154,14 @@ class AnimatedImage():
             self.animActive = None
     
     def setAnimationFromIndex(self, index):
-        self.animMap[list(self.animMap.keys())[index]].reset()
-        self.animActive = list(self.animMap.keys())[index]
+        if index < len(self.animMap.keys()):
+            self.animMap[list(self.animMap.keys())[index]].reset()
+            self.animActive = list(self.animMap.keys())[index]
     
     def setActiveFrame(self, frameIndex):
         if frameIndex < len(self.frames):
             self.animActiveFrame = frameIndex
-        else:
+        elif len(self.frames) > 0:
             self.animActiveFrame = frameIndex % len(self.frames)
     
     def wasClicked(self, mousePos):

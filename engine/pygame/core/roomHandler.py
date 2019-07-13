@@ -118,14 +118,18 @@ class LaytonRoomGraphics(coreState.LaytonContext):
     animTap = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "touch_icon")
     animTap.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\touch_icon.txt")
 
-    def __init__(self):
+    def __init__(self, playerState):
         coreState.LaytonContext.__init__(self)
         self.screenBlockInput       = True
         self.screenIsBasicOverlay   = True
 
+        self.playerState = playerState
+
         self.animObjects = []
         self.drawnEvents = []
-        self.eventTap = []
+        self.eventTap  = []
+        self.eventHint = []
+        self.eventHintId = []
     
     def draw(self, gameDisplay):
         for sprite in self.animObjects:
@@ -138,30 +142,34 @@ class LaytonRoomGraphics(coreState.LaytonContext):
         LaytonRoomGraphics.animTap.update(gameClockDelta)
 
     def executeCommand(self, command):
-        if command.opcode == b'\x5c':                       # Add animated image
+        if command.opcode == b'\x43':                         # Add tobj
+            self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
+                                                     (command.operands[3], command.operands[4]), command.operands[5]))
+        elif command.opcode == b'\x5c':                       # Add animated image
             if command.operands[2][-4:] == ".spr":
                 command.operands[2] = command.operands[2][0:-4]
             
-            if path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt"):
-                self.animObjects.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", command.operands[2],
-                                                               x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-                self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt")
+            self.animObjects.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", command.operands[2],
+                                                           x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+            if self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt"):
                 self.animObjects[-1].setAnimationFromIndex(0)
-            
-            elif path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".png"):
-                self.animObjects.append(coreAnim.StaticImage("ani\\" + command.operands[2] + ".png",
-                                        x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+            else:
+                self.animObjects[-1].setActiveFrame(0)
 
         elif command.opcode == b'\x50':                     # Add interactable sprite
             if command.operands[4] not in self.drawnEvents and path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\obj_" + str(command.operands[4]) + ".png"):
-                self.animObjects.append(coreAnim.StaticImage("ani\\obj_" + str(command.operands[4]) + ".png",
-                                        x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+                self.animObjects.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "obj_" + str(command.operands[4]),
+                                                           x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+                if self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + "obj_" + str(command.operands[4]) + ".txt"):
+                    self.animObjects[-1].setAnimationFromIndex(0)
+                else:
+                    self.animObjects[-1].setActiveFrame(0)
                 self.drawnEvents.append(command.operands[4])
 
-        elif command.opcode == b'\x43':                     # Add tobj
-            self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
-                                                     (command.operands[3], command.operands[4]), command.operands[5]))
-
+        elif command.opcode == b'\x68' and command.operands[0] not in self.playerState.hintCoinsFound:
+            self.eventHint.append(LaytonRoomTapRegion(3, (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
+                                                      (command.operands[3], command.operands[4]), command.operands[5]))
+            self.eventHintId.append(command.operands[0])
         else:
             print("UnkCommand: " + str(command.opcode))
     
@@ -172,6 +180,18 @@ class LaytonRoomGraphics(coreState.LaytonContext):
                 if eventTobj.wasClicked(event.pos):
                     self.screenNextObject = eventTobj.getContext()
                     eventTap = False
+
+            hintCoinIndex = 0
+            for eventHintTobjIndex in range(len(self.eventHint)):
+                if self.eventHint[hintCoinIndex].wasClicked(event.pos):
+                    self.playerState.hintCoinsFound.append(self.eventHintId.pop(hintCoinIndex))
+                    self.screenNextObject = self.eventHint.pop(hintCoinIndex).getContext()
+                    eventTap = False
+                    hintCoinIndex -= 1
+                if hintCoinIndex < 0:
+                    break
+                hintCoinIndex += 1
+
             if eventTap:
                 LaytonRoomGraphics.animTap.pos = (event.pos[0] - (LaytonRoomGraphics.animTap.dimensions[0] // 2),
                                                   event.pos[1] - (LaytonRoomGraphics.animTap.dimensions[1] // 2))
@@ -183,7 +203,7 @@ class LaytonRoomHandler(coreState.LaytonSubscreen):
         coreState.LaytonSubscreen.__init__(self)
 
         self.addToStack(LaytonRoomBackground(roomIndex, playerState))
-        self.addToStack(LaytonRoomGraphics())
+        self.addToStack(LaytonRoomGraphics(playerState))
 
         self.commandFocus = self.stack[-1]
 

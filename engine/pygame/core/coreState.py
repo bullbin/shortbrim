@@ -21,6 +21,7 @@ class LaytonPlayerState():
         self.puzzleData = {}
         self.currentRoom = 0
         self.remainingHintCoins = 0
+        self.hintCoinsFound = []
 
     def puzzleLoadNames(self):
         if len(self.puzzleData.keys()) == 0:
@@ -141,8 +142,7 @@ class LaytonSubscreen(LaytonScreen):
         super().update(gameClockDelta)
         self.updateSubscreenMethods(gameClockDelta)
     
-    def updateSubscreenMethods(self, gameClockDelta):
-        pass
+    def updateSubscreenMethods(self, gameClockDelta): pass;
 
 class LaytonContext():
     def __init__(self):
@@ -171,11 +171,8 @@ class LaytonContext():
     def setStackUpdate(self):
         self.screenStackUpdate = True
 
-    def draw(self, gameDisplay):
-        pass
+    def draw(self, gameDisplay): pass;
     
-    def update(self, gameClockDelta):
-        pass
+    def update(self, gameClockDelta): pass;
     
-    def handleEvent(self, event):
-        pass
+    def handleEvent(self, event): pass;

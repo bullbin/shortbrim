@@ -185,6 +185,9 @@ class gdScript():
         # Place Target mode
         elif command == b'\x5e':
             print("GD: [PUZZLE  ] Set sprite target!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               Radius  : " + str(params[3]) + "\n               Unknown : " + str(params[4]))
+
+        elif command == b'\x68':
+            print("GD: [EVENT   ] Spawn hint coin!\n               Unknown : " + str(params[0]) + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               Bounding: (" + str(params[3]) + ", " + str(params[4]) + ")\n               Unknown : " + str(params[5]))    
         
         elif command == b'\x6b':
             print("GD: [GRAPHICS] Pause for " + str(params[0]) + " frames (" + str(round(params[0]/60, 2)) + " seconds)")
@@ -215,6 +218,11 @@ class gdScript():
         elif command == b'\x76':
             print("GD: [PUZZLE  ] Set amount of valid solutions!\n               Max     : " + str(params[0]))
 
+        elif command == b'\x7e':
+            print("GD: [GRAPHICS] Draw TS animated image!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwnAnim: " + params[3])
+            for param in params[4:]:
+                print(param)
+        
         # River Cross 2 mode
         elif command == b'\x8a':
             print("GD: [PUZZLE  ] Place cabbage!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
