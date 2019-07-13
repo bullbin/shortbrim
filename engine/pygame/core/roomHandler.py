@@ -45,7 +45,7 @@ class LaytonRoomTapObject(coreState.LaytonContext):
         self.transitionsEnableIn    = False         # The background actually fades in but the context switcher only supports fading to black
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png").convert()
+        self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png").convert_alpha()
 
         with open(coreProp.LAYTON_ASSET_ROOT + r"room\tobj\en\tobj\t_" + str(indexTobj) + ".txt", 'r') as tText:
             tobjFillText = tText.read()
@@ -185,6 +185,7 @@ class LaytonRoomGraphics(coreState.LaytonContext):
             for eventHintTobjIndex in range(len(self.eventHint)):
                 if self.eventHint[hintCoinIndex].wasClicked(event.pos):
                     self.playerState.hintCoinsFound.append(self.eventHintId.pop(hintCoinIndex))
+                    self.playerState.remainingHintCoins += 1
                     self.screenNextObject = self.eventHint.pop(hintCoinIndex).getContext()
                     eventTap = False
                     hintCoinIndex -= 1
@@ -249,4 +250,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(4, playerState)
+play(6, playerState)

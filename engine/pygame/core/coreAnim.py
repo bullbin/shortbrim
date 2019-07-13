@@ -97,10 +97,11 @@ class AnimatedImage():
                     else:
                         break
                 self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
-
             elif path.exists(frameRootPath + "\\" + frameName + "." + frameRootExtension):
                 self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
-
+                self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+            else:
+                print("AnimatedImage: No images found in path '" + str(frameRootPath) + "'")
         else:
             print("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
 

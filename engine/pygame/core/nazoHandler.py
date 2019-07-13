@@ -102,7 +102,7 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
             self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
         except:
             print("[APPLET] BG: No default background found!")
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q_bg.png")
+            self.backgroundBs = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT)).convert()
 
     def draw(self, gameDisplay):
         gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
@@ -129,9 +129,8 @@ class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
             pass
         elif command.opcode == b'\x27':
             self.puzzleMoveLimit = command.operands[0]
-            print("Set move limit: " + str(self.puzzleMoveLimit))
         else:
-            print("COMMAND: " + str(command.opcode))
+            print("ErrUnrecognised: " + str(command.opcode))
     
     def draw(self, gameDisplay):
         for match in self.matches:
@@ -152,30 +151,28 @@ class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
             elif PuzzletInteractableMatchContext.buttonReset.wasClicked(event.pos):
                 self.reset()
 
-
-
 class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
         self.interactableElements = []
         self.drawFlagsInteractableElements = []
+        
         self.solutionElements = []
     
     def executeCommand(self, command):
         if command.opcode == b'\x5d':
             imageName = command.operands[2]
             if imageName[-4:] == ".spr":
-                imageName = imageName[0:-4] + ".png"
+                imageName = imageName[0:-4]
 
-            if command.operands[3] == 1:
+            if command.operands[3]:
                 self.solutionElements.append(len(self.interactableElements))
             
-            self.interactableElements.append(coreAnim.StaticImage("ani\\" + imageName,
-                                                                  x=command.operands[0],
-                                                                  y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+            self.interactableElements.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", imageName,
+                                                                    x=command.operands[0], y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+            self.interactableElements[-1].setActiveFrame(command.operands[4])
             self.drawFlagsInteractableElements.append(False)
-            # self.interactableElements[-1].setAnimation(command.operands[4]) # Disabled until enough assets are available
         else:
             print("ErrUnrecognised: " + str(command.opcode))
     
@@ -200,14 +197,39 @@ class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
                 self.drawFlagsInteractableElements[elementIndex] = False
 
 class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
+
+    buttonSubmit = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=186, y=158+coreProp.LAYTON_SCREEN_HEIGHT)
+
     def __init__(self):
         PuzzletInteractableFreeButtonContext.__init__(self)
+        self.drawFlagsInteractableElementsActiveCount = 0
+    
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        PuzzletInteractableOnOff.buttonSubmit.draw(gameDisplay)
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             for elementIndex in range(len(self.interactableElements)):
                 if self.interactableElements[elementIndex].wasClicked(event.pos):
                     self.drawFlagsInteractableElements[elementIndex] = not(self.drawFlagsInteractableElements[elementIndex])
+                    if self.drawFlagsInteractableElements[elementIndex]:
+                        self.drawFlagsInteractableElementsActiveCount += 1
+                    else:
+                        self.drawFlagsInteractableElementsActiveCount -= 1
+            
+            if PuzzletInteractableOnOff.buttonSubmit.wasClicked(event.pos):
+                if self.drawFlagsInteractableElementsActiveCount == len(self.solutionElements):
+                    isSolved = True
+                    for elementIndex in self.drawFlagsInteractableElements:
+                        if elementIndex not in self.solutionElements:
+                            isSolved = False
+                    if isSolved:
+                        self.setVictory()
+                    else:
+                        self.setLoss()
+                else:
+                    self.setLoss()
 
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
@@ -282,4 +304,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(25, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(4, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
