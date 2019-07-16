@@ -3,10 +3,10 @@ import coreProp, coreAnim, coreState, pygame
 pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
 
 class HintTab():
-    def __init__(self, hintText, hintLevel, pos, isUnlocked=False):
-        self.tabLocked = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
-        self.tabUnlocked = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + ".png")
-        self.hText = coreAnim.TextScroller(hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 24))
+    def __init__(self, hintText, hintLevel, pos, playerState, isUnlocked=False):
+        self.tabLocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
+        self.tabUnlocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + ".png")
+        self.hText = coreAnim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 20))
         self.hText.skip()
         self.tabUnlocked.pos = pos
         self.tabLocked.pos = pos
@@ -23,10 +23,10 @@ class HintTab():
 
 class Screen(coreState.LaytonContext):
 
-    buttonQuit = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
+    buttonQuit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
     buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonYes = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
-    buttonNo = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
+    buttonYes = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
+    buttonNo = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
     
     def __init__(self, puzzleIndex, playerState, puzzleHintCount):
         coreState.LaytonContext.__init__(self)
@@ -38,7 +38,7 @@ class Screen(coreState.LaytonContext):
         self.puzzleIndex = puzzleIndex
         self.playerState = playerState
 
-        self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_1_3.png").convert()
+        self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\hint_1_3.png").convert()
         
         self.hintLevelActive = self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel
         self.hintTabs = []
@@ -49,15 +49,15 @@ class Screen(coreState.LaytonContext):
         tempTabX = 0
         
         if self.puzzleIndex < 50:
-            puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q000\\"
+            puzzlePath = coreProp.PATH_ASSET_QTEXT + coreProp.LAYTON_ASSET_LANG + "\\q000\\"
         elif self.puzzleIndex < 100:
-            puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q050\\"
+            puzzlePath = coreProp.PATH_ASSET_QTEXT + coreProp.LAYTON_ASSET_LANG + "\\q050\\"
         else:
-            puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q100\\"
+            puzzlePath = coreProp.PATH_ASSET_QTEXT + coreProp.LAYTON_ASSET_LANG + "\\q100\\"
 
         for hintTabIndex in range(puzzleHintCount):
             with open(puzzlePath + "h_" + str(self.puzzleIndex) + "_" + str(hintTabIndex + 1) + ".txt", 'r') as hText:
-                self.hintTabs.append(HintTab(hText.read(), hintTabIndex, (tempTabX, coreProp.LAYTON_SCREEN_HEIGHT)))
+                self.hintTabs.append(HintTab(hText.read(), hintTabIndex, (tempTabX, coreProp.LAYTON_SCREEN_HEIGHT), playerState))
             if playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > hintTabIndex:
                 self.hintTabs[-1].isUnlocked = True
             tempTabX += self.hintTabs[hintTabIndex].tabLocked.image.get_width()
@@ -85,12 +85,12 @@ class Screen(coreState.LaytonContext):
         # Images need to be preloaded here, this is inefficient
         if self.hintStateChanged:
             if self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > self.hintLevelActive:
-                self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\hint_" + str(self.hintLevelActive + 1)  + ".png").convert()
+                self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "hint_" + str(self.hintLevelActive + 1)  + ".png").convert()
             else:
                 if self.playerState.remainingHintCoins >= coreProp.LAYTON_PUZZLE_HINT_COST:
-                    self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_2.png").convert()
+                    self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_2.png").convert()
                 else:
-                    self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_3.png").convert()
+                    self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\hint_" + str(self.hintLevelActive + 1) + "_3.png").convert()
             self.hintStateChanged = False
 
     def handleEvent(self, event):

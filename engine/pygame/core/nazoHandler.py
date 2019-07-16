@@ -19,8 +19,8 @@ class LaytonContextPuzzlet(coreState.LaytonContext):
 
 class LaytonPuzzleUi(LaytonContextPuzzlet):
 
-    buttonHint      = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\" + coreProp.LAYTON_ASSET_LANG, "hint_buttons")
-    buttonHint.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.txt")
+    buttonHint      = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG, "hint_buttons")
+    buttonHint.fromImages(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\hint_buttons.txt")
     buttonHint.pos  = (coreProp.LAYTON_SCREEN_WIDTH - buttonHint.dimensions[0], coreProp.LAYTON_SCREEN_HEIGHT)
     buttonHintFlashDelay = 15000
 
@@ -31,30 +31,30 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
 
-        self.puzzleIndex = puzzleIndex
-        self.playerState = playerState
-        self.puzzleIndexText        = coreAnim.AnimatedText(initString=str(self.puzzleIndex))
-        self.puzzlePicarotsText     = coreAnim.AnimatedText(initString=str(self.playerState.puzzleData[self.puzzleIndex].getValue()))
-        self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
+        self.puzzleIndex            = puzzleIndex
+        self.playerState            = playerState
+        self.puzzleAnimFont         = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "q_numbers")
+        self.puzzleAnimFont.fromImages(coreProp.PATH_ASSET_ANI + "q_numbers.txt")
+        self.puzzleIndexText        = '%03d' % self.puzzleIndex
         self.puzzleHintCount        = puzzleHintCount
 
         if self.puzzleIndex < 50:
-            puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q000\\"
+            puzzlePath = coreProp.PATH_ASSET_QTEXT + coreProp.LAYTON_ASSET_LANG + "\\q000\\"
         elif self.puzzleIndex < 100:
-            puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q050\\"
+            puzzlePath = coreProp.PATH_ASSET_QTEXT + coreProp.LAYTON_ASSET_LANG + "\\q050\\"
         else:
-            puzzlePath = coreProp.LAYTON_ASSET_ROOT + "qtext\\" + coreProp.LAYTON_ASSET_LANG + "\\q100\\"
+            puzzlePath = coreProp.PATH_ASSET_QTEXT + coreProp.LAYTON_ASSET_LANG + "\\q100\\"
             
         # Load the puzzle qText
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
-            self.puzzleQText = coreAnim.TextScroller(qText.read())
+            self.puzzleQText = coreAnim.TextScroller(self.playerState.getFont("fontq"), qText.read(), targetFramerate=60)
         
         LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
         self.buttonHintWaitTime = 0
         self.screenHint = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount)
         
     def update(self, gameClockDelta):
-        self.puzzleHintCoinsText    = coreAnim.AnimatedText(initString=str(self.playerState.remainingHintCoins))
+        self.puzzleHintCoinsText    = coreAnim.AnimatedText(self.playerState.getFont("fontq"), initString=str(self.playerState.remainingHintCoins))
         self.puzzleQText.update(gameClockDelta)
         if not(self.screenBlockInput):
             LaytonPuzzleUi.buttonHint.update(gameClockDelta)
@@ -71,9 +71,18 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         if self.puzzleHintCount > 0:
             LaytonPuzzleUi.buttonHint.draw(gameDisplay)
         self.puzzleQText.draw(gameDisplay)
-        self.puzzleIndexText.draw(gameDisplay, location=(30, 6))
-        self.puzzlePicarotsText.draw(gameDisplay, location=(88,6))
-        self.puzzleHintCoinsText.draw(gameDisplay, location=(231,6))
+
+        # Draw puzzle index text
+        for bannerText, xPosInitial in [(self.puzzleIndexText, 27),
+                                        (format(str(self.playerState.puzzleData[self.puzzleIndex].getValue()), '>3'), 75),
+                                        (format(str(self.playerState.remainingHintCoins), '>3'), 228)]:
+            self.puzzleAnimFont.pos = (xPosInitial,6)
+            for char in bannerText:
+                if self.puzzleAnimFont.setAnimationFromName(char):
+                    self.puzzleAnimFont.setAnimationFromName(char)
+                    self.puzzleAnimFont.setInitialFrameFromAnimation()
+                    self.puzzleAnimFont.draw(gameDisplay)
+                self.puzzleAnimFont.pos = (self.puzzleAnimFont.pos[0] + self.puzzleAnimFont.dimensions[0] - 1, self.puzzleAnimFont.pos[1])
 
     def handleEvent(self, event):
         # Game state needs to go here
@@ -88,7 +97,7 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
 
 class LaytonPuzzleBackground(coreState.LaytonContext):
 
-    backgroundTs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\" + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png")
+    backgroundTs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png")
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonContext.__init__(self)
@@ -99,7 +108,7 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
         self.screenBlockInput       = True
 
         try:
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\q" + str(puzzleIndex) + "_bg.png")
+            self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "q" + str(puzzleIndex) + "_bg.png")
         except:
             print("[APPLET] BG: No default background found!")
             self.backgroundBs = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT)).convert()
@@ -110,10 +119,10 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
 
 class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
 
-    matchImage          = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_match.png").convert_alpha()
-    matchShadowImage    = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\match_shadow.png").convert_alpha()
-    buttonSubmit        = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=22, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonReset         = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_3.png", x=99, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
+    matchImage          = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_match.png").convert_alpha()
+    matchShadowImage    = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_shadow.png").convert_alpha()
+    buttonSubmit        = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=22, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonReset         = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_3.png", x=99, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -169,7 +178,7 @@ class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
             if command.operands[3]:
                 self.solutionElements.append(len(self.interactableElements))
             
-            self.interactableElements.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", imageName,
+            self.interactableElements.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, imageName,
                                                                     x=command.operands[0], y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
             self.interactableElements[-1].setActiveFrame(command.operands[4])
             self.drawFlagsInteractableElements.append(False)
@@ -187,6 +196,12 @@ class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
                 if self.interactableElements[elementIndex].wasClicked(event.pos):
                     self.drawFlagsInteractableElements[elementIndex] = True
 
+        elif event.type == pygame.MOUSEMOTION:
+            for elementIndex in range(len(self.interactableElements)):
+                if self.drawFlagsInteractableElements[elementIndex]:
+                    if not(self.interactableElements[elementIndex].wasClicked(event.pos)):
+                        self.drawFlagsInteractableElements[elementIndex] = False
+
         elif event.type == pygame.MOUSEBUTTONUP:
             for elementIndex in range(len(self.interactableElements)):
                 if self.drawFlagsInteractableElements[elementIndex] == 1:
@@ -198,7 +213,7 @@ class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
 
 class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
 
-    buttonSubmit = coreAnim.StaticImage("ani\\" + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=186, y=158+coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=186, y=158+coreProp.LAYTON_SCREEN_HEIGHT)
 
     def __init__(self):
         PuzzletInteractableFreeButtonContext.__init__(self)
@@ -243,7 +258,7 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
         self.puzzleHintCount = 0
 
         self.addToStack(LaytonPuzzleBackground(puzzleIndex, playerState))
-        self.executeGdScript(gdsLib.gdScript(coreProp.LAYTON_ASSET_ROOT + "script\\qscript\\q" + str(puzzleIndex) + "_param.gds"))
+        self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qscript\\q" + str(puzzleIndex) + "_param.gds"))
         self.addToStack(LaytonPuzzleUi(puzzleIndex, playerState, self.puzzleHintCount))
 
     def executeGdScript(self, puzzleScript):
@@ -298,10 +313,10 @@ def play(puzzleIndex, playerState):
             else:
                 rootHandler.handleEvent(event)
                 
-        gameClockDelta = gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
+        gameClockDelta = gameClock.tick(coreProp.ENGINE_FPS)
 
 playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(4, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(23, playerState)    # 25:Match, 26:OnOff, 48:FreeButton

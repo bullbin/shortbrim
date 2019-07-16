@@ -16,9 +16,9 @@ class LaytonRoomBackground(coreState.LaytonContext):
         self.screenBlockInput       = True
 
         try:
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\room_" + str(roomIndex) + "_bg.png").convert()
+            self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "room_" + str(roomIndex) + "_bg.png").convert()
         except:
-            self.backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "bg\\en\\q_bg.png").convert()
+            self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png").convert()
 
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
@@ -30,28 +30,33 @@ class LaytonRoomUi(coreState.LaytonContext):
 
 class LaytonRoomTapObject(coreState.LaytonContext):
     
-    backgroundBs = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobj.png").convert_alpha()
+    backgroundBs = pygame.image.load(coreProp.PATH_ASSET_ANI + "room_tobj.png").convert_alpha()
     backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
     backgroundTransBs = backgroundBs.copy().convert()
     backgroundTransBsDuration = 250
     portraitPos = (backgroundPos[0] + 6, backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
-    cursorBs = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "cursor_wait")
+    cursorBs = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait")
     cursorBs.pos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.dimensions[0] + 4), (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.dimensions[1] + 4))
-    cursorBs.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\cursor_wait.txt")
+    cursorBs.fromImages(coreProp.PATH_ASSET_ANI + "cursor_wait.txt")
 
-    def __init__(self, indexCharacter, indexTobj):
+    def __init__(self, indexCharacter, indexTobj, font):
         coreState.LaytonContext.__init__(self)
         self.screenIsOverlay        = True
         self.transitionsEnableIn    = False         # The background actually fades in but the context switcher only supports fading to black
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundPortrait     = pygame.image.load(coreProp.LAYTON_ASSET_ROOT + "ani\\room_tobjp_" + str(indexCharacter) + ".png").convert_alpha()
+        self.backgroundPortrait     = pygame.image.load(coreProp.PATH_ASSET_ANI + "room_tobjp_" + str(indexCharacter) + ".png").convert_alpha()
 
-        with open(coreProp.LAYTON_ASSET_ROOT + r"room\tobj\en\tobj\t_" + str(indexTobj) + ".txt", 'r') as tText:
+        with open(coreProp.PATH_ASSET_ROOM + "tobj\\" + coreProp.LAYTON_ASSET_LANG + "\\tobj\\t_" + str(indexTobj) + ".txt", 'r') as tText:
             tobjFillText = tText.read()
-        tobjTextPos = (LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
-                       LaytonRoomTapObject.backgroundPos[1] + ((LaytonRoomTapObject.backgroundBs.get_height() - (len(tobjFillText.split("\n")) * coreProp.LAYTON_PUZZLE_FONT.get_height())) // 2))
-        self.tobjText               = coreAnim.TextScroller(tobjFillText, textPosOffset=tobjTextPos)
+        
+        if type(font) == coreAnim.FontMap:
+            tobjTextPos = (LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
+                           LaytonRoomTapObject.backgroundPos[1] + ((LaytonRoomTapObject.backgroundBs.get_height() + font.getSpacing()[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+        else:
+            tobjTextPos = (LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
+                           LaytonRoomTapObject.backgroundPos[1] + ((LaytonRoomTapObject.backgroundBs.get_height() - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+        self.tobjText               = coreAnim.TextScroller(font, tobjFillText, textPosOffset=tobjTextPos)
         self.tobjText.skip()
 
         LaytonRoomTapObject.cursorBs.setAnimationFromIndex(0)
@@ -106,8 +111,8 @@ class LaytonRoomTapRegion():
                 return True
         return False
 
-    def getContext(self):
-        return LaytonRoomTapObject(self.indexCharacter, self.indexTobj)
+    def getContext(self, playerState):
+        return LaytonRoomTapObject(self.indexCharacter, self.indexTobj, playerState.getFont("fontevent"))
 
 class LaytonRoomEventSpawner():
     def __init__(self, indexObj):
@@ -115,8 +120,8 @@ class LaytonRoomEventSpawner():
 
 class LaytonRoomGraphics(coreState.LaytonContext):
 
-    animTap = coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "touch_icon")
-    animTap.fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\touch_icon.txt")
+    animTap = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "touch_icon")
+    animTap.fromImages(coreProp.PATH_ASSET_ANI + "touch_icon.txt")
 
     def __init__(self, playerState):
         coreState.LaytonContext.__init__(self)
@@ -149,18 +154,19 @@ class LaytonRoomGraphics(coreState.LaytonContext):
             if command.operands[2][-4:] == ".spr":
                 command.operands[2] = command.operands[2][0:-4]
             
-            self.animObjects.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", command.operands[2],
+            self.animObjects.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2],
                                                            x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-            if self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + command.operands[2] + ".txt"):
+            if self.animObjects[-1].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2] + ".txt"):
                 self.animObjects[-1].setAnimationFromIndex(0)
             else:
                 self.animObjects[-1].setActiveFrame(0)
 
         elif command.opcode == b'\x50':                     # Add interactable sprite
-            if command.operands[4] not in self.drawnEvents and path.exists(coreProp.LAYTON_ASSET_ROOT + "ani\\obj_" + str(command.operands[4]) + ".png"):
-                self.animObjects.append(coreAnim.AnimatedImage(coreProp.LAYTON_ASSET_ROOT + "ani\\", "obj_" + str(command.operands[4]),
+            if command.operands[4] not in self.drawnEvents and (path.exists(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + ".png")
+                                                                or path.exists(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + "_0.png")):
+                self.animObjects.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "obj_" + str(command.operands[4]),
                                                            x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-                if self.animObjects[-1].fromImages(coreProp.LAYTON_ASSET_ROOT + "ani\\" + "obj_" + str(command.operands[4]) + ".txt"):
+                if self.animObjects[-1].fromImages(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + ".txt"):
                     self.animObjects[-1].setAnimationFromIndex(0)
                 else:
                     self.animObjects[-1].setActiveFrame(0)
@@ -178,15 +184,15 @@ class LaytonRoomGraphics(coreState.LaytonContext):
             eventTap = True
             for eventTobj in self.eventTap:
                 if eventTobj.wasClicked(event.pos):
-                    self.screenNextObject = eventTobj.getContext()
+                    self.screenNextObject = eventTobj.getContext(self.playerState)
                     eventTap = False
 
             hintCoinIndex = 0
-            for eventHintTobjIndex in range(len(self.eventHint)):
+            for _eventHintTobjIndex in range(len(self.eventHint)):
                 if self.eventHint[hintCoinIndex].wasClicked(event.pos):
                     self.playerState.hintCoinsFound.append(self.eventHintId.pop(hintCoinIndex))
                     self.playerState.remainingHintCoins += 1
-                    self.screenNextObject = self.eventHint.pop(hintCoinIndex).getContext()
+                    self.screenNextObject = self.eventHint.pop(hintCoinIndex).getContext(self.playerState)
                     eventTap = False
                     hintCoinIndex -= 1
                 if hintCoinIndex < 0:
@@ -208,7 +214,7 @@ class LaytonRoomHandler(coreState.LaytonSubscreen):
 
         self.commandFocus = self.stack[-1]
 
-        self.executeGdScript(gdsLib.gdScript(coreProp.LAYTON_ASSET_ROOT + "script\\rooms\\room" + str(roomIndex) + "_param.gds"))
+        self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"))
         self.addToStack(LaytonRoomUi(playerState))
 
     def executeGdScript(self, puzzleScript):
@@ -244,10 +250,10 @@ def play(eventIndex, playerState):
             else:
                 rootHandler.handleEvent(event)
                 
-        gameClockDelta = gameClock.tick(coreProp.LAYTON_ENGINE_FPS)
+        gameClockDelta = gameClock.tick(coreProp.ENGINE_FPS)
 
 playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(6, playerState)
+play(1, playerState)

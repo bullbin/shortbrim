@@ -1,6 +1,6 @@
 # State Components of LAYTON1
 
-import coreProp, coreAnim, gdsLib
+import coreProp, pygame, coreAnim, gdsLib
 
 class LaytonPuzzleDataEntry():
     def __init__(self, decayValues):
@@ -22,11 +22,25 @@ class LaytonPlayerState():
         self.currentRoom = 0
         self.remainingHintCoins = 0
         self.hintCoinsFound = []
+        self.fonts = {}
+
+        if coreProp.GRAPHICS_USE_GAME_FONTS:
+            self.fonts["font18"]    = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + "font18.png", coreProp.PATH_ASSET_FONT + "font18.xml", encoding="shift-jis", calculateWidth = True)
+            self.fonts["fontevent"] = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + "fontevent.png", coreProp.PATH_ASSET_FONT + "fontevent.xml", encoding="cp1252", calculateWidth = True, yFontGap=3)
+            self.fonts["fontq"]     = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + "fontq.png", coreProp.PATH_ASSET_FONT + "fontq.xml", encoding="cp1252", calculateWidth = True, yFontGap=2)
+        else:
+            for fontName in ["font18", "fontevent", "fontq"]:
+                self.fonts[fontName] = pygame.font.SysFont('freesansmono', 17)
+
+    def getFont(self, fontName):
+        if fontName in self.fonts.keys():
+            return self.fonts[fontName]
+        return pygame.font.SysFont('freesansmono', 17)
 
     def puzzleLoadNames(self):
         if len(self.puzzleData.keys()) == 0:
             self.puzzleLoadData()
-        qscript = gdsLib.gdScript(coreProp.LAYTON_ASSET_ROOT + "script\\qinfo\\" + coreProp.LAYTON_ASSET_LANG + "\\qscript.gds")
+        qscript = gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qinfo\\" + coreProp.LAYTON_ASSET_LANG + "\\qscript.gds")
         for instruction in qscript.commands:
             if instruction.opcode == b'\xdc':
                 try:
@@ -38,7 +52,7 @@ class LaytonPlayerState():
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
 
     def puzzleLoadData(self):
-        pscript = gdsLib.gdScript(coreProp.LAYTON_ASSET_ROOT + "script\\pcarot\\pscript.gds")
+        pscript = gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds")
         for instruction in pscript.commands:
             if instruction.opcode == b'\xc3':
                 # Set picarot decay
@@ -142,7 +156,7 @@ class LaytonSubscreen(LaytonScreen):
         super().update(gameClockDelta)
         self.updateSubscreenMethods(gameClockDelta)
     
-    def updateSubscreenMethods(self, gameClockDelta): pass;
+    def updateSubscreenMethods(self, gameClockDelta): pass
 
 class LaytonContext():
     def __init__(self):
@@ -171,8 +185,8 @@ class LaytonContext():
     def setStackUpdate(self):
         self.screenStackUpdate = True
 
-    def draw(self, gameDisplay): pass;
+    def draw(self, gameDisplay): pass
     
-    def update(self, gameClockDelta): pass;
+    def update(self, gameClockDelta): pass
     
-    def handleEvent(self, event): pass;
+    def handleEvent(self, event): pass
