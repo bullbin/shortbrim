@@ -1,4 +1,4 @@
-import coreState, coreProp, coreAnim, gdsLib, pygame
+import coreState, coreProp, coreAnim, gdsLib, coreLib, pygame
 
 # Testing only
 from os import path
@@ -76,11 +76,16 @@ class LaytonRoomTapObject(coreState.LaytonContext):
                 else:
                     self.isContextFinished = True
 
-            intensity = round((self.transitioningTotal / LaytonRoomTapObject.backgroundTransBsDuration) * 255)
             if self.transitioningIn:
+                intensity = round((self.transitioningTotal / LaytonRoomTapObject.backgroundTransBsDuration) * 255)
+            else:
+                intensity = 255 - round((self.transitioningTotal / LaytonRoomTapObject.backgroundTransBsDuration) * 255)
+            
+            if coreProp.ENGINE_PERFORMANCE_MODE:
                 LaytonRoomTapObject.backgroundTransBs.set_alpha(intensity)
             else:
-                LaytonRoomTapObject.backgroundTransBs.set_alpha(255 - intensity)
+                LaytonRoomTapObject.backgroundTransBs = LaytonRoomTapObject.backgroundBs.copy().convert_alpha()
+                LaytonRoomTapObject.backgroundTransBs.fill((255, 255, 255, intensity), None, pygame.BLEND_RGBA_MULT)
         else:
             LaytonRoomTapObject.cursorBs.update(gameClockDelta)
 
@@ -131,6 +136,7 @@ class LaytonRoomGraphics(coreState.LaytonContext):
         self.playerState = playerState
 
         self.animObjects = []
+        self.drawnTobj   = []
         self.drawnEvents = []
         self.eventTap  = []
         self.eventHint = []
@@ -148,8 +154,12 @@ class LaytonRoomGraphics(coreState.LaytonContext):
 
     def executeCommand(self, command):
         if command.opcode == b'\x43':                         # Add tobj
-            self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
-                                                     (command.operands[3], command.operands[4]), command.operands[5]))
+            if ((command.operands[1], command.operands[2])) not in self.drawnTobj:
+                self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT),
+                                                        (command.operands[3], command.operands[4]), command.operands[5]))
+                self.drawnTobj.append((command.operands[1], command.operands[2]))
+            else:
+                print("Err: Tobj overshoot, number " + str(command.operands[5]))
         elif command.opcode == b'\x5c':                       # Add animated image
             if command.operands[2][-4:] == ".spr":
                 command.operands[2] = command.operands[2][0:-4]
@@ -214,7 +224,8 @@ class LaytonRoomHandler(coreState.LaytonSubscreen):
 
         self.commandFocus = self.stack[-1]
 
-        self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"))
+        # self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"))
+        self.executeGdScript(coreLib.gdScript(playerState, coreProp.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"))
         self.addToStack(LaytonRoomUi(playerState))
 
     def executeGdScript(self, puzzleScript):

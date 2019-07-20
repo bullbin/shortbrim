@@ -45,6 +45,8 @@ class gdScript():
 
         # '#?' is substituted by the selected language
 
+        commandLoc = reader.tell()
+        print("\n" + str(commandLoc))
         command = reader.read(1)
         reader.read(1)
 
@@ -68,9 +70,9 @@ class gdScript():
 
             # Control parameters (conditional jumping?)
             elif paramId == 6:
-                params.append(int.from_bytes(reader.read(4), 'little'))
+                params.append(int.from_bytes(reader.read(4), 'little') + 6)
             elif paramId == 7:
-                params.append(int.from_bytes(reader.read(4), 'little'))
+                params.append(int.from_bytes(reader.read(4), 'little') + 6)
 
             # Unk parameters
             elif paramId in [8,9]:
@@ -83,11 +85,8 @@ class gdScript():
             else:
                 print("Unhandled parameter " + str(paramId) + "@" + str(reader.tell()))
                 sys.exit()
-
-        if command == b'\x01':
-            print("GD: [STATE   ] ?? Set marker!")
         
-        elif command == b'\x0c':
+        if command == b'\x0c':
             print("GD: [GRAPHICS] Draw TS image " + params[0])
         elif command == b'\x0b':
             print("GD: [GRAPHICS] Draw BS image " + params[0])
@@ -96,6 +95,9 @@ class gdScript():
             # After testing, this command is audio related, but changing the value causes the audio to not be played
             # This could maybe be an offset for the sound bank or something - there is invalidation checking
             print("GD: [AUDIO   ] ?? Play SWAV " + str(params[0]))
+
+        elif command == b'\x17':
+            print("GD: [FLOW    ] ?? Jump to " + str(params[0]))
 
         # General puzzle commands
         elif command == b'\x1b':
@@ -175,6 +177,13 @@ class gdScript():
         elif command == b'\x53':
             # Carried from reversing notes - untested
             print("GD: [STATE   ] ?? Set room index " + str(params[0]))
+
+        elif command == b'\x58':
+            if len(params) == 1:
+                print("GD: [EVENT   ] ?? Jump if completed!\n               Unknown : " + str(params[0]))
+            else:
+                print("GD: [EVENT   ] ?? Jump if completed!\n               Unknown : " + str(params[0]) + "\n               DestIndx: " + str(params[1]))
+        
         elif command == b'\x5c':
             print("GD: [GRAPHICS] Draw animated sprite!\n               Name    : " + params[2] + "\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
         
@@ -186,6 +195,8 @@ class gdScript():
         elif command == b'\x5e':
             print("GD: [PUZZLE  ] Set sprite target!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               Radius  : " + str(params[3]) + "\n               Unknown : " + str(params[4]))
 
+        elif command == b'\x63' and len(params) == 2:
+            print("GD: [EVENT   ] ?? Branch if room visited!\n               RoomIndx: " + str(params[0]) + "\n               BrnchDes: " + str(params[1]))
         elif command == b'\x68':
             print("GD: [EVENT   ] Spawn hint coin!\n               Unknown : " + str(params[0]) + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               Bounding: (" + str(params[3]) + ", " + str(params[4]) + ")\n               Unknown : " + str(params[5]))    
         

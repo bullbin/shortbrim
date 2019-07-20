@@ -17,6 +17,25 @@ class LaytonContextPuzzlet(coreState.LaytonContext):
         self.registerVictory = False
         self.registerLoss = True
 
+class LaytonTouchOverlay(coreState.LaytonContext):
+
+    def __init__(self):
+        coreState.LaytonContext.__init__(self)
+        self.screenIsOverlay        = True
+        self.transitionsEnableIn    = False
+        self.transitionsEnableOut   = False
+        self.imageTouch = pygame.image.load(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\qend_touch.png").convert_alpha()
+        self.imageTouch.set_colorkey(pygame.Color(0,0,0))
+        self.imageTouchPos = ((coreProp.LAYTON_SCREEN_WIDTH - self.imageTouch.get_width()) // 2,
+                              ((coreProp.LAYTON_SCREEN_HEIGHT - self.imageTouch.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.imageTouch, self.imageTouchPos)
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.isContextFinished = True
+
 class LaytonPuzzleUi(LaytonContextPuzzlet):
 
     buttonHint      = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG, "hint_buttons")
@@ -47,7 +66,7 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
             
         # Load the puzzle qText
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
-            self.puzzleQText = coreAnim.TextScroller(self.playerState.getFont("fontq"), qText.read(), targetFramerate=60)
+            self.puzzleQText = coreAnim.TextScroller(self.playerState.getFont("fontq"), qText.read(), targetFramerate=30, textPosOffset=(4,23))
         
         LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
         self.buttonHintWaitTime = 0
@@ -58,9 +77,8 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         self.puzzleQText.update(gameClockDelta)
         if not(self.screenBlockInput):
             LaytonPuzzleUi.buttonHint.update(gameClockDelta)
-            if LaytonPuzzleUi.buttonHint.animActive == None or LaytonPuzzleUi.buttonHint.animActiveFrame == None:
-                if LaytonPuzzleUi.buttonHint.animActiveFrame == None:
-                    LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
+            if LaytonPuzzleUi.buttonHint.animActive == None:
+                LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
                 if self.buttonHintWaitTime < LaytonPuzzleUi.buttonHintFlashDelay:
                     self.buttonHintWaitTime += gameClockDelta
                 else:
@@ -260,6 +278,7 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
         self.addToStack(LaytonPuzzleBackground(puzzleIndex, playerState))
         self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qscript\\q" + str(puzzleIndex) + "_param.gds"))
         self.addToStack(LaytonPuzzleUi(puzzleIndex, playerState, self.puzzleHintCount))
+        self.addToStack(LaytonTouchOverlay())
 
     def executeGdScript(self, puzzleScript):
 
@@ -319,4 +338,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(23, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(111, playerState)    # 25:Match, 26:OnOff, 48:FreeButton

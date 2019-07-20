@@ -182,6 +182,9 @@ class LaytonContext():
             return screenNextObject
         return None
     
+    def executeCommand(self, command):
+        print("ErrNoRedefinitionCommand: " + str(command.opcode))
+
     def setStackUpdate(self):
         self.screenStackUpdate = True
 

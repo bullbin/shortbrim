@@ -307,32 +307,37 @@ class Fader():
         gameDisplay.blit(faderSurface, (0,0))
 
 class TextScroller():
-    def __init__(self, font, textInput, textPosOffset=(4,24), targetFramerate = coreProp.ENGINE_FPS):
-         self.textInput = textInput
-         self.textNewline = 0
-         self.textPos = 0
-         self.textPosOffset = textPosOffset
-         self.textRects = []
-         self.font = font
-         self.drawIncomplete = True
-         self.targetFramerate = targetFramerate
+    def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):
+        self.textInput = textInput
+        self.textCumulativeLengths = []
+        self.textNewline = 0
+        self.textPos = 0
+        self.textPosOffset = textPosOffset
+        self.textRects = []
+        self.font = font
+        self.drawIncomplete = True
+        self.frameStep = 1000/targetFramerate
+        self.timeSinceLastUpdate = 0
 
     def update(self, gameClockDelta):
-        if self.drawIncomplete and (gameClockDelta >= 1000/self.targetFramerate):
-            if self.textInput[self.textPos] == "\n" or self.textPos == 0:
-                self.textRects.append(AnimatedText(self.font))
-                if self.textPos == 0:
-                    self.textNewline = self.textPos
+        if self.drawIncomplete:
+            self.timeSinceLastUpdate += gameClockDelta
+            if self.timeSinceLastUpdate >= self.frameStep:
+                self.timeSinceLastUpdate -= self.frameStep
+                if self.textInput[self.textPos] == "\n" or self.textPos == 0:
+                    self.textRects.append(AnimatedText(self.font))
+                    if self.textPos == 0:
+                        self.textNewline = self.textPos
+                    else:
+                        self.textNewline = self.textPos + 1
                 else:
-                    self.textNewline = self.textPos + 1
-            else:
-                self.textRects[-1].text = self.textInput[self.textNewline:self.textPos + 1]
-                self.textRects[-1].update(gameClockDelta)
-                
-            if self.textPos < len(self.textInput) -1:
-                self.textPos += 1
-            else:
-                self.drawIncomplete = False
+                    self.textRects[-1].text = self.textInput[self.textNewline:self.textPos + 1]
+                    self.textRects[-1].update(gameClockDelta)
+                    
+                if self.textPos < len(self.textInput) -1:
+                    self.textPos += 1
+                else:
+                    self.drawIncomplete = False
 
     def skip(self):
         if self.drawIncomplete:

@@ -6,7 +6,7 @@ class HintTab():
     def __init__(self, hintText, hintLevel, pos, playerState, isUnlocked=False):
         self.tabLocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
         self.tabUnlocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + ".png")
-        self.hText = coreAnim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 20))
+        self.hText = coreAnim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 19))
         self.hText.skip()
         self.tabUnlocked.pos = pos
         self.tabLocked.pos = pos
