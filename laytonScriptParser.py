@@ -2,6 +2,7 @@
 
 import sys
 from struct import unpack
+from os import path
 
 class LAYTON_CONSTANTS():
     CURIOUS_VILLAGE = 0
@@ -13,6 +14,7 @@ class gdScript():
         
         self.filename = filename
         self.lengthPad = 0
+        self.length = 0
         self.offsetEofc = 0
         self.typeGame = LAYTON_CONSTANTS.CURIOUS_VILLAGE
         self.commands = []
@@ -24,7 +26,8 @@ class gdScript():
         if self.typeGame == LAYTON_CONSTANTS.CURIOUS_VILLAGE:
             self.lengthPad = 2
         try:
-            
+            self.length = path.getsize(self.filename)
+
             with open(self.filename, 'rb') as laytonScript:
 
                 self.offsetEofc = int.from_bytes(laytonScript.read(4), 'little')
@@ -69,10 +72,14 @@ class gdScript():
                 params.append(reader.read(int.from_bytes(reader.read(2), 'little')).decode("ascii")[0:-1])
 
             # Control parameters (conditional jumping?)
-            elif paramId == 6:
+            elif paramId == 6 or paramId == 7:
                 params.append(int.from_bytes(reader.read(4), 'little') + 6)
-            elif paramId == 7:
-                params.append(int.from_bytes(reader.read(4), 'little') + 6)
+                if params[-1] < self.length:
+                    previousLength = reader.tell()
+                    reader.seek(params[-1] - 2)
+                    if int.from_bytes(reader.read(2), byteorder = 'little') != 0:   # Resolve if using direct addressing
+                        params[-1] = int.from_bytes(reader.read(4), 'little') + 6
+                    reader.seek(previousLength)
 
             # Unk parameters
             elif paramId in [8,9]:
@@ -86,10 +93,13 @@ class gdScript():
                 print("Unhandled parameter " + str(paramId) + "@" + str(reader.tell()))
                 sys.exit()
         
-        if command == b'\x0c':
-            print("GD: [GRAPHICS] Draw TS image " + params[0])
+        if command == b'\x06' and len(params) == 0:
+            print("GD: [FLOW    ] ?? End execution after next instruction!")
+
         elif command == b'\x0b':
             print("GD: [GRAPHICS] Draw BS image " + params[0])
+        elif command == b'\x0c':
+            print("GD: [GRAPHICS] Draw TS image " + params[0])
 
         elif command == b'\x10':
             # After testing, this command is audio related, but changing the value causes the audio to not be played
@@ -163,6 +173,14 @@ class gdScript():
         
         elif command == b'\x48':
             print("GD: [EVENT   ] Select puzzle " + str(params[0]) + "!")
+        elif command == b'\x49':
+            print("GD: [FLOW    ] ?? Jump if puzzle reattempted to next instruction after " + str(params[0]) + "!")
+        
+        elif command == b'\x4a':
+            print("GD: [FLOW    ] ?? Jump if puzzle finished to next instruction after " + str(params[0]) + "!")
+
+        elif command == b'\x4d':
+            print("GD: [FLOW    ] ?? Jump if puzzle quit to next instruction after " + str(params[0]) + "!")
 
         elif command == b'\x50':
             print("GD: [EVENT   ] Place object!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Bounding: (" + str(params[2]) + ", " + str(params[3]) + ")\n               ObjIndex: " + str(params[4]) + "\n               EvtIndex: " + str(params[5]))
@@ -245,7 +263,9 @@ class gdScript():
             print("GD: [EVENT   ] ?? Reference event script!\n               ID      : " + str(params[0]))
             for param in params[1:]:
                     print("               Unknown : " + str(param))
-    
+        
+        #elif command == b'\x98':
+        #    print("GD: [EVENT   ] ?? Select character puzzle start script!")
         elif command == b'\x9c':
             print("GD: [EVENT   ] Select right character event script!\n               TextIndx: " + str(params[0]) + "\n               ChrIndex: " + str(params[1]))
             if len(params) > 2: 

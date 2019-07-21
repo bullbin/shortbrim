@@ -9,7 +9,7 @@ class gdOperation():
         self.operands = operands
 
 class gdScript():
-    def __init__(self, playerState, filename):
+    def __init__(self, playerState, filename, enableBranching=False):
         self.commands = []
         self.commandLoc = []
         self.length = 0
@@ -50,9 +50,15 @@ class gdScript():
             # Flow
             elif paramId == 6 or paramId == 7:
                 tempOperands.append(int.from_bytes(reader.read(4), 'little') + 6)
-                if tempOperands[-1] > self.length:
+                if tempOperands[-1] >= self.length:
                     print("[GDLIB] Err: Seek location out of bounds")
                     tempOperands[-1] == self.length - 2 # Set to location of break command
+                else:
+                    previousLength = reader.tell()
+                    reader.seek(tempOperands[-1] - 2)
+                    if int.from_bytes(reader.read(2), byteorder = 'little') != 0:        # Resolve if using direct addressing
+                        tempOperands[-1] = int.from_bytes(reader.read(4), 'little') + 6
+                    reader.seek(previousLength)
             
             elif paramId == 12: # End of entire file
                 break

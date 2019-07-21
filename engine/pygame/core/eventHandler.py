@@ -20,8 +20,6 @@ class LaytonEventBackground(coreState.LaytonContext):
         elif command.opcode == b'\x0b':
             if path.exists(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
                 self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
-            else:
-                print(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
         else:
             print("ErrUnkCommand: " + str(command.opcode))
     
@@ -40,12 +38,14 @@ class LaytonEventGraphics(coreState.LaytonContext):
         if command.opcode == b'\x6c':           # Draw static image
             self.drawnEvents.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0], y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT))
             self.drawnEvents[-1].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2][0:-4] + ".txt")
-            self.drawnEvents[-1].setAnimationFromName(command.operands[3])
+            if not(self.drawnEvents[-1].setAnimationFromName(command.operands[3])):
+                self.drawnEvents[-1].setActiveFrame(0)
 
         elif command.opcode == b'\x6d':           # Draw animated image
             self.drawnAnimEvents.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0], y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT))
             self.drawnAnimEvents[-1].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2][0:-4] + ".txt")
-            self.drawnAnimEvents[-1].setAnimationFromName(command.operands[3])
+            if not(self.drawnAnimEvents[-1].setAnimationFromName(command.operands[3])):
+                self.drawnAnimEvents[-1].setActiveFrame(0)
             # SpwnFrame not handled
         else:
             print("ErrUnkCommand: " + str(command.opcode))

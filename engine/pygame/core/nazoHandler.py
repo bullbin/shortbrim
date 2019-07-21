@@ -338,4 +338,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(111, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(48, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
