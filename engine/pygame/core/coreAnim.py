@@ -92,14 +92,20 @@ class AnimatedImage():
                 imageIndex = 0
                 while True:
                     if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
-                        self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
+                        try:
+                            self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
+                        except:
+                            print("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
                         imageIndex += 1
                     else:
                         break
                 self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
             elif path.exists(frameRootPath + "\\" + frameName + "." + frameRootExtension):
-                self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
-                self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+                try:
+                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
+                    self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+                except:
+                    print("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
             else:
                 print("AnimatedImage: No images found in path '" + str(frameRootPath) + "'")
         else:

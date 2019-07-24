@@ -3,36 +3,49 @@
 from struct import unpack
 from os import path
 
+def seekToNextOperation(reader):
+    reader.read(2)
+    while True:
+        paramId = int.from_bytes(reader.read(2), 'little')
+        if paramId == 0 or paramId == 12:    # End of command
+            break
+        elif paramId in [1,2,6,7]:
+            int.from_bytes(reader.read(4), 'little', signed = True)
+        elif paramId == 3:
+            reader.read(int.from_bytes(reader.read(2), 'little'))
+
 class gdOperation():
     def __init__(self, opcode, operands):
         self.opcode = opcode
         self.operands = operands
 
 class gdScript():
-    def __init__(self, playerState, filename, enableBranching=False):
+    def __init__(self, playerState, filename, enableBranching=False, useBranchingHack=True):
         self.commands = []
         self.commandLoc = []
         self.length = 0
+        self.contextPuzzle = None
         self.playerState = playerState
-        self.load(filename)
-    def load(self, filename):
+        self.load(filename, enableBranching, useBranchingHack)
+    def load(self, filename, enableBranching, useBranchingHack):
         try:
             self.length = path.getsize(filename)
+            if enableBranching:
+                self.lastJump = 0
             with open(filename, 'rb') as laytonScript:
                 self.offsetEofc = int.from_bytes(laytonScript.read(4), 'little')
                 laytonScript.seek(2,1)
                 while laytonScript.tell() != self.offsetEofc + 4:
-                    self.commands.append(self.parseCommand(laytonScript))
+                    tempCommand = self.parseCommand(laytonScript, enableBranching, useBranchingHack)
+                    if not(tempCommand[0]):
+                        self.commands.append(tempCommand[1])
             print("[GDLIB] Reading complete!")
         except FileNotFoundError:
             print("[GDLIB] Err: GDS does not exist!")
 
-    def resolveJumps(self):
-        for command in self.commands:
-            pass
-            
-    def parseCommand(self, reader):
+    def parseCommand(self, reader, enableBranching, useBranchingHack):
         self.commandLoc.append(reader.tell())
+        invalidateCommand = False
         opcode = reader.read(1)
         reader.seek(1,1)
         tempOperands = []
@@ -63,8 +76,28 @@ class gdScript():
             elif paramId == 12: # End of entire file
                 break
         
-        if opcode == b'\x17':
-            print("[GDLIB] Jump from " + str(reader.tell()) + " to " + str(tempOperands[0]))
-            reader.seek(tempOperands[0])
+        if enableBranching:     # Allows instructions that change instruction order to work correctly
+            # if opcode == b'\x17':     # I don't think this is a simple jump command because this realllly causes bad looping
+            #     print("[GDLIB] Jump from " + str(reader.tell()) + " to " + str(tempOperands[0]))
+            #     if tempOperands[0] == self.lastJump:
+            #         print("Loop detected. Read error!")
+            #     else:
+            #         self.lastJump = tempOperands[0]
+            #         reader.seek(tempOperands[0])
+            if opcode == b'\x48': # Set puzzle context (lol help)
+                self.contextPuzzle = tempOperands[0]
+                invalidateCommand = True
             
-        return gdOperation(opcode, tempOperands)
+            if self.contextPuzzle != None:
+                if opcode in [b'\x49', b'\x4a', b'\x4d']:
+                    if opcode == b'\x49' and self.playerState.puzzleData[self.contextPuzzle].countAttempts > 0: # Jump if puzzle reattempted
+                        reader.seek(tempOperands[0])
+                    elif opcode == b'\x4a' and self.playerState.puzzleData[self.contextPuzzle].wasCompleted: # Jump if puzzle finished
+                        reader.seek(tempOperands[0])
+                    elif opcode == b'\x4d' and self.playerState.puzzleData[self.contextPuzzle].wasQuit: # Jump if puzzle quit
+                        reader.seek(tempOperands[0])
+                    if useBranchingHack:                # The RE for branching is kind of shaky, so this hack allows more bad loops to be avoided
+                        seekToNextOperation(reader)
+                    invalidateCommand = True
+            
+        return (invalidateCommand, gdOperation(opcode, tempOperands))

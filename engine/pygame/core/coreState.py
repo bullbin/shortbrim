@@ -7,9 +7,12 @@ class LaytonPuzzleDataEntry():
         self.name = ""
         self.unlocked = True
         self.unlockedHintLevel = 0
+        self.wasCompleted = False
+        self.wasQuit = False
         self.category = None
         self.decayState = 0
         self.decayValues = decayValues
+        self.countAttempts = 0
     def getValue(self):
         if self.decayState > len(self.decayValues) - 1:
             return self.decayValues[-1]

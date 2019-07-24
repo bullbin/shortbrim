@@ -70,6 +70,9 @@ class gdScript():
                 params.append(unpack("<f", reader.read(4))[0])
             elif paramId == 3:
                 params.append(reader.read(int.from_bytes(reader.read(2), 'little')).decode("ascii")[0:-1])
+                
+            elif paramId == 4 or paramId == 5:
+                print("ERROR READING: UNK PARAM!")
 
             # Control parameters (conditional jumping?)
             elif paramId == 6 or paramId == 7:
