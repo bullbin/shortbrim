@@ -70,10 +70,9 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         
         LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
         self.buttonHintWaitTime = 0
-        self.screenHint = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount)
+        self.screenHint = scrnHint.Screen(self.puzzleIndex, self.playerState, self.puzzleHintCount, self.puzzleAnimFont)
         
     def update(self, gameClockDelta):
-        self.puzzleHintCoinsText    = coreAnim.AnimatedText(self.playerState.getFont("fontq"), initString=str(self.playerState.remainingHintCoins))
         self.puzzleQText.update(gameClockDelta)
         if not(self.screenBlockInput):
             LaytonPuzzleUi.buttonHint.update(gameClockDelta)
@@ -97,7 +96,6 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
             self.puzzleAnimFont.pos = (xPosInitial,6)
             for char in bannerText:
                 if self.puzzleAnimFont.setAnimationFromName(char):
-                    self.puzzleAnimFont.setAnimationFromName(char)
                     self.puzzleAnimFont.setInitialFrameFromAnimation()
                     self.puzzleAnimFont.draw(gameDisplay)
                 self.puzzleAnimFont.pos = (self.puzzleAnimFont.pos[0] + self.puzzleAnimFont.dimensions[0] - 1, self.puzzleAnimFont.pos[1])
@@ -145,7 +143,11 @@ class PuzzletInteractableDragContext(LaytonContextPuzzlet):
         LaytonContextPuzzlet.__init__(self)
         self.elements = []
         self.elementFocus = None
+        self.elementClickOffset = (0,0)
+        self.puzzleSoftlockMoveScreen = False
         self.puzzleMoveLimit = None
+        self.puzzleMoveFont  = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "inputnumbers")
+        self.puzzleMoveFont.fromImages(coreProp.PATH_ASSET_ANI + "inputnumbers.txt")
         self.puzzleCurrentMoves = 0
     
     def draw(self, gameDisplay):
@@ -156,10 +158,18 @@ class PuzzletInteractableDragContext(LaytonContextPuzzlet):
                 self.elements[elementIndex].draw(gameDisplay)
         if self.elementFocus != None:
             self.elements[self.elementFocus].draw(gameDisplay)
-        if self.puzzleMoveLimit != None and self.puzzleMoveLimit <= self.puzzleCurrentMoves:
-            PuzzletInteractableDragContext.promptNoMove.draw(gameDisplay)
+        if self.puzzleMoveLimit != None:
+            self.puzzleMoveFont.pos = (31, coreProp.LAYTON_SCREEN_HEIGHT + 167)
+            for char in format(str(self.puzzleMoveLimit - self.puzzleCurrentMoves), '>2'):
+                if self.puzzleMoveFont.setAnimationFromName(char):
+                    self.puzzleMoveFont.setInitialFrameFromAnimation()
+                    self.puzzleMoveFont.draw(gameDisplay)
+                self.puzzleMoveFont.pos = (self.puzzleMoveFont.pos[0] + self.puzzleMoveFont.dimensions[0] - 1, self.puzzleMoveFont.pos[1])
+            if self.puzzleSoftlockMoveScreen:
+                PuzzletInteractableDragContext.promptNoMove.draw(gameDisplay)
 
     def reset(self):
+        self.puzzleSoftlockMoveScreen = False
         self.puzzleCurrentMoves = 0
     
     def evaluateSolution(self):
@@ -174,11 +184,15 @@ class PuzzletInteractableDragContext(LaytonContextPuzzlet):
                     self.setLoss()
             elif PuzzletInteractableDragContext.buttonReset.wasClicked(event.pos):
                 self.reset()
-            elif self.puzzleMoveLimit == None or self.puzzleCurrentMoves < self.puzzleMoveLimit:
-                for elementIndex in range(len(self.elements)):
-                    if self.elements[elementIndex].wasClicked(event.pos):
-                        self.elementFocus = elementIndex
-                        break # To-do: Sort so clickable element is always the topmost, as these can overlap unlike tiles
+            elif not(self.puzzleSoftlockMoveScreen):
+                if self.puzzleMoveLimit == None or self.puzzleCurrentMoves < self.puzzleMoveLimit:
+                    for elementIndex in range(len(self.elements)):
+                        if self.elements[elementIndex].wasClicked(event.pos):
+                            self.elementFocus = elementIndex
+                            self.elementClickOffset = (event.pos[0] - self.elements[elementIndex].pos[0], event.pos[1] - self.elements[elementIndex].pos[1])
+                            break # To-do: Sort so clickable element is always the topmost, as these can overlap unlike tiles
+                else:
+                    self.puzzleSoftlockMoveScreen = True
         # Note: MOUSEBUTTONUP is not handled by default because this is where handlers differ
 
 class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
@@ -203,7 +217,7 @@ class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
 
 class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
     
-    COIN_ACCEPTABLE_REGION = 8
+    COIN_ACCEPTABLE_REGION = 4
     COIN_SHADOW_OFFSET = 1
     backgroundCoin = pygame.image.load(coreProp.PATH_ASSET_BG + "coin_bg.png").convert()
     spriteCoin = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "coin")
@@ -212,10 +226,16 @@ class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
 
     def __init__(self):
         PuzzletInteractableDragContext.__init__(self)
+        self.posInitial = []
+        self.posChanged = []
     
     def executeCommand(self, command):
         if command.opcode == b'\x25':
             self.elements.append(nazoElements.IndependentTile(PuzzletInteractableCoinContext.spriteCoin, "coin", x=command.operands[0], y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+            self.posInitial.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+        elif command.opcode == b'\x26':
+            if (command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT) not in self.posInitial:
+                self.posChanged.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
         elif command.opcode == b'\x27':
             self.puzzleMoveLimit = command.operands[0]
         else:
@@ -231,8 +251,9 @@ class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
         super().draw(gameDisplay)
     
     def update(self, gameClockDelta):
+        super().update(gameClockDelta)
         if self.elementFocus != None:
-            self.elements[self.elementFocus].pos = pygame.mouse.get_pos()
+            self.elements[self.elementFocus].pos = (pygame.mouse.get_pos()[0] - self.elementClickOffset[0], pygame.mouse.get_pos()[1] - self.elementClickOffset[1])
 
     def handleEvent(self, event):
         super().handleEvent(event)
@@ -240,11 +261,32 @@ class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
             self.elements.append(self.elements.pop(self.elementFocus))          # Place last interacted element on top
             self.elementFocus = None
             self.puzzleCurrentMoves += 1
+            self.elementClickOffset = (0,0)
     
+    def evaluateSolution(self):
+        posChanged = list(self.posChanged)
+        isSolved = True
+        for element in self.elements:
+            if element.pos not in self.posInitial:  # The element has changed places
+                elementHasSolution = False
+                for posChangeIndex in range(len(posChanged)):
+                    if (abs(element.pos[0] - posChanged[posChangeIndex][0]) <= PuzzletInteractableCoinContext.COIN_ACCEPTABLE_REGION and
+                        abs(element.pos[1] - posChanged[posChangeIndex][1]) <= PuzzletInteractableCoinContext.COIN_ACCEPTABLE_REGION):
+                        posChanged.pop(posChangeIndex)
+                        elementHasSolution = True
+                        break
+                if not(elementHasSolution):
+                    isSolved = False
+            if not(isSolved):
+                break
+        if len(posChanged) == 0:
+            return True
+        return False
+
     def reset(self):
+        super().reset()
         for element in self.elements:
             element.reset()
-        super().reset()
 
 class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
 

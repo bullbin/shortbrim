@@ -28,7 +28,7 @@ class Screen(coreState.LaytonContext):
     buttonYes = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
     buttonNo = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
     
-    def __init__(self, puzzleIndex, playerState, puzzleHintCount):
+    def __init__(self, puzzleIndex, playerState, puzzleHintCount, puzzleAnimFont):
         coreState.LaytonContext.__init__(self)
         self.screenIsOverlay        = True
         self.screenBlockInput       = True
@@ -61,6 +61,8 @@ class Screen(coreState.LaytonContext):
             if playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > hintTabIndex:
                 self.hintTabs[-1].isUnlocked = True
             tempTabX += self.hintTabs[hintTabIndex].tabLocked.image.get_width()
+        
+        self.puzzleAnimFont = puzzleAnimFont
 
     def refresh(self):
         self.isContextFinished = False
@@ -78,6 +80,14 @@ class Screen(coreState.LaytonContext):
         if self.hintTabs[self.hintLevelActive].isUnlocked:
             self.hintTabs[self.hintLevelActive].hText.draw(gameDisplay)
         elif self.playerState.remainingHintCoins >= coreProp.LAYTON_PUZZLE_HINT_COST:
+
+            self.puzzleAnimFont.pos = (174,coreProp.LAYTON_SCREEN_HEIGHT + 107)
+            for char in format(str(self.playerState.remainingHintCoins), '>3'):
+                if self.puzzleAnimFont.setAnimationFromName(char):
+                    self.puzzleAnimFont.setInitialFrameFromAnimation()
+                    self.puzzleAnimFont.draw(gameDisplay)
+                self.puzzleAnimFont.pos = (self.puzzleAnimFont.pos[0] + self.puzzleAnimFont.dimensions[0] - 1, self.puzzleAnimFont.pos[1])
+
             Screen.buttonYes.draw(gameDisplay)
             Screen.buttonNo.draw(gameDisplay)
 
