@@ -264,10 +264,92 @@ class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
                 else:
                     self.setLoss()
 
+class PuzzletInteractableTileContext(LaytonContextPuzzlet):
+
+    TILE_SWITCH_REGION = 12
+    buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=188, y=159+coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonRestart = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\restart.png", x=7, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
+
+    def __init__(self):
+        LaytonContextPuzzlet.__init__(self)
+        self.tileDict = {}                  # Stores the core asset used for all tiles
+
+        self.tiles = []
+        self.tileTargets = []
+        self.tileSolutions = []
+        self.tileSlotDict = {}
+        self.tileSolutionLoadIndex = 0
+        self.tileClickOffset = (0,0)
+        self.tileActive = None
+    
+    def draw(self, gameDisplay):
+        PuzzletInteractableTileContext.buttonSubmit.draw(gameDisplay)
+        PuzzletInteractableTileContext.buttonRestart.draw(gameDisplay)
+        for tileIndex in range(len(self.tiles)):
+            if tileIndex != self.tileActive:
+                self.tiles[tileIndex].draw(gameDisplay, self.tileTargets[self.tileSlotDict[tileIndex]])
+        if self.tileActive != None:
+            self.tiles[self.tileActive].draw(gameDisplay, (pygame.mouse.get_pos()[0] - self.tileClickOffset[0], pygame.mouse.get_pos()[1] - self.tileClickOffset[1]))
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x73':                   # Place tile
+            if command.operands[2] not in self.tileDict.keys():
+                self.tileDict[command.operands[2]] = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4])
+            self.tileSlotDict[len(self.tiles)] = len(self.tiles)
+            self.tiles.append(nazoElements.Tile(self.tileDict[command.operands[2]], command.operands[3]))
+            self.tileTargets.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+        elif command.opcode == b'\x74':                 # Set target
+            self.tileTargets.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+        elif command.opcode == b'\x75':                 # Map solution
+            self.tileSolutions[self.tileSolutionLoadIndex // len(self.tiles)][command.operands[0]] = len(self.tiles) + command.operands[1]
+            self.tileSolutionLoadIndex += 1
+        elif command.opcode == b'\x76':                 # Set solution count
+            for _solutionIndex in range(command.operands[0]):
+                self.tileSolutions.append({})
+        else:
+            print("CommandTileUnknown: " + str(command.opcode))
+    
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONUP:
+            if self.tileActive != None:
+                tileTargetIndex = 0
+                for tileTarget in self.tileTargets:
+                    if (abs(event.pos[0] - self.tileClickOffset[0] - tileTarget[0]) <= PuzzletInteractableTileContext.TILE_SWITCH_REGION and
+                        abs(event.pos[1] - self.tileClickOffset[1]- tileTarget[1]) <= PuzzletInteractableTileContext.TILE_SWITCH_REGION):
+                        isOccupied = False
+                        for tileIndex in range(len(self.tiles)):
+                            if self.tileSlotDict[tileIndex] == tileTargetIndex:
+                                isOccupied = True
+                                break
+                        if isOccupied:  # Switch slots
+                            self.tileSlotDict[tileIndex] = self.tileSlotDict[self.tileActive]
+                        self.tileSlotDict[self.tileActive] = tileTargetIndex
+                        break
+                    tileTargetIndex += 1
+                self.tileActive = None
+            self.tileClickOffset = (0,0)
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if PuzzletInteractableTileContext.buttonSubmit.wasClicked(event.pos):
+                if self.tileSlotDict in self.tileSolutions:
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            elif PuzzletInteractableTileContext.buttonRestart.wasClicked(event.pos):
+                for tileIndex in range(len(self.tiles)):
+                    self.tileSlotDict[tileIndex] = tileIndex
+            else:
+                self.tileActive = None
+                for tileIndex in range(len(self.tiles)):
+                    if self.tiles[tileIndex].wasClicked(event.pos, self.tileTargets[self.tileSlotDict[tileIndex]]):
+                        self.tileActive = tileIndex
+                        self.tileClickOffset = (event.pos[0] - self.tileTargets[self.tileSlotDict[tileIndex]][0], event.pos[1] - self.tileTargets[self.tileSlotDict[tileIndex]][1])
+                        break   # Multi-touch is not supported anyway
+
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
     defaultHandlers = {"Match":PuzzletInteractableMatchContext, "Free Button":PuzzletInteractableFreeButtonContext,
-                       "On Off":PuzzletInteractableOnOff}
+                       "On Off":PuzzletInteractableOnOff, "Tile":PuzzletInteractableTileContext}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
@@ -338,4 +420,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(48, playerState)    # 25:Match, 26:OnOff, 48:FreeButton
+play(34, playerState)    # 25:Match, 26:OnOff, 34:Tile, 48:FreeButton
