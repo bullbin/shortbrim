@@ -135,48 +135,116 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
         gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
         gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
 
-class PuzzletInteractableMatchContext(LaytonContextPuzzlet):
+class PuzzletInteractableDragContext(LaytonContextPuzzlet):
 
-    matchImage          = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_match.png").convert_alpha()
-    matchShadowImage    = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_shadow.png").convert_alpha()
     buttonSubmit        = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=22, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
     buttonReset         = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_3.png", x=99, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
+    promptNoMove        = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\nomoretouch.png", y=coreProp.LAYTON_SCREEN_HEIGHT)
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
-        self.matches = []
+        self.elements = []
+        self.elementFocus = None
         self.puzzleMoveLimit = None
+        self.puzzleCurrentMoves = 0
+    
+    def draw(self, gameDisplay):
+        PuzzletInteractableDragContext.buttonSubmit.draw(gameDisplay)
+        PuzzletInteractableDragContext.buttonReset.draw(gameDisplay)
+        for elementIndex in range(len(self.elements)):
+            if elementIndex != self.elementFocus:
+                self.elements[elementIndex].draw(gameDisplay)
+        if self.elementFocus != None:
+            self.elements[self.elementFocus].draw(gameDisplay)
+        if self.puzzleMoveLimit != None and self.puzzleMoveLimit <= self.puzzleCurrentMoves:
+            PuzzletInteractableDragContext.promptNoMove.draw(gameDisplay)
+
+    def reset(self):
+        self.puzzleCurrentMoves = 0
+    
+    def evaluateSolution(self):
+        return False
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if PuzzletInteractableDragContext.buttonSubmit.wasClicked(event.pos):
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            elif PuzzletInteractableDragContext.buttonReset.wasClicked(event.pos):
+                self.reset()
+            elif self.puzzleMoveLimit == None or self.puzzleCurrentMoves < self.puzzleMoveLimit:
+                for elementIndex in range(len(self.elements)):
+                    if self.elements[elementIndex].wasClicked(event.pos):
+                        self.elementFocus = elementIndex
+                        break # To-do: Sort so clickable element is always the topmost, as these can overlap unlike tiles
+        # Note: MOUSEBUTTONUP is not handled by default because this is where handlers differ
+
+class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
+
+    matchImage          = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_match.png").convert_alpha()
+    matchShadowImage    = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_shadow.png").convert_alpha()
+
+    def __init__(self):
+        PuzzletInteractableDragContext.__init__(self)
     
     def executeCommand(self, command):
         if command.opcode == b'\x2a':
-            self.matches.append(nazoElements.Match(PuzzletInteractableMatchContext.matchImage, PuzzletInteractableMatchContext.matchShadowImage,
-                                                   command.operands[0],command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT,
-                                                   command.operands[2]))
+            self.elements.append(nazoElements.Match(PuzzletInteractableMatchContext.matchImage, PuzzletInteractableMatchContext.matchShadowImage,
+                                                    command.operands[0],command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT,
+                                                    command.operands[2]))
         elif command.opcode == b'\x2b':
             pass
         elif command.opcode == b'\x27':
             self.puzzleMoveLimit = command.operands[0]
         else:
             print("ErrUnrecognised: " + str(command.opcode))
+
+class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
     
+    COIN_ACCEPTABLE_REGION = 8
+    COIN_SHADOW_OFFSET = 1
+    backgroundCoin = pygame.image.load(coreProp.PATH_ASSET_BG + "coin_bg.png").convert()
+    spriteCoin = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "coin")
+    spriteCoin.fromImages(coreProp.PATH_ASSET_ANI + "coin.txt")
+    spriteShadow = nazoElements.IndependentTile(spriteCoin, "shadow")
+
+    def __init__(self):
+        PuzzletInteractableDragContext.__init__(self)
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x25':
+            self.elements.append(nazoElements.IndependentTile(PuzzletInteractableCoinContext.spriteCoin, "coin", x=command.operands[0], y=command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+        elif command.opcode == b'\x27':
+            self.puzzleMoveLimit = command.operands[0]
+        else:
+            print("ErrUnrecognised: " + str(command.opcode))
+
     def draw(self, gameDisplay):
-        for match in self.matches:
-            match.draw(gameDisplay)
-        PuzzletInteractableMatchContext.buttonSubmit.draw(gameDisplay)
-        PuzzletInteractableMatchContext.buttonReset.draw(gameDisplay)
+        gameDisplay.blit(PuzzletInteractableCoinContext.backgroundCoin, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+        for elementIndex in range(len(self.elements)):
+            if elementIndex != self.elementFocus:
+                PuzzletInteractableCoinContext.spriteShadow.pos = (self.elements[elementIndex].pos[0] + PuzzletInteractableCoinContext.COIN_SHADOW_OFFSET,
+                                                                   self.elements[elementIndex].pos[1] + PuzzletInteractableCoinContext.COIN_SHADOW_OFFSET)
+                PuzzletInteractableCoinContext.spriteShadow.draw(gameDisplay)
+        super().draw(gameDisplay)
     
-    def evaluateSolution(self):
-        pass
-    
-    def reset(self):
-        pass
+    def update(self, gameClockDelta):
+        if self.elementFocus != None:
+            self.elements[self.elementFocus].pos = pygame.mouse.get_pos()
 
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if PuzzletInteractableMatchContext.buttonSubmit.wasClicked(event.pos):
-                self.evaluateSolution()
-            elif PuzzletInteractableMatchContext.buttonReset.wasClicked(event.pos):
-                self.reset()
+        super().handleEvent(event)
+        if event.type == pygame.MOUSEBUTTONUP and self.elementFocus != None:
+            self.elements.append(self.elements.pop(self.elementFocus))          # Place last interacted element on top
+            self.elementFocus = None
+            self.puzzleCurrentMoves += 1
+    
+    def reset(self):
+        for element in self.elements:
+            element.reset()
+        super().reset()
 
 class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
 
@@ -229,7 +297,7 @@ class PuzzletInteractableFreeButtonContext(LaytonContextPuzzlet):
                         self.setLoss()
                 self.drawFlagsInteractableElements[elementIndex] = False
 
-class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
+class PuzzletInteractableOnOffContext(PuzzletInteractableFreeButtonContext):
 
     buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=186, y=158+coreProp.LAYTON_SCREEN_HEIGHT)
 
@@ -239,7 +307,7 @@ class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
     
     def draw(self, gameDisplay):
         super().draw(gameDisplay)
-        PuzzletInteractableOnOff.buttonSubmit.draw(gameDisplay)
+        PuzzletInteractableOnOffContext.buttonSubmit.draw(gameDisplay)
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -251,7 +319,7 @@ class PuzzletInteractableOnOff(PuzzletInteractableFreeButtonContext):
                     else:
                         self.drawFlagsInteractableElementsActiveCount -= 1
             
-            if PuzzletInteractableOnOff.buttonSubmit.wasClicked(event.pos):
+            if PuzzletInteractableOnOffContext.buttonSubmit.wasClicked(event.pos):
                 if self.drawFlagsInteractableElementsActiveCount == len(self.solutionElements):
                     isSolved = True
                     for elementIndex in self.drawFlagsInteractableElements:
@@ -349,7 +417,8 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
     defaultHandlers = {"Match":PuzzletInteractableMatchContext, "Free Button":PuzzletInteractableFreeButtonContext,
-                       "On Off":PuzzletInteractableOnOff, "Tile":PuzzletInteractableTileContext}
+                       "On Off":PuzzletInteractableOnOffContext, "Tile":PuzzletInteractableTileContext,
+                       "Coin":PuzzletInteractableCoinContext}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
@@ -420,4 +489,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(34, playerState)    # 25:Match, 26:OnOff, 34:Tile, 48:FreeButton
+play(9, playerState)    #9:Coin, # 25:Match, 26:OnOff, 34:Tile, 48:FreeButton

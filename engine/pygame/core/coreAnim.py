@@ -107,7 +107,7 @@ class AnimatedImage():
                 except:
                     print("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
             else:
-                print("AnimatedImage: No images found in path '" + str(frameRootPath) + "'")
+                print("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
         else:
             print("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
 
