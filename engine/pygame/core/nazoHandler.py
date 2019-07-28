@@ -253,7 +253,11 @@ class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
     def update(self, gameClockDelta):
         super().update(gameClockDelta)
         if self.elementFocus != None:
-            self.elements[self.elementFocus].pos = (pygame.mouse.get_pos()[0] - self.elementClickOffset[0], pygame.mouse.get_pos()[1] - self.elementClickOffset[1])
+            posCursorFollow = (pygame.mouse.get_pos()[0] - self.elementClickOffset[0], pygame.mouse.get_pos()[1] - self.elementClickOffset[1])
+            if posCursorFollow[1] < coreProp.LAYTON_SCREEN_HEIGHT:
+                self.elements[self.elementFocus].pos = (posCursorFollow[0], coreProp.LAYTON_SCREEN_HEIGHT)
+            else:
+                self.elements[self.elementFocus].pos = posCursorFollow
 
     def handleEvent(self, event):
         super().handleEvent(event)
@@ -383,9 +387,9 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
         self.tileDict = {}                  # Stores the core asset used for all tiles
-
         self.tiles = []
         self.tileTargets = []
+        self.tileTargetIndicesSkip = []     # Stores targets which are unmovable (locked in place)
         self.tileSolutions = []
         self.tileSlotDict = {}
         self.tileSolutionLoadIndex = 0
@@ -399,14 +403,17 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
             if tileIndex != self.tileActive:
                 gameDisplay.blit(self.tiles[tileIndex], self.tileTargets[self.tileSlotDict[tileIndex]])
         if self.tileActive != None:
-            gameDisplay.blit(self.tiles[self.tileActive], (pygame.mouse.get_pos()[0] - self.tileClickOffset[0], pygame.mouse.get_pos()[1] - self.tileClickOffset[1]))
+            posCursorFollow = (pygame.mouse.get_pos()[0] - self.tileClickOffset[0], pygame.mouse.get_pos()[1] - self.tileClickOffset[1])
+            if posCursorFollow[1] < coreProp.LAYTON_SCREEN_HEIGHT:
+                gameDisplay.blit(self.tiles[self.tileActive], (posCursorFollow[0], coreProp.LAYTON_SCREEN_HEIGHT))
+            else:
+                gameDisplay.blit(self.tiles[self.tileActive], posCursorFollow)
     
     def executeCommand(self, command):
         if command.opcode == b'\x73':                   # Place tile
             if command.operands[2] not in self.tileDict.keys():
                 self.tileDict[command.operands[2]] = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4])
             self.tileSlotDict[len(self.tiles)] = len(self.tiles)
-
             if self.tileDict[command.operands[2]].setAnimationFromName(command.operands[3]):
                 self.tiles.append(self.tileDict[command.operands[2]].frames[self.tileDict[command.operands[2]].animMap[self.tileDict[command.operands[2]].animActive].indices[0]])
             else:
@@ -414,7 +421,6 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
                     self.tiles.append(self.tileDict[command.operands[2]].frames[command.operands[3] - 1])
                 else:
                     self.tiles.append(pygame.Surface((24,24)))
-
             self.tileTargets.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
         elif command.opcode == b'\x74':                 # Set target
             self.tileTargets.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
@@ -427,6 +433,23 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
         else:
             print("CommandTileUnknown: " + str(command.opcode))
 
+    def reset(self):
+        for tileIndex in range(len(self.tiles)):
+            self.tileSlotDict[tileIndex] = tileIndex
+
+    def evaluateSolution(self):
+        if self.tileSlotDict in self.tileSolutions:
+            return True
+        return False
+
+    def wasTileClicked(self, tileIndex, mousePos):
+        if self.tileTargets[self.tileSlotDict[tileIndex]][0] + self.tiles[tileIndex].get_width() >= mousePos[0] and mousePos[0] >= self.tileTargets[self.tileSlotDict[tileIndex]][0]:
+            if self.tileTargets[self.tileSlotDict[tileIndex]][1] + self.tiles[tileIndex].get_height() >= mousePos[1] and mousePos[1] >= self.tileTargets[self.tileSlotDict[tileIndex]][1]:
+                self.tileActive = tileIndex
+                self.tileClickOffset = (mousePos[0] - self.tileTargets[self.tileSlotDict[tileIndex]][0], mousePos[1] - self.tileTargets[self.tileSlotDict[tileIndex]][1])
+                return True
+        return False
+
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONUP:
             if self.tileActive != None:
@@ -435,13 +458,17 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
                     if (abs(event.pos[0] - self.tileClickOffset[0] - tileTarget[0]) <= PuzzletInteractableTileContext.TILE_SWITCH_REGION and
                         abs(event.pos[1] - self.tileClickOffset[1]- tileTarget[1]) <= PuzzletInteractableTileContext.TILE_SWITCH_REGION):
                         isOccupied = False
+                        isFree = True
                         for tileIndex in range(len(self.tiles)):
                             if self.tileSlotDict[tileIndex] == tileTargetIndex:
+                                if tileIndex in self.tileTargetIndicesSkip:
+                                    isFree = False
                                 isOccupied = True
                                 break
-                        if isOccupied:  # Switch slots
-                            self.tileSlotDict[tileIndex] = self.tileSlotDict[self.tileActive]
-                        self.tileSlotDict[self.tileActive] = tileTargetIndex
+                        if isFree:
+                            if isOccupied:  # Switch slots
+                                self.tileSlotDict[tileIndex] = self.tileSlotDict[self.tileActive]
+                            self.tileSlotDict[self.tileActive] = tileTargetIndex
                         break
                     tileTargetIndex += 1
                 self.tileActive = None
@@ -449,27 +476,116 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if PuzzletInteractableTileContext.buttonSubmit.wasClicked(event.pos):
-                if self.tileSlotDict in self.tileSolutions:
+                if self.evaluateSolution():
                     self.setVictory()
                 else:
                     self.setLoss()
             elif PuzzletInteractableTileContext.buttonRestart.wasClicked(event.pos):
-                for tileIndex in range(len(self.tiles)):
-                    self.tileSlotDict[tileIndex] = tileIndex
+                self.reset()
             else:
                 self.tileActive = None
                 for tileIndex in range(len(self.tiles)):
-                    if self.tileTargets[self.tileSlotDict[tileIndex]][0] + self.tiles[tileIndex].get_width() >= event.pos[0] and event.pos[0] >= self.tileTargets[self.tileSlotDict[tileIndex]][0]:
-                        if self.tileTargets[self.tileSlotDict[tileIndex]][1] + self.tiles[tileIndex].get_height() >= event.pos[1] and event.pos[1] >= self.tileTargets[self.tileSlotDict[tileIndex]][1]:
-                            self.tileActive = tileIndex
-                            self.tileClickOffset = (event.pos[0] - self.tileTargets[self.tileSlotDict[tileIndex]][0], event.pos[1] - self.tileTargets[self.tileSlotDict[tileIndex]][1])
-                            break   # Multi-touch is not supported anyway
+                    if tileIndex not in self.tileTargetIndicesSkip and self.wasTileClicked(tileIndex, event.pos):
+                        break   # Multi-touch is not supported anyway
+
+class PuzzletInteractableQueenContext(PuzzletInteractableTileContext):
+
+    QUEEN_OCTUPLET_CORNER = (197, 62 + coreProp.LAYTON_SCREEN_HEIGHT)
+    QUEEN_OCTUPLET_GAP = 2
+    QUEEN_SPRITE = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "queen_gfx")
+    QUEEN_SPRITE.fromImages(coreProp.PATH_ASSET_ANI + "queen_gfx.txt")
+
+    def __init__(self):
+        PuzzletInteractableTileContext.__init__(self)
+        self.tileQueenCount = 0
+        self.tileBoardSquareDimension = 0
+        self.tileSolvingMethod = 0
+        self.backgroundBs = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT))
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x3b':
+            try:
+                self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "chess_" + str(command.operands[2]) + "_bg.png").convert()
+            except:
+                print("ErrQueenBgNotFound: Could not load " + coreProp.PATH_ASSET_BG + "chess_" + str(command.operands[2]) + "_bg.png")
+            self.tileBoardSquareDimension = command.operands[2]
+            for yQueenIndex in range(command.operands[2]):
+                for xQueenIndex in range(command.operands[2]):
+                    self.tileSolutions.append(True)
+                    self.tileTargets.append(((xQueenIndex * PuzzletInteractableQueenContext.QUEEN_SPRITE.dimensions[0]) + command.operands[0],
+                                             (yQueenIndex * PuzzletInteractableQueenContext.QUEEN_SPRITE.dimensions[1]) + coreProp.LAYTON_SCREEN_HEIGHT + command.operands[1]))
+        elif command.opcode == b'\x3c':
+            self.tileQueenCount = command.operands[0]
+            for queenIndex in range(command.operands[0]):
+                self.tileSlotDict[len(self.tiles)] = len(self.tileTargets) + len(self.tiles)
+                if PuzzletInteractableQueenContext.QUEEN_SPRITE.setAnimationFromName("q1"):
+                    self.tiles.append(PuzzletInteractableQueenContext.QUEEN_SPRITE.frames[PuzzletInteractableQueenContext.QUEEN_SPRITE.animMap[PuzzletInteractableQueenContext.QUEEN_SPRITE.animActive].indices[0]])
+                else:
+                    self.tiles.append(pygame.Surface((20,20)))
+            for yQueenIndex in range(4):
+                for xQueenIndex in range(2):
+                    self.tileTargets.append(((xQueenIndex * (PuzzletInteractableQueenContext.QUEEN_SPRITE.dimensions[0] + PuzzletInteractableQueenContext.QUEEN_OCTUPLET_GAP)) + PuzzletInteractableQueenContext.QUEEN_OCTUPLET_CORNER[0],
+                                             (yQueenIndex * (PuzzletInteractableQueenContext.QUEEN_SPRITE.dimensions[1] + PuzzletInteractableQueenContext.QUEEN_OCTUPLET_GAP)) + PuzzletInteractableQueenContext.QUEEN_OCTUPLET_CORNER[1]))
+        elif command.opcode == b'\x3d':
+            self.tileSlotDict[len(self.tiles)] = (command.operands[1] * self.tileBoardSquareDimension) + command.operands[0]
+            self.tileTargetIndicesSkip.append(len(self.tiles))
+            if PuzzletInteractableQueenContext.QUEEN_SPRITE.setAnimationFromName("q3"):
+                self.tiles.append(PuzzletInteractableQueenContext.QUEEN_SPRITE.frames[PuzzletInteractableQueenContext.QUEEN_SPRITE.animMap[PuzzletInteractableQueenContext.QUEEN_SPRITE.animActive].indices[0]])
+            else:
+                self.tiles.append(pygame.Surface((20,20)))
+        elif command.opcode == b'\x3e':
+            self.tileSolvingMethod = command.operands[0]
+        else:
+            print("ErrQueenUnkCommand: " + str(command.opcode))
+    
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.backgroundBs, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+        super().draw(gameDisplay)
+    
+    def evaluateSolution(self):
+        for tileIndex in range(len(self.tiles)):        # Check if all tiles are on the board
+            if self.tileSlotDict[tileIndex] >= (self.tileBoardSquareDimension ** 2):
+                return False
+        for slotBuilder in range(self.tileBoardSquareDimension ** 2):
+            self.tileSolutions[slotBuilder] = True
+        for tileIndex in range(len(self.tiles)):
+            if self.tileSolutions[self.tileSlotDict[tileIndex]]:            # If its own square is available
+                self.tileSolutions[self.tileSlotDict[tileIndex]] = False     # Invalidate its own square
+                tempCoord = [self.tileSlotDict[tileIndex] % self.tileBoardSquareDimension, self.tileSlotDict[tileIndex] // self.tileBoardSquareDimension]
+                for invalidateHori in range(self.tileBoardSquareDimension):
+                    self.tileSolutions[(tempCoord[1] * self.tileBoardSquareDimension) + invalidateHori] = False   # Invalidate all horizontal squares
+                    self.tileSolutions[(self.tileBoardSquareDimension * invalidateHori) + tempCoord[0]] = False    # Invalidate all vertical squares
+                for diagonalIndex in range(min(tempCoord)):  # Invalidate diagonal with gradient top-left to bottom-right stopping at the tile
+                    self.tileSolutions[((tempCoord[1] - diagonalIndex - 1) * self.tileBoardSquareDimension) + tempCoord[0] - diagonalIndex - 1] = False
+                for diagonalIndex in range(self.tileBoardSquareDimension - max(tempCoord) - 1): # Invalidate diagonal with gradient top-left to bottom-right running after the tile
+                    self.tileSolutions[((tempCoord[1] + diagonalIndex + 1) * self.tileBoardSquareDimension) + tempCoord[0] + diagonalIndex + 1] = False
+                    
+                if tempCoord[0] > self.tileBoardSquareDimension // 2 or tempCoord[1] > self.tileBoardSquareDimension // 2:      # If in the top-left quadrant, invert the co-ordinate to get diagonal lengths
+                    tempInvertedCoord = [self.tileBoardSquareDimension - 1 - tempCoord[0], self.tileBoardSquareDimension - 1 - tempCoord[1]]
+                else:
+                    tempInvertedCoord = [tempCoord[1], tempCoord[0]]
+                for diagonalIndex in range(tempInvertedCoord[1]):   # The above but for the two remaining diagonals
+                    self.tileSolutions[((tempCoord[1] + diagonalIndex + 1) * self.tileBoardSquareDimension) + tempCoord[0] - diagonalIndex - 1] = False
+                for diagonalIndex in range(tempInvertedCoord[0]):
+                    self.tileSolutions[((tempCoord[1] - diagonalIndex - 1) * self.tileBoardSquareDimension) + tempCoord[0] + diagonalIndex + 1] = False
+            else:
+                return False
+        
+        if self.tileSolvingMethod == 1: # Used in 'Too Many Queen 3'; additional constraint that no squares can be free, thankfully this is tracked
+            for isUsableSpace in self.tileSolutions:
+                if isUsableSpace:
+                    return False
+        return True
+
+    def reset(self):
+        for tileIndex in range(len(self.tiles)):
+            self.tileSlotDict[tileIndex] = len(self.tileTargets) - (8 - tileIndex)
 
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
     defaultHandlers = {"Match":PuzzletInteractableMatchContext, "Free Button":PuzzletInteractableFreeButtonContext,
                        "On Off":PuzzletInteractableOnOffContext, "Tile":PuzzletInteractableTileContext,
-                       "Coin":PuzzletInteractableCoinContext}
+                       "Coin":PuzzletInteractableCoinContext, "Queen":PuzzletInteractableQueenContext}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
@@ -540,4 +656,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(9, playerState)    #9:Coin, # 25:Match, 26:OnOff, 34:Tile, 48:FreeButton
+play(18, playerState)    #9:Coin, #16:Queen, # 25:Match, 26:OnOff, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide

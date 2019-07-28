@@ -286,7 +286,13 @@ class gdScript():
         elif command == b'\xa1':
             print("GD: [PUZZLE  ] Define node connection!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")" + " to (" + str(params[2]) + ", " + str(params[3]) + ")")
 
-        # Slide puzzles use a range of commands from a4 to aa
+        # Slide Puzzle mode
+        elif command == b'\xa3':
+            print("GD: [PUZZLE  ] Set board TL corner!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
+        elif command == b'\xa4':
+            print("GD: [PUZZLE  ] Set board dimensions as " + str(params[0]) + " by " + str(params[1]) + " tiles!")
+        elif command == b'\xa5':
+            print("GD: [PUZZLE  ] Set puzzle tile width as " + str(params[0]) + " px!")
         elif command == b'\xa6':
             if params[2] < 4:
                 print("GD: [PUZZLE  ] Draw sliding component! (slidepuzzle.arc)\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
@@ -295,11 +301,12 @@ class gdScript():
                 print("GD: [PUZZLE  ] Draw sliding component! (slidepuzzle2.arc)\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
                 print("               CompType: " + str(params[2]) + ", " + {4:"External asset"}[params[2]] + "\n               SpawnAnm: " + params[3])
 
-        elif command == b'\xba':
-            print("GD: [PUZZLE  ] Set puzzle title!\n               ID     : " + str(params[0]) + "\n               Name   : " + params[1])
-        
+        elif command == b'\xb1':
+            print("GD: [PUZZLE  ] Set sliding puzzle parameters!\n               SolLoc  : (" + str(params[0]) + ", " + str(params[1]) + ")\n               Unknown : " + str(params[2]))
         elif command == b'\xb6':
             print("GD: [DEBUG   ] " + params[1] + "\t: " + params[0])
+        elif command == b'\xba':
+            print("GD: [PUZZLE  ] Set puzzle title!\n               ID     : " + str(params[0]) + "\n               Name   : " + params[1])
 
         elif command == b'\xc3':
             print("GD: [PUZZLE  ] Set puzzle " + str(params[0]) + " picarot decay!\nStage 0: " + str(params[1]) + "\nStage 1: " + str(params[2]) + "\nStage 2: " + str(params[3]))
