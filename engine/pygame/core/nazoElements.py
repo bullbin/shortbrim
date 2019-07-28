@@ -1,4 +1,4 @@
-import pygame
+import pygame, coreAnim
 
 class Match():
 
@@ -28,8 +28,8 @@ class Match():
         gameDisplay.blit(appliedSurface, (appliedSurfaceRect.x, appliedSurfaceRect.y))
     
     def wasClicked(self, mousePos):
-        if self.pos[0] + self.tileFrame.get_width() >= mousePos[0] and mousePos[0] >= self.pos[0]:
-            if self.pos[1] + self.tileFrame.get_height() >= mousePos[1] and mousePos[1] >= self.pos[1]:
+        if self.pos[0] + self.surfaceMatch.get_width() >= mousePos[0] and mousePos[0] >= self.pos[0]:
+            if self.pos[1] + self.surfaceMatch.get_height() >= mousePos[1] and mousePos[1] >= self.pos[1]:
                 return True
         return False
 
@@ -59,20 +59,16 @@ class Tile():
                 return True
         return False
 
-class IndependentTile(Tile):
+class IndependentTile(coreAnim.StaticImage):
     def __init__(self, sourceAnim, sourceAnimName, x=0, y=0):
-        Tile.__init__(self, sourceAnim, sourceAnimName)
+        if sourceAnim.setAnimationFromName(sourceAnimName):
+            coreAnim.StaticImage.__init__(self, sourceAnim.frames[sourceAnim.animMap[sourceAnim.animActive].indices[0]], x=x, y=y, imageIsSurface=True)
+        else:
+            if len(sourceAnim.frames) >= sourceAnimName:
+                coreAnim.StaticImage.__init__(self, sourceAnim.frames[sourceAnimName - 1], x=x, y=y, imageIsSurface=True)
+            else:
+                coreAnim.StaticImage.__init__(self, pygame.Surface((24,24)), x=x, y=y, imageIsSurface=True)
         self.sourcePos = (x,y)
-        self.reset()
     
     def reset(self):
         self.pos = self.sourcePos
-
-    def draw(self, gameDisplay):
-        gameDisplay.blit(self.tileFrame, self.pos)
-    
-    def wasClicked(self, mousePos):
-        if self.pos[0] + self.tileFrame.get_width() >= mousePos[0] and mousePos[0] >= self.pos[0]:
-            if self.pos[1] + self.tileFrame.get_height() >= mousePos[1] and mousePos[1] >= self.pos[1]:
-                return True
-        return False

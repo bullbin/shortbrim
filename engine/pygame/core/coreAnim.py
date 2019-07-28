@@ -7,8 +7,11 @@ from math import ceil
 pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
         
 class StaticImage():
-    def __init__(self, imagePath, x=0, y=0):
-        self.image = pygame.image.load(imagePath).convert_alpha()
+    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False):
+        if imageIsSurface:
+            self.image = imagePath
+        else:
+            self.image = pygame.image.load(imagePath).convert_alpha()
         self.pos = (x,y)
 
     def update(self, gameClockDelta):
