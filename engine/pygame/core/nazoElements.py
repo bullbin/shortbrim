@@ -35,9 +35,9 @@ class Match():
         return False
 
 class TraceLocation():
-    def __init__(self, x, y, radius, isAnswer):
+    def __init__(self, x, y, diameter, isAnswer):
         self.pos = (x, y)
-        self.radius = radius
+        self.radius = diameter // 2
         self.isAnswer = isAnswer
     
     def wasClicked(self, mousePos):

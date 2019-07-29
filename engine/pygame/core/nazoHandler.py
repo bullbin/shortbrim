@@ -516,7 +516,7 @@ class PuzzletInteractableQueenContext(PuzzletInteractableTileContext):
                                              (yQueenIndex * PuzzletInteractableQueenContext.QUEEN_SPRITE.dimensions[1]) + coreProp.LAYTON_SCREEN_HEIGHT + command.operands[1]))
         elif command.opcode == b'\x3c':
             self.tileQueenCount = command.operands[0]
-            for queenIndex in range(command.operands[0]):
+            for _queenIndex in range(command.operands[0]):
                 self.tileSlotDict[len(self.tiles)] = len(self.tileTargets) + len(self.tiles)
                 if PuzzletInteractableQueenContext.QUEEN_SPRITE.setAnimationFromName("q1"):
                     self.tiles.append(PuzzletInteractableQueenContext.QUEEN_SPRITE.frames[PuzzletInteractableQueenContext.QUEEN_SPRITE.animMap[PuzzletInteractableQueenContext.QUEEN_SPRITE.animActive].indices[0]])
@@ -584,6 +584,9 @@ class PuzzletInteractableQueenContext(PuzzletInteractableTileContext):
 class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
 
     buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=187, y=159+coreProp.LAYTON_SCREEN_HEIGHT)
+    promptRetry = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\retry_trace.png")
+    promptRetry.pos = ((coreProp.LAYTON_SCREEN_WIDTH - promptRetry.image.get_width()) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - promptRetry.image.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+    promptPoint = pygame.image.load(coreProp.PATH_ASSET_ANI + "point_trace.png").convert_alpha()
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -591,11 +594,27 @@ class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
         self.cursorColour = pygame.Color(255,255,255)
         self.cursorLineSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT))
         self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
+        self.cursorSelectedItem = None
         self.cursorPoints = []
+        self.cursorTotalPoints = [0,0]
+        self.cursorTotalPointsLength = 0
+        self.traceLocations = []
+    
+    def cursorAddPoint(self, point):
+        if point[1] < coreProp.LAYTON_SCREEN_HEIGHT:
+            self.cursorPoints.append((point[0], 0))
+        else:
+            self.cursorPoints.append((point[0], point[1] - coreProp.LAYTON_SCREEN_HEIGHT))
+        self.cursorTotalPoints[0] += point[0]
+        self.cursorTotalPoints[1] += point[1]
+        self.cursorTotalPointsLength += 1
 
     def executeCommand(self, command):
         if command.opcode == b'\x42':
             self.cursorColour = pygame.Color(command.operands[0], command.operands[1], command.operands[2])
+        elif command.opcode == b'\xd4':
+            self.traceLocations.append(nazoElements.TraceLocation(command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT,
+                                                                  command.operands[2], {"true":True, "false":False}[command.operands[3]]))
         else:
             print("ErrTraceUnkCommand: " + str(command.opcode))
     
@@ -604,24 +623,52 @@ class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
             pygame.draw.lines(self.cursorLineSurface, self.cursorColour, True, self.cursorPoints, 3)
             self.cursorPoints = [self.cursorPoints[-1]]
     
+    def findSelectedItem(self):
+        if self.cursorTotalPointsLength >= 1:
+            traceSelectedLocation = (self.cursorTotalPoints[0] // self.cursorTotalPointsLength, self.cursorTotalPoints[1] // self.cursorTotalPointsLength)
+            for locationIndex in range(len(self.traceLocations)):
+                if self.traceLocations[locationIndex].wasClicked(traceSelectedLocation):
+                    return locationIndex
+        return None
+
+    def evaluateSolution(self):
+        if self.cursorSelectedItem != None:
+            if self.traceLocations[self.cursorSelectedItem].isAnswer:
+                return True
+        return False
+
     def draw(self, gameDisplay):
         PuzzletInteractableTraceContext.buttonSubmit.draw(gameDisplay)
         gameDisplay.blit(self.cursorLineSurface, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+        if not(self.cursorIsDrawing):
+            if self.cursorSelectedItem == None:
+                if self.cursorTotalPointsLength > 0:
+                    PuzzletInteractableTraceContext.promptRetry.draw(gameDisplay)
+            else:
+                gameDisplay.blit(PuzzletInteractableTraceContext.promptPoint,
+                                 (self.traceLocations[self.cursorSelectedItem].pos[0], self.traceLocations[self.cursorSelectedItem].pos[1] - PuzzletInteractableTraceContext.promptPoint.get_height()))
 
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if PuzzletInteractableTraceContext.buttonSubmit.wasClicked(event.pos):
-                pass
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
             elif not(self.cursorIsDrawing):
                 self.cursorIsDrawing = True
-                self.cursorPoints.append((event.pos[0], event.pos[1] % coreProp.LAYTON_SCREEN_HEIGHT))
+                self.cursorTotalPoints = [0,0]
+                self.cursorTotalPointsLength = 0
+                self.cursorLineSurface.fill((0,0,0))
+                self.cursorAddPoint((event.pos[0], event.pos[1]))
 
         elif event.type == pygame.MOUSEMOTION:
             if self.cursorIsDrawing:
-                self.cursorPoints.append((event.pos[0], event.pos[1] % coreProp.LAYTON_SCREEN_HEIGHT))
+                self.cursorAddPoint((event.pos[0], event.pos[1]))
 
         elif event.type == pygame.MOUSEBUTTONUP:
             if self.cursorIsDrawing:
+                self.cursorSelectedItem = self.findSelectedItem()
                 self.cursorIsDrawing = False
                 self.cursorPoints = []
 
@@ -701,4 +748,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(44, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide
+play(4, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide
