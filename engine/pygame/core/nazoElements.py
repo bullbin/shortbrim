@@ -1,4 +1,5 @@
 import pygame, coreAnim
+from math import sqrt
 
 class Match():
 
@@ -33,30 +34,15 @@ class Match():
                 return True
         return False
 
-class Tile():
-    def __init__(self, sourceAnim, sourceAnimName):
-        # Tiles are loaded from an animation so this can be shared
-        if sourceAnim.setAnimationFromName(sourceAnimName):
-            self.tileFrame = sourceAnim.frames[sourceAnim.animMap[sourceAnim.animActive].indices[0]]
-        else:
-            if len(sourceAnim.frames) >= sourceAnimName:
-                self.tileFrame = sourceAnim.frames[sourceAnimName - 1]
-            else:
-                self.tileFrame = pygame.Surface((24,24))
-
-    def draw(self, gameDisplay, pos):
-        gameDisplay.blit(self.tileFrame, pos)
+class TraceLocation():
+    def __init__(self, x, y, radius, isAnswer):
+        self.pos = (x, y)
+        self.radius = radius
+        self.isAnswer = isAnswer
     
-    def get_width(self):
-        return self.tileFrame.get_width()
-    
-    def get_height(self):
-        return self.tileFrame.get_height()
-
-    def wasClicked(self, mousePos, pos):
-        if pos[0] + self.tileFrame.get_width() >= mousePos[0] and mousePos[0] >= pos[0]:
-            if pos[1] + self.tileFrame.get_height() >= mousePos[1] and mousePos[1] >= pos[1]:
-                return True
+    def wasClicked(self, mousePos):
+        if sqrt(((mousePos[0] - self.pos[0]) ** 2) + ((mousePos[1] - self.pos[1]) ** 2)) <= self.radius:
+            return True
         return False
 
 class IndependentTile(coreAnim.StaticImage):

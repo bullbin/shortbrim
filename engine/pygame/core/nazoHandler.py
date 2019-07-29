@@ -581,11 +581,56 @@ class PuzzletInteractableQueenContext(PuzzletInteractableTileContext):
         for tileIndex in range(len(self.tiles)):
             self.tileSlotDict[tileIndex] = len(self.tileTargets) - (8 - tileIndex)
 
+class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
+
+    buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=187, y=159+coreProp.LAYTON_SCREEN_HEIGHT)
+
+    def __init__(self):
+        LaytonContextPuzzlet.__init__(self)
+        self.cursorIsDrawing = False
+        self.cursorColour = pygame.Color(255,255,255)
+        self.cursorLineSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT))
+        self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
+        self.cursorPoints = []
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x42':
+            self.cursorColour = pygame.Color(command.operands[0], command.operands[1], command.operands[2])
+        else:
+            print("ErrTraceUnkCommand: " + str(command.opcode))
+    
+    def update(self, gameClockDelta):
+        if len(self.cursorPoints) >= 2:
+            pygame.draw.lines(self.cursorLineSurface, self.cursorColour, True, self.cursorPoints, 3)
+            self.cursorPoints = [self.cursorPoints[-1]]
+    
+    def draw(self, gameDisplay):
+        PuzzletInteractableTraceContext.buttonSubmit.draw(gameDisplay)
+        gameDisplay.blit(self.cursorLineSurface, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if PuzzletInteractableTraceContext.buttonSubmit.wasClicked(event.pos):
+                pass
+            elif not(self.cursorIsDrawing):
+                self.cursorIsDrawing = True
+                self.cursorPoints.append((event.pos[0], event.pos[1] % coreProp.LAYTON_SCREEN_HEIGHT))
+
+        elif event.type == pygame.MOUSEMOTION:
+            if self.cursorIsDrawing:
+                self.cursorPoints.append((event.pos[0], event.pos[1] % coreProp.LAYTON_SCREEN_HEIGHT))
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if self.cursorIsDrawing:
+                self.cursorIsDrawing = False
+                self.cursorPoints = []
+
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
     defaultHandlers = {"Match":PuzzletInteractableMatchContext, "Free Button":PuzzletInteractableFreeButtonContext,
                        "On Off":PuzzletInteractableOnOffContext, "Tile":PuzzletInteractableTileContext,
-                       "Coin":PuzzletInteractableCoinContext, "Queen":PuzzletInteractableQueenContext}
+                       "Coin":PuzzletInteractableCoinContext, "Queen":PuzzletInteractableQueenContext,
+                       "Trace Button":PuzzletInteractableTraceContext}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
@@ -656,4 +701,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(18, playerState)    #9:Coin, #16:Queen, # 25:Match, 26:OnOff, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide
+play(44, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide

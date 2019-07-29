@@ -170,7 +170,9 @@ class gdScript():
         # Trace Button mode
         elif command == b'\x3f':
             print("GD: [PUZZLE  ] Set trace answer location!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
-
+        elif command == b'\x42':
+            print("GD: [PUZZLE  ] Set trace cursor colour!\n               RGB     : (" + str(params[0]) + ", " + str(params[1]) + ", " + str(params[2]) + ")")
+                  
         elif command == b'\x43':
             print("GD: [EVENT   ] Set tobj text region!\n               ChrIndex: " + str(params[0]) + "\n               Location: (" + str(params[1]) + ", " + str(params[2]) + ")\n               Region  : (" + str(params[3]) + ", " + str(params[4]) + ")\n               TxtIndex: " + str(params[5]) + "\n               Unknown : " + str(params[6]))
         
