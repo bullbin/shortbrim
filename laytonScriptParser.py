@@ -303,6 +303,11 @@ class gdScript():
                 print("GD: [PUZZLE  ] Draw sliding component! (slidepuzzle2.arc)\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")")
                 print("               CompType: " + str(params[2]) + ", " + {4:"External asset"}[params[2]] + "\n               SpawnAnm: " + params[3])
 
+        elif command == b'\xac':
+            print("GD: [PUZZLE  ] Set line drawn colour!\n               RGB     : (" + str(params[0]) + ", " + str(params[1]) + ", " + str(params[2]) + ")")
+        elif command == b'\xad':
+            print("GD: [PUZZLE  ] Set line guide colour!\n               RGB     : (" + str(params[0]) + ", " + str(params[1]) + ", " + str(params[2]) + ")")
+        
         elif command == b'\xb1':
             print("GD: [PUZZLE  ] Set sliding puzzle parameters!\n               SolLoc  : (" + str(params[0]) + ", " + str(params[1]) + ")\n               Unknown : " + str(params[2]))
         elif command == b'\xb6':

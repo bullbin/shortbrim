@@ -202,9 +202,9 @@ class FontMap():
                     # This only extracts simple areas of the XML - it is not resilient
                     for line in xmlIn:
                         if "CharInfo" in line and "Code" in line and "Index" in line:
-                            tempCode = line[18]
                             line = line.split(" ")[3:-1]
                             tempIndex = int(line[-2][7:-1])
+                            tempCode = (int("0x" + line[-3][6:-1], 16).to_bytes(len(line[-3][6:-1]) // 2, byteorder = 'big')).decode(encoding)
                             tempWidth = int(line[-1][7:-1])
                             if tempWidth >= self.fontWidth:
                                 tempWidth = self.fontWidth - 1
@@ -271,7 +271,10 @@ class AnimatedText():
         self.font = font
         if type(self.font) == FontMap:
             self.textRender = pygame.Surface((len(self.text) * self.font.fontWidth, self.font.fontHeight))
-            self.update = self.updateBitmapFont
+            if coreProp.ENGINE_PERFORMANCE_MODE:
+                self.update = self.updateBitmapFontFast
+            else:
+                self.update = self.updateBitmapFont
             self.draw = self.drawBitmapFont
             self.updateBitmapFont(None)
         else:
@@ -290,7 +293,7 @@ class AnimatedText():
         textRect.center = (centX, centY)
         gameDisplay.blit(self.textRender, textRect)
 
-    def updateBitmapFont(self, gameClockDelta):
+    def updateBitmapFontFast(self, gameClockDelta): # Still expensive due to lots of drawing, but less expensive than the full version which includes colour support
         self.textRender = pygame.Surface((len(self.text) * (self.font.fontWidth + self.font.getSpacing()[0]), self.font.fontHeight + self.font.getSpacing()[1]))
         self.textRender.fill(self.font.fontBlendColour)
         self.textRender.set_colorkey(self.font.fontBlendColour)
@@ -300,7 +303,22 @@ class AnimatedText():
             if char != None:
                 self.textRender.blit(char, (offsetX, 0))
                 offsetX += char.get_width() + self.font.getSpacing()[0]
-
+    
+    def updateBitmapFont(self, gameClockDelta):
+        self.textTempRender = pygame.Surface((len(self.text) * (self.font.fontWidth + self.font.getSpacing()[0]), self.font.fontHeight + self.font.getSpacing()[1]))
+        self.textTempRender.fill(self.font.fontBlendColour)
+        offsetX = 0
+        for char in self.text:
+            char = self.font.getChar(char)
+            if char != None:
+                charColour = char.copy()
+                charColour.fill(self.textColour, None, pygame.BLEND_RGBA_ADD)
+                self.textTempRender.blit(charColour, (offsetX, 0))
+                offsetX += char.get_width() + self.font.getSpacing()[0]
+        self.textRender = pygame.Surface((offsetX, self.font.fontHeight))
+        self.textRender.blit(self.textTempRender, (0,0))
+        self.textRender.set_colorkey(self.font.fontBlendColour)
+    
     def drawBitmapFont(self, gameDisplay, location=(0,0)):
         gameDisplay.blit(self.textRender, location)
 
@@ -318,8 +336,20 @@ class Fader():
 class TextScroller():
     def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):
         self.textInput = textInput
-        self.textCumulativeLengths = []
+        indexReplacementCharStart = self.textInput.find("<")
+        while indexReplacementCharStart != -1:
+            indexReplacementCharEnd = indexReplacementCharStart + 1
+            while self.textInput[indexReplacementCharEnd] != ">":
+                indexReplacementCharEnd += 1
+            try:
+                self.textInput = self.textInput[:indexReplacementCharStart] + coreProp.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
+            except KeyError:
+                print("TextScroller: Character '" + self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd] + "' has no substitution!")
+                self.textInput = self.textInput[:indexReplacementCharStart] + self.textInput[indexReplacementCharEnd + 1:]
+            indexReplacementCharStart = self.textInput.find("<")
+
         self.textNewline = 0
+        self.textCurrentColour = "x"
         self.textPos = 0
         self.textPosOffset = textPosOffset
         self.textRects = []
@@ -328,36 +358,50 @@ class TextScroller():
         self.frameStep = 1000/targetFramerate
         self.timeSinceLastUpdate = 0
 
-    def update(self, gameClockDelta):
-        if self.drawIncomplete:
-            self.timeSinceLastUpdate += gameClockDelta
-            if self.timeSinceLastUpdate >= self.frameStep:
-                self.timeSinceLastUpdate -= self.frameStep
+    def incrementText(self):    # There are much faster ways to do this, consider writing to a surface then just masking instead of redrawing per character
+        if self.textPos < len(self.textInput):
+            if self.textInput[self.textPos] == "#":
+                if self.textCurrentColour != self.textInput[self.textPos + 1]:
+                    self.textCurrentColour = self.textInput[self.textPos + 1]
+                    if self.textPos == self.textNewline:
+                        self.textNewline += 2
+                    self.textPos += 2
+                    if self.textPos < len(self.textInput) and self.textPos > 2:
+                        if self.textInput[self.textPos] != "\n":
+                            # Register colour change between rects
+                            self.textNewline = self.textPos
+                            self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+
+            if self.textPos < len(self.textInput):
                 if self.textInput[self.textPos] == "\n" or self.textPos == 0:
-                    self.textRects.append(AnimatedText(self.font))
+                    self.textRects.append([AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
                     if self.textPos == 0:
                         self.textNewline = self.textPos
                     else:
                         self.textNewline = self.textPos + 1
                 else:
-                    self.textRects[-1].text = self.textInput[self.textNewline:self.textPos + 1]
-                    self.textRects[-1].update(gameClockDelta)
-                    
-                if self.textPos < len(self.textInput) -1:
-                    self.textPos += 1
-                else:
-                    self.drawIncomplete = False
+                    self.textRects[-1][-1].text = self.textInput[self.textNewline:self.textPos + 1]
+                    self.textRects[-1][-1].update(None)
+                self.textPos += 1
+        else:
+            self.drawIncomplete = False
+    
+    def update(self, gameClockDelta):
+        if self.drawIncomplete:
+            self.timeSinceLastUpdate += gameClockDelta
+            if self.timeSinceLastUpdate >= self.frameStep:
+                self.timeSinceLastUpdate -= self.frameStep
+                self.incrementText()
 
     def skip(self):
-        if self.drawIncomplete:
-            skipText = self.textInput.split("\n")
-            self.textRects = []
-            for line in skipText:
-                self.textRects.append(AnimatedText(self.font, initString = line))
-            self.drawIncomplete = False
+        while self.drawIncomplete:
+            self.incrementText()
     
     def draw(self, gameDisplay):
         x, y = self.textPosOffset
         for animText in self.textRects:
-            animText.draw(gameDisplay, location=(x,y))
+            x = self.textPosOffset[0]
+            for lineText in animText:
+                lineText.draw(gameDisplay, location=(x,y))
+                x += lineText.textRender.get_width()
             y += self.font.get_height()

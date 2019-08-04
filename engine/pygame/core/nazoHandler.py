@@ -66,7 +66,7 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
             
         # Load the puzzle qText
         with open(puzzlePath + "q_" + str(self.puzzleIndex) + ".txt", 'r') as qText:
-            self.puzzleQText = coreAnim.TextScroller(self.playerState.getFont("fontq"), qText.read(), targetFramerate=30, textPosOffset=(4,23))
+            self.puzzleQText = coreAnim.TextScroller(self.playerState.getFont("fontq"), qText.read(), targetFramerate=60, textPosOffset=(4,23))
         
         LaytonPuzzleUi.buttonHint.setActiveFrame(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
         self.buttonHintWaitTime = 0
@@ -413,6 +413,7 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
         if command.opcode == b'\x73':                   # Place tile
             if command.operands[2] not in self.tileDict.keys():
                 self.tileDict[command.operands[2]] = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4])
+                self.tileDict[command.operands[2]].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2][0:-4] + ".txt")
             self.tileSlotDict[len(self.tiles)] = len(self.tiles)
             if self.tileDict[command.operands[2]].setAnimationFromName(command.operands[3]):
                 self.tiles.append(self.tileDict[command.operands[2]].frames[self.tileDict[command.operands[2]].animMap[self.tileDict[command.operands[2]].animActive].indices[0]])
@@ -435,7 +436,8 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
 
     def reset(self):
         for tileIndex in range(len(self.tiles)):
-            self.tileSlotDict[tileIndex] = tileIndex
+            if tileIndex not in self.tileTargetIndicesSkip:
+                self.tileSlotDict[tileIndex] = tileIndex
 
     def evaluateSolution(self):
         if self.tileSlotDict in self.tileSolutions:
@@ -579,9 +581,10 @@ class PuzzletInteractableQueenContext(PuzzletInteractableTileContext):
 
     def reset(self):
         for tileIndex in range(len(self.tiles)):
-            self.tileSlotDict[tileIndex] = len(self.tileTargets) - (8 - tileIndex)
+            if tileIndex not in self.tileTargetIndicesSkip:
+                self.tileSlotDict[tileIndex] = len(self.tileTargets) - (8 - tileIndex)
 
-class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
+class PuzzletInteractableTraceButtonContext(LaytonContextPuzzlet):
 
     buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=187, y=159+coreProp.LAYTON_SCREEN_HEIGHT)
     promptRetry = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\retry_trace.png")
@@ -590,6 +593,7 @@ class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
+        self.cursorEnableSoftlockRetryScreen = True
         self.cursorIsDrawing = False
         self.cursorColour = pygame.Color(255,255,255)
         self.cursorLineSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT))
@@ -616,7 +620,7 @@ class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
             self.traceLocations.append(nazoElements.TraceLocation(command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT,
                                                                   command.operands[2], {"true":True, "false":False}[command.operands[3]]))
         else:
-            print("ErrTraceUnkCommand: " + str(command.opcode))
+            print("ErrTraceButtonUnkCommand: " + str(command.opcode))
     
     def update(self, gameClockDelta):
         if len(self.cursorPoints) >= 2:
@@ -642,7 +646,7 @@ class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
         gameDisplay.blit(self.cursorLineSurface, (0, coreProp.LAYTON_SCREEN_HEIGHT))
         if not(self.cursorIsDrawing):
             if self.cursorSelectedItem == None:
-                if self.cursorTotalPointsLength > 0:
+                if self.cursorEnableSoftlockRetryScreen and self.cursorTotalPointsLength > 0:
                     PuzzletInteractableTraceContext.promptRetry.draw(gameDisplay)
             else:
                 gameDisplay.blit(PuzzletInteractableTraceContext.promptPoint,
@@ -672,12 +676,86 @@ class PuzzletInteractableTraceContext(LaytonContextPuzzlet):
                 self.cursorIsDrawing = False
                 self.cursorPoints = []
 
+class PuzzletInteractableTraceContext(PuzzletInteractableTraceButtonContext):
+    def __init__(self):
+        PuzzletInteractableTraceButtonContext.__init__(self)
+        self.cursorEnableSoftlockRetryScreen = False
+        self.answerTraceSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT))
+        self.answerTraceSurface.set_colorkey(pygame.Color(0,0,0))
+        self.answerTraceSurface.set_alpha(127)
+        self.unkCommand1Points = [] # not final
+        self.unkCommand2Points = []
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x40':
+            self.unkCommand1Points.append((command.operands[0], command.operands[1]))
+        elif command.opcode == b'\x41':
+            self.unkCommand2Points.append((command.operands[0], command.operands[1]))
+        elif command.opcode == b'\x42':
+            self.cursorColour = pygame.Color(command.operands[0], command.operands[1], command.operands[2])
+        else:
+            print("ErrTraceUnkCommand: " + str(command.opcode))
+    
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        gameDisplay.blit(self.answerTraceSurface, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+
+    def update(self, gameClockDelta):
+        super().update(gameClockDelta)
+        if len(self.unkCommand2Points) > 1:
+            pygame.draw.polygon(self.answerTraceSurface, (0,0,255), self.unkCommand2Points)
+            self.unkCommand2Points = []
+        if len(self.unkCommand1Points) > 1:
+            pygame.draw.polygon(self.answerTraceSurface, (0,255,0), self.unkCommand1Points)
+            self.unkCommand1Points = []
+
+class PuzzletInteractableCutPuzzleContext(LaytonContextPuzzlet):
+
+    def __init__(self):
+        LaytonContextPuzzlet.__init__(self)
+        self.tileWidth = 2
+        self.boardCorner = (0,0)
+        self.boardCornerOffset = 1
+        self.boardSize = (0,0)
+        self.lineSetColor = pygame.Color(255,0,0)
+        self.lineGuideColor = pygame.Color(0,255,0)
+        self.lines = []
+        self.nodes = []
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\xa3':
+            self.boardCorner = (command.operands[0] - self.boardCornerOffset, command.operands[1] + self.boardCornerOffset)
+        elif command.opcode == b'\xa4':
+            self.boardSize = (command.operands[0], command.operands[1])
+        elif command.opcode == b'\xa5':
+            self.tileWidth = command.operands[0]
+            self.boardCornerOffset = self.tileWidth - 1
+        elif command.opcode == b'\xa1':
+            self.lines.append([(self.boardCorner[0] + command.operands[0] * self.tileWidth, self.boardCorner[1] + coreProp.LAYTON_SCREEN_HEIGHT + command.operands[1] * self.tileWidth),
+                               (self.boardCorner[0] + command.operands[2] * self.tileWidth, self.boardCorner[1] + coreProp.LAYTON_SCREEN_HEIGHT + command.operands[3] * self.tileWidth)])
+        elif command.opcode == b'\xa0':
+            self.nodes.append((self.boardCorner[0] + command.operands[0] * self.tileWidth, self.boardCorner[1] + coreProp.LAYTON_SCREEN_HEIGHT + command.operands[1] * self.tileWidth))
+        elif command.opcode == b'\xac':
+            self.lineSetColor = pygame.Color(command.operands[0], command.operands[1], command.operands[2])
+        elif command.opcode == b'\xad':
+            self.lineGuideColor = pygame.Color(command.operands[0], command.operands[1], command.operands[2])
+        else:
+            print("ErrUnkCutCommand: " + str(command.opcode))
+    
+    def draw(self, gameDisplay):
+        for line in self.lines:
+            pygame.draw.lines(gameDisplay, pygame.Color(255,0,0), False, line, 1)
+        for center in self.nodes:
+            pygame.draw.circle(gameDisplay, pygame.Color(0,0,255), center, 1)
+
+
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
     defaultHandlers = {"Match":PuzzletInteractableMatchContext, "Free Button":PuzzletInteractableFreeButtonContext,
                        "On Off":PuzzletInteractableOnOffContext, "Tile":PuzzletInteractableTileContext,
                        "Coin":PuzzletInteractableCoinContext, "Queen":PuzzletInteractableQueenContext,
-                       "Trace Button":PuzzletInteractableTraceContext}
+                       "Trace Button":PuzzletInteractableTraceButtonContext, "Trace":PuzzletInteractableTraceContext,
+                       "Cut Puzzle":PuzzletInteractableCutPuzzleContext}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
@@ -691,10 +769,12 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
         self.addToStack(LaytonTouchOverlay())
 
     def executeGdScript(self, puzzleScript):
-
         for command in puzzleScript.commands:
             if command.opcode == b'\x0b':
-                print("Replace background: " + command.operands[0])
+                try:
+                    self.stack[0].backgroundBs = pygame.image.load((coreProp.PATH_ASSET_BG + command.operands[0].replace("?", coreProp.LAYTON_ASSET_LANG))[0:-4] + ".png").convert()
+                except:
+                    print("Replace background: " + command.operands[0])
             elif command.opcode == b'\x1b':
                 if command.operands[0] in LaytonPuzzleHandler.defaultHandlers.keys():
                     self.addToStack(LaytonPuzzleHandler.defaultHandlers[command.operands[0]]())
@@ -748,4 +828,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(4, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide
+play(75, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut
