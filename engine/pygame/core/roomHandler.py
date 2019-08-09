@@ -30,7 +30,7 @@ class LaytonRoomUi(coreState.LaytonContext):
 
 class LaytonRoomTapObject(coreState.LaytonContext):
     
-    backgroundBs = pygame.image.load(coreProp.PATH_ASSET_ANI + "room_tobj.png").convert_alpha()
+    backgroundBs = pygame.image.load(coreProp.PATH_ASSET_ANI + "room_tobj_0.png").convert_alpha()
     backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
     backgroundTransBs = backgroundBs.copy().convert()
     backgroundTransBsDuration = 250
@@ -108,7 +108,7 @@ class LaytonRoomTapRegion():
         self.pos = pos
         self.dimensions = dimensions
         self.indexTobj = indexTobj
-        self.indexCharacter = indexCharacter
+        self.indexCharacter = indexCharacter - 1
 
     def wasClicked(self, mousePos):
         if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
@@ -267,4 +267,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(1, playerState)
+play(8, playerState)

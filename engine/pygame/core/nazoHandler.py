@@ -24,7 +24,7 @@ class LaytonTouchOverlay(coreState.LaytonContext):
         self.screenIsOverlay        = True
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
-        self.imageTouch = pygame.image.load(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\qend_touch.png").convert_alpha()
+        self.imageTouch = pygame.image.load(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\qend_touch_0.png").convert_alpha()
         self.imageTouch.set_colorkey(pygame.Color(0,0,0))
         self.imageTouchPos = ((coreProp.LAYTON_SCREEN_WIDTH - self.imageTouch.get_width()) // 2,
                               ((coreProp.LAYTON_SCREEN_HEIGHT - self.imageTouch.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
@@ -199,8 +199,8 @@ class PuzzletInteractableDragContext(LaytonContextPuzzlet):
 
 class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
 
-    matchImage          = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_match.png").convert_alpha()
-    matchShadowImage    = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_shadow.png").convert_alpha()
+    matchImage          = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_0.png").convert_alpha()
+    matchShadowImage    = pygame.image.load(coreProp.PATH_ASSET_ANI + "match_1.png").convert_alpha()
 
     def __init__(self):
         PuzzletInteractableDragContext.__init__(self)
@@ -382,7 +382,7 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
 
     TILE_SWITCH_REGION = 12
     buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=188, y=159+coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonRestart = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\restart.png", x=7, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonRestart = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\restart_0.png", x=7, y=7+coreProp.LAYTON_SCREEN_HEIGHT)
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -587,9 +587,9 @@ class PuzzletInteractableQueenContext(PuzzletInteractableTileContext):
 class PuzzletInteractableTraceButtonContext(LaytonContextPuzzlet):
 
     buttonSubmit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_2.png", x=187, y=159+coreProp.LAYTON_SCREEN_HEIGHT)
-    promptRetry = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\retry_trace.png")
+    promptRetry = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\retry_trace_0.png")
     promptRetry.pos = ((coreProp.LAYTON_SCREEN_WIDTH - promptRetry.image.get_width()) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - promptRetry.image.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
-    promptPoint = pygame.image.load(coreProp.PATH_ASSET_ANI + "point_trace.png").convert_alpha()
+    promptPoint = pygame.image.load(coreProp.PATH_ASSET_ANI + "point_trace_0.png").convert_alpha()
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -828,4 +828,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(75, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut
+play(101, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut

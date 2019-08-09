@@ -85,6 +85,7 @@ class AnimatedFrameCollection():
     def reset(self):
         self.isActive = True
         self.currentIndex = 0
+        self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
     def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0):

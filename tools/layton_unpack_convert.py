@@ -60,6 +60,8 @@ if len(sys.argv) > 1 or ROM_UNPACK_WITHOUT_TERMINAL:
                                         doesExist = path.exists(filepath[0:-4] + ".png")
                                     else:
                                         doesExist = path.exists(filepath[0:-4] + ".dds")
+                                elif ".pcm" in filename:
+                                    doesExist = path.exists(filepath[0:-4])
                                 else:
                                     if ROM_RECOMPRESS_ASSETS:
                                         doesExist = path.exists(filepath[0:-4] + "_0.png")
