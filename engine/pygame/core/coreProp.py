@@ -1,5 +1,5 @@
 import pygame
-from os import path, environ
+from os import path
 
 pygame.init()
 
@@ -7,7 +7,7 @@ ENGINE_FPS = 60
 ENGINE_PERFORMANCE_MODE = False
 
 PATH_SAVE = None
-PATH_ASSET_ROOT     = environ['ONEDRIVE'] + "\\assets\\"
+PATH_ASSET_ROOT     = path.dirname(path.dirname(path.dirname(path.dirname(path.realpath(__file__))))) + "\\assets\\"
 PATH_ASSET_ANI      = PATH_ASSET_ROOT + "ani\\"
 PATH_ASSET_BG       = PATH_ASSET_ROOT + "bg\\"
 PATH_ASSET_ETEXT    = PATH_ASSET_ROOT + "etext\\"

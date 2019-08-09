@@ -29,19 +29,24 @@ class StaticImage():
 class AnimatedFrameCollection():
     def __init__(self, framerate, indices=[], loop=True):
         self.framerate = framerate
-        if coreProp.ENGINE_PERFORMANCE_MODE:
-            self.frameInterval = 1000/self.framerate
-            self.getUpdatedFrame = self.getAccurateUpdatedFrame
+        self.isActive = True
+        if framerate == 0:
+            self.getUpdatedFrame = self.getNullUpdatedFrame
         else:
-            self.frameInterval = 1000 // self.framerate
-            self.getUpdatedFrame = self.getFastUpdatedFrame
-
-        self.frameClosestInterval = 1000 // self.framerate
+            if coreProp.ENGINE_PERFORMANCE_MODE:
+                self.frameInterval = 1000/self.framerate
+                self.getUpdatedFrame = self.getAccurateUpdatedFrame
+            else:
+                self.frameInterval = 1000 // self.framerate
+                self.getUpdatedFrame = self.getFastUpdatedFrame
+            self.frameClosestInterval = 1000 // self.framerate
         self.loop = loop
         self.indices = indices
         self.currentIndex = 0
         self.timeSinceLastUpdate = 0
-        self.isActive = True
+    
+    def getNullUpdatedFrame(self, gameClockDelta):
+        return (True, self.indices[self.currentIndex])
 
     def getAccurateUpdatedFrame(self, gameClockDelta):
         if self.isActive:

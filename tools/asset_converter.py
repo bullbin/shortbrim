@@ -1,4 +1,5 @@
 import math,sys
+from os import remove, rename, path, makedirs
 
 useAccurateColour = True
 bakeAlphaAnim = False
@@ -202,6 +203,10 @@ class LaytonArj():
                     self.images[indexImage].tiles[indexTile].fetchData(laytonIn, self.statAlignedBpp)
 
             self.loadPaletteAndAnimations(laytonIn, countColours)
+            for image in self.images:
+                for tile in image.tiles:
+                    tile.decodeArj(self.palette, self.statAlignedBpp)
+                image.constructImage(self.palette, self.statAlignedBpp)
     
     def loadPaletteAndAnimations(self, reader, countColours):
         for indexColour in range(countColours):
@@ -229,6 +234,7 @@ class LaytonArj():
                 self.anims[indexAnim].frameDuration.append(int.from_bytes(reader.read(4), byteorder = 'little'))
             for indexFrame in range(countFrames):
                 self.anims[indexAnim].indexImages.append(int.from_bytes(reader.read(4), byteorder = 'little'))
+            # print(str(self.anims[indexAnim]))
 
     def exportAnimText(self):
         with open('.'.join(self.filename.split("//")[-1].split(".")[0:-1]) + ".txt", 'w+') as animText:
@@ -236,9 +242,13 @@ class LaytonArj():
                 if len(anim.indexFrames) > 0:
                     animText.write(anim.name + "\n")
                     totalDur = 0
+                    totalDurCount = 0
                     for dur in anim.frameDuration:
-                        totalDur += dur
-                    totalDur = round(60 / (totalDur / len(anim.frameDuration)))
+                        if totalDurCount > 0 and dur > (totalDur // totalDurCount) * 2: pass
+                        else:
+                            totalDur += dur
+                            totalDurCount += 1
+                    totalDur = round(totalDurCount * 60/totalDur)
                     animText.write(str(totalDur) + "\nTrue,")
                     if self.usesAlpha:
                         animText.write("True,0," + ["248","240"][self.alphaType] + ",0\n" + str(anim.indexImages[0]))
@@ -247,13 +257,10 @@ class LaytonArj():
                     for indexImage in anim.indexImages[1:]:
                         animText.write("," + str(indexImage))
                     animText.write("\n")
-
+                    
     def export(self):
         self.exportAnimText()
         for i, image in enumerate(self.images):
-            for tile in image.tiles:
-                tile.decodeArj(self.palette, self.statAlignedBpp)
-            image.constructImage(self.palette, self.statAlignedBpp)
             image.export('.'.join(self.filename.split("//")[-1].split(".")[0:-1]) + "_" + str(i) + ".dds")
 
 class LaytonArc(LaytonArj):
@@ -267,22 +274,24 @@ class LaytonArc(LaytonArj):
 
             for indexImage in range(countImages):
                 self.images.append(TiledImage())
-                self.images[-1].resX = int.from_bytes(laytonIn.read(2), byteorder = 'little')
-                self.images[-1].resY = int.from_bytes(laytonIn.read(2), byteorder = 'little')
+                self.images[indexImage].resX = int.from_bytes(laytonIn.read(2), byteorder = 'little')
+                self.images[indexImage].resY = int.from_bytes(laytonIn.read(2), byteorder = 'little')
                 imageCountTiles = int.from_bytes(laytonIn.read(4), byteorder = 'little')
                 for indexTile in range(imageCountTiles):
-                    self.images[-1].tiles.append(Tile())
-                    self.images[-1].tiles[-1].fetchData(laytonIn, self.statAlignedBpp)
+                    self.images[indexImage].tiles.append(Tile())
+                    self.images[indexImage].tiles[indexTile].fetchData(laytonIn, self.statAlignedBpp)
             
             countColours = int.from_bytes(laytonIn.read(4), byteorder = 'little')
             self.loadPaletteAndAnimations(laytonIn, countColours)
+            
+            for image in self.images:
+                for tile in image.tiles:
+                    tile.decode(self.palette, self.statAlignedBpp)
+                image.constructImage(self.palette, self.statAlignedBpp)
 
     def export(self):
         self.exportAnimText()
         for i, image in enumerate(self.images):
-            for tile in image.tiles:
-                tile.decode(self.palette, self.statAlignedBpp)
-            image.constructImage(self.palette, self.statAlignedBpp)
             image.export('.'.join(self.filename.split("//")[-1].split(".")[0:-1]) + "_" + str(i) + ".dds")
 
 class LaytonImage():
@@ -351,3 +360,64 @@ class LaytonImage():
 
     def export(self):
         self.outputImage.export('.'.join(self.filename.split("//")[-1].split(".")[0:-1]) + ".dds")
+
+class RleArchive():
+    def __init__(self, filename, offsetIn = 0):
+        self.filename = filename
+        self.offsetIn = offsetIn
+        self.filesize = 0
+        if not(self.load()):
+            print("Error decoding " + self.filename)
+
+    def load(self):
+        with open(self.filename, 'rb') as archiveIn:
+            archiveIn.seek(self.offsetIn)
+            if archiveIn.read(1) == b'\x30':
+                self.filesize = int.from_bytes(archiveIn.read(3), byteorder = 'little')
+                with open(self.filename.split(".")[0] + "_decompressed.arc", 'wb') as archiveOut:
+                    while archiveOut.tell() < self.filesize:
+                        flag = int.from_bytes(archiveIn.read(1), byteorder = 'little')
+                        isCompressed = (flag & 0x80) > 0
+                        if isCompressed:
+                            decompressedLength = (flag & 0x7f) + 3
+                            decompressedData = archiveIn.read(1)
+                            for indexByte in range(decompressedLength):
+                                archiveOut.write(decompressedData)
+                        else:
+                            decompressedLength = (flag & 0x7f) + 1
+                            archiveOut.write(archiveIn.read(decompressedLength))
+                        archiveOut.seek(0, 2)
+            else:
+                return False
+        remove(self.filename)
+        rename(self.filename.split(".")[0] + "_decompressed.arc", self.filename)
+        return True
+
+class LaytonPackArchive():
+    def __init__(self, filename):
+        self.filename = filename
+        if not(self.load()):
+            print("Error unpacking " + self.filename)
+    
+    def load(self):
+        with open(self.filename, 'rb') as archiveIn:
+            offsetFileStart = int.from_bytes(archiveIn.read(4), byteorder = 'little')
+            archiveIn.seek(4,1)
+            countFile = int.from_bytes(archiveIn.read(4), byteorder = 'little')
+            if archiveIn.read(4) == b'LPCK':
+                outputFilepath = path.dirname(self.filename) + "\\" + self.filename.split("\\")[-1].split(".")[0]
+                makedirs(outputFilepath, exist_ok=True)
+                blockHeaderSize = 16
+                for indexFile in range(countFile):
+                    offsetCurrent = archiveIn.tell()
+                    relOffsetData = int.from_bytes(archiveIn.read(4), byteorder = 'little')
+                    lengthBlock = int.from_bytes(archiveIn.read(4), byteorder = 'little')
+                    archiveIn.seek(4,1)
+                    lengthData = int.from_bytes(archiveIn.read(4), byteorder = 'little')
+                    with open(outputFilepath + "\\" + (archiveIn.read(relOffsetData - blockHeaderSize).decode('ascii').split("\0")[0]), 'wb') as dataOut:
+                        dataOut.write(archiveIn.read(lengthData))
+                    archiveIn.seek(offsetCurrent + lengthBlock)
+            else:
+                return False
+        remove(self.filename)
+        return True

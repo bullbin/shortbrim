@@ -4,8 +4,8 @@ pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HE
 
 class HintTab():
     def __init__(self, hintText, hintLevel, pos, playerState, isUnlocked=False):
-        self.tabLocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + "l.png")
-        self.tabUnlocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_hint" + str(hintLevel + 1) + ".png")
+        self.tabLocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_" + str(hintLevel + 5) + ".png")
+        self.tabUnlocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_" + str(hintLevel + 8) + ".png")
         self.hText = coreAnim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 19))
         self.hText.skip()
         self.tabUnlocked.pos = pos
@@ -23,10 +23,10 @@ class HintTab():
 
 class Screen(coreState.LaytonContext):
 
-    buttonQuit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_modoru.png")
+    buttonQuit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_12.png")
     buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonYes = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_yes.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
-    buttonNo = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_no.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
+    buttonYes = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_0.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
+    buttonNo = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_2.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
     
     def __init__(self, puzzleIndex, playerState, puzzleHintCount, puzzleAnimFont):
         coreState.LaytonContext.__init__(self)
