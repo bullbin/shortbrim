@@ -1,6 +1,7 @@
 import math,sys
 
 useAccurateColour = True
+bakeAlphaAnim = False
 bakeAlpha = True
 
 class DdsImage():
@@ -175,6 +176,8 @@ class AnimationBasicSequence():
 class LaytonArj():
     def __init__(self, filename):
         self.filename = filename
+        self.usesAlpha = False
+        self.alphaType = 0
         self.statAlignedBpp = 4
         self.palette = []
         self.images = []
@@ -202,10 +205,14 @@ class LaytonArj():
     
     def loadPaletteAndAnimations(self, reader, countColours):
         for indexColour in range(countColours):
+            self.palette.append(Colour.fromBytesLayton(int.from_bytes(reader.read(2), byteorder = 'little')))
             if useAccurateColour:
-                self.palette.append(Colour.fromBytesLayton(int.from_bytes(reader.read(2), byteorder = 'little'), useColourMaskAsAlpha=True, colourMask=Colour(0,248/255,0,0)))
-            else:
-                self.palette.append(Colour.fromBytesLayton(int.from_bytes(reader.read(2), byteorder = 'little'), useColourMaskAsAlpha=True, colourMask=Colour(0,1,0,0)))
+                if (self.palette[indexColour].g * [248,255][useAccurateColour]) in [248,240] and self.palette[indexColour].r == 0 and self.palette[indexColour].b == 0:
+                    self.usesAlpha = True
+                    if (self.palette[indexColour].g * [248,255][useAccurateColour]) == 240:
+                        self.alphaType = 1
+                    if bakeAlphaAnim:
+                        self.palette[indexColour].a = 0
         
         reader.seek(30, 1)
         countAnims = int.from_bytes(reader.read(4), byteorder = 'little')
@@ -222,7 +229,6 @@ class LaytonArj():
                 self.anims[indexAnim].frameDuration.append(int.from_bytes(reader.read(4), byteorder = 'little'))
             for indexFrame in range(countFrames):
                 self.anims[indexAnim].indexImages.append(int.from_bytes(reader.read(4), byteorder = 'little'))
-            #print(self.anims[indexAnim])
 
     def exportAnimText(self):
         with open('.'.join(self.filename.split("//")[-1].split(".")[0:-1]) + ".txt", 'w+') as animText:
@@ -233,7 +239,11 @@ class LaytonArj():
                     for dur in anim.frameDuration:
                         totalDur += dur
                     totalDur = round(60 / (totalDur / len(anim.frameDuration)))
-                    animText.write(str(totalDur) + "\nTrue,True,0,248,0\n" + str(anim.indexImages[0]))
+                    animText.write(str(totalDur) + "\nTrue,")
+                    if self.usesAlpha:
+                        animText.write("True,0," + ["248","240"][self.alphaType] + ",0\n" + str(anim.indexImages[0]))
+                    else:
+                        animText.write("False\n" + str(anim.indexImages[0]))
                     for indexImage in anim.indexImages[1:]:
                         animText.write("," + str(indexImage))
                     animText.write("\n")
