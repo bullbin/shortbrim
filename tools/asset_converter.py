@@ -1,7 +1,8 @@
 import math,sys
 from os import remove, rename, path, makedirs
 
-useAccurateColour = True
+useAccurateColour = False
+useForced32bppExport = True
 bakeAlphaAnim = False
 bakeAlpha = True
 
@@ -25,7 +26,7 @@ class DdsImage():
                                 b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
                                 b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
                                 b'\x20\x00\x00\x00\x41\x00\x00\x00\x00\x00\x00\x00']))
-        if (useAccurateColour):
+        if useAccurateColour or useForced32bppExport:
             ddsHeader.extend(b'\x20\x00\x00\x00\x00\x00\xFF\x00\x00\xFF\x00\x00\xFF\x00\x00\x00\x00\x00\x00\xFF')
         else:
             ddsHeader.extend(b'\x10\x00\x00\x00')
@@ -36,7 +37,7 @@ class DdsImage():
         ddsHeader.extend(b'\x00\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
         for row in self.image:
             for pixel in row:
-                if useAccurateColour:
+                if useAccurateColour or useForced32bppExport:
                     ddsHeader.extend(round(pixel.b * 255).to_bytes(1, byteorder = 'little'))
                     ddsHeader.extend(round(pixel.g * 255).to_bytes(1, byteorder = 'little'))
                     ddsHeader.extend(round(pixel.r * 255).to_bytes(1, byteorder = 'little'))
@@ -60,10 +61,11 @@ class Colour():
         self.g = g
         self.b = b
         self.a = a
-            
+    
+    @staticmethod
     def fromBytesLayton(encodedColour, pixelDivide = [1,5,5,5], pixelColour = [3,2,1,0], invert = [False, False, False, False], useColourMaskAsAlpha = False, colourMask = None):
         encodedBits = []
-        for bit in range(16):
+        for _bit in range(16):
             encodedBits.insert(0, encodedColour & 1)
             encodedColour = encodedColour >> 1
             
@@ -123,14 +125,14 @@ class Tile(DdsImage):
             pixelByte = self.data[indexPixel]
             if indexPixel % int(self.resX * bpp/8) == 0:
                 self.image.append([])
-            for indexSubPixel in range(int(1/(bpp/8))):
+            for _indexSubPixel in range(int(1/(bpp/8))):
                 self.image[-1].append(palette[(pixelByte & ((2**bpp) - 1)) % len(palette)])
                 pixelByte = pixelByte >> bpp
     
     def decodeArj(self, palette, bpp):
         for y in range(self.resY):
             self.image.append([])
-            for x in range(self.resX):
+            for _x in range(self.resX):
                 self.image[y].append(Colour(0,0,0,1))
         
         pixelIndex = 0
@@ -228,11 +230,11 @@ class LaytonArj():
 
         for indexAnim in range(countAnims):
             countFrames = int.from_bytes(reader.read(4), byteorder = 'little')
-            for indexFrame in range(countFrames):
+            for _indexFrame in range(countFrames):
                 self.anims[indexAnim].indexFrames.append(int.from_bytes(reader.read(4), byteorder = 'little'))
-            for indexFrame in range(countFrames):
+            for _indexFrame in range(countFrames):
                 self.anims[indexAnim].frameDuration.append(int.from_bytes(reader.read(4), byteorder = 'little'))
-            for indexFrame in range(countFrames):
+            for _indexFrame in range(countFrames):
                 self.anims[indexAnim].indexImages.append(int.from_bytes(reader.read(4), byteorder = 'little'))
             # print(str(self.anims[indexAnim]))
 
@@ -308,7 +310,7 @@ class LaytonImage():
     def load(self):
         with open(self.filename, 'rb') as laytonIn:
             self.lengthPalette = int.from_bytes(laytonIn.read(4), byteorder = 'little')
-            for indexColour in range(self.lengthPalette):
+            for _indexColour in range(self.lengthPalette):
                 if useAccurateColour:
                     self.palette.append(Colour.fromBytesLayton(int.from_bytes(laytonIn.read(2), byteorder = 'little'), useColourMaskAsAlpha=True, colourMask=Colour(224/255, 0, 120/255, 0)))
                 else:
@@ -329,13 +331,12 @@ class LaytonImage():
                 tileSelectedIndex = tempSelectedTile & (2 ** 10 - 1)
                 tileSelectedFlipX = tempSelectedTile & (2 ** 11)
                 tileSelectedFlipY = tempSelectedTile & (2 ** 10)
-                tileSelectedPaletteId = tempSelectedTile >> 14
 
                 if tileSelectedIndex == (2 ** 10 - 1):
                     tempTile = Tile()
                     for xResFill in range(8):
                         tempTile.image.append([])
-                        for yResFill in range(8):
+                        for _yResFill in range(8):
                             tempTile.image[xResFill].append(Colour(0,0,0,1))
                     self.tilesReconstructed.append(tempTile)
                 else:
@@ -353,7 +354,7 @@ class LaytonImage():
         indexTile = 0
         for yTile in range(int(self.outputImage.resY / 8)):
             self.outputImage.image.extend([[],[],[],[],[],[],[],[]])
-            for xTile in range(int(self.outputImage.resX / 8)):
+            for _xTile in range(int(self.outputImage.resX / 8)):
                 for yRes in range(8):
                     self.outputImage.image[(yTile * 8) + yRes].extend(self.tilesReconstructed[indexTile].image[yRes])
                 indexTile += 1
@@ -381,7 +382,7 @@ class RleArchive():
                         if isCompressed:
                             decompressedLength = (flag & 0x7f) + 3
                             decompressedData = archiveIn.read(1)
-                            for indexByte in range(decompressedLength):
+                            for _indexByte in range(decompressedLength):
                                 archiveOut.write(decompressedData)
                         else:
                             decompressedLength = (flag & 0x7f) + 1
@@ -393,6 +394,28 @@ class RleArchive():
         rename(self.filename.split(".")[0] + "_decompressed.arc", self.filename)
         return True
 
+class HuffmanArchive():
+
+    BlockBitDict = {b'\x24':4, b'\x28':8}
+
+    def __init__(self, filename, offsetIn = 4):
+        self.filename = filename
+        self.offsetIn = offsetIn
+        self.filesize = 0
+        if not(self.load()):
+            print("Error decoding " + self.filename)
+    
+    def load(self):
+        with open(self.filename, 'rb') as archiveIn:
+            archiveIn.seek(self.offsetIn)
+            blockLengthByte = archiveIn.read(1)
+            if blockLengthByte in HuffmanArchive.BlockBitDict.keys():
+                blockLength = HuffmanArchive.BlockBitDict[blockLengthByte]
+                self.filesize = int.from_bytes(archiveIn.read(3), byteorder = 'little')
+                return False
+            else:
+                return False
+
 class LaytonPackArchive():
     def __init__(self, filename):
         self.filename = filename
@@ -401,14 +424,14 @@ class LaytonPackArchive():
     
     def load(self):
         with open(self.filename, 'rb') as archiveIn:
-            offsetFileStart = int.from_bytes(archiveIn.read(4), byteorder = 'little')
+            _offsetFileStart = int.from_bytes(archiveIn.read(4), byteorder = 'little')
             archiveIn.seek(4,1)
             countFile = int.from_bytes(archiveIn.read(4), byteorder = 'little')
             if archiveIn.read(4) == b'LPCK':
                 outputFilepath = path.dirname(self.filename) + "\\" + self.filename.split("\\")[-1].split(".")[0]
                 makedirs(outputFilepath, exist_ok=True)
                 blockHeaderSize = 16
-                for indexFile in range(countFile):
+                for _indexFile in range(countFile):
                     offsetCurrent = archiveIn.tell()
                     relOffsetData = int.from_bytes(archiveIn.read(4), byteorder = 'little')
                     lengthBlock = int.from_bytes(archiveIn.read(4), byteorder = 'little')

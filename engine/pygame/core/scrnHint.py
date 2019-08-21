@@ -3,9 +3,9 @@ import coreProp, coreAnim, coreState, pygame
 pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
 
 class HintTab():
-    def __init__(self, hintText, hintLevel, pos, playerState, isUnlocked=False):
-        self.tabLocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_" + str(hintLevel + 5) + ".png")
-        self.tabUnlocked = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_" + str(hintLevel + 8) + ".png")
+    def __init__(self, hintText, hintLevel, pos, playerState, imageButtons, isUnlocked=False):
+        self.tabLocked = coreAnim.StaticButton(imageButtons.setAnimationFromNameAndReturnInitialFrame("hint" + str(hintLevel + 1) + "l"), imageIsSurface = True)
+        self.tabUnlocked = coreAnim.StaticImage(imageButtons.setAnimationFromNameAndReturnInitialFrame("hint" + str(hintLevel + 1)), imageIsSurface = True)
         self.hText = coreAnim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(4, coreProp.LAYTON_SCREEN_HEIGHT + 19))
         self.hText.skip()
         self.tabUnlocked.pos = pos
@@ -19,21 +19,24 @@ class HintTab():
             self.tabLocked.draw(gameDisplay)
     
     def wasClicked(self, pos):
-        return self.tabLocked.wasClicked(pos)
+        return self.tabLocked.getPressedStatus()
+    
+    def handleEvent(self, event):
+        self.tabLocked.handleEvent(event)
 
 class Screen(coreState.LaytonContext):
 
-    buttonQuit = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\buttons_12.png")
-    buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
-    buttonYes = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_0.png", x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
-    buttonNo = coreAnim.StaticImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG + "\\yesnobuttons_2.png", x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138)
-    
-    def __init__(self, puzzleIndex, playerState, puzzleHintCount, puzzleAnimFont):
+    buttonYesNo = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG, "yesnobuttons")
+
+    def __init__(self, puzzleIndex, playerState, puzzleHintCount, puzzleAnimFont, imageButtons):
         coreState.LaytonContext.__init__(self)
         self.screenIsOverlay        = True
         self.screenBlockInput       = True
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
+
+        self.buttonQuit = coreAnim.StaticButton(imageButtons.setAnimationFromNameAndReturnInitialFrame("modoru"), imageIsSurface=True)
+        self.buttonQuit.pos = (coreProp.LAYTON_SCREEN_WIDTH - self.buttonQuit.image.get_width(), coreProp.LAYTON_SCREEN_HEIGHT)
 
         self.puzzleIndex = puzzleIndex
         self.playerState = playerState
@@ -57,12 +60,14 @@ class Screen(coreState.LaytonContext):
 
         for hintTabIndex in range(puzzleHintCount):
             with open(puzzlePath + "h_" + str(self.puzzleIndex) + "_" + str(hintTabIndex + 1) + ".txt", 'r') as hText:
-                self.hintTabs.append(HintTab(hText.read(), hintTabIndex, (tempTabX, coreProp.LAYTON_SCREEN_HEIGHT), playerState))
+                self.hintTabs.append(HintTab(hText.read(), hintTabIndex, (tempTabX, coreProp.LAYTON_SCREEN_HEIGHT), playerState, imageButtons))
             if playerState.puzzleData[self.puzzleIndex].unlockedHintLevel > hintTabIndex:
                 self.hintTabs[-1].isUnlocked = True
             tempTabX += self.hintTabs[hintTabIndex].tabLocked.image.get_width()
         
         self.puzzleAnimFont = puzzleAnimFont
+        self.buttonYes = coreAnim.AnimatedButton(Screen.buttonYesNo.setAnimationFromNameAndReturnInitialFrame("yes"), Screen.buttonYesNo.setAnimationFromNameAndReturnInitialFrame("yesp"), x=57, y=coreProp.LAYTON_SCREEN_HEIGHT + 138, imageIsSurface=True)
+        self.buttonNo = coreAnim.AnimatedButton(Screen.buttonYesNo.setAnimationFromNameAndReturnInitialFrame("no"), Screen.buttonYesNo.setAnimationFromNameAndReturnInitialFrame("nop"), x=137, y=coreProp.LAYTON_SCREEN_HEIGHT + 138, imageIsSurface=True)
 
     def refresh(self):
         self.isContextFinished = False
@@ -73,7 +78,7 @@ class Screen(coreState.LaytonContext):
 
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundBs, (0, coreProp.LAYTON_SCREEN_HEIGHT))
-        Screen.buttonQuit.draw(gameDisplay)
+        self.buttonQuit.draw(gameDisplay)
         for tab in self.hintTabs[0:self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel + 1]:
             tab.draw(gameDisplay)
 
@@ -88,8 +93,8 @@ class Screen(coreState.LaytonContext):
                     self.puzzleAnimFont.draw(gameDisplay)
                 self.puzzleAnimFont.pos = (self.puzzleAnimFont.pos[0] + self.puzzleAnimFont.dimensions[0] - 1, self.puzzleAnimFont.pos[1])
 
-            Screen.buttonYes.draw(gameDisplay)
-            Screen.buttonNo.draw(gameDisplay)
+            self.buttonYes.draw(gameDisplay)
+            self.buttonNo.draw(gameDisplay)
 
     def update(self, gameClockDelta):
         # Images need to be preloaded here, this is inefficient
@@ -104,22 +109,27 @@ class Screen(coreState.LaytonContext):
             self.hintStateChanged = False
 
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if Screen.buttonQuit.wasClicked(event.pos):
+        if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEBUTTONUP:
+            self.buttonQuit.handleEvent(event)
+            if self.buttonQuit.getPressedStatus():
                 self.isContextFinished = True
-            indexTab = 0
-            for tab in self.hintTabs[0:self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel + 1]:
-                if tab.wasClicked(event.pos) and indexTab != self.hintLevelActive:
-                    self.hintLevelActive = indexTab
-                    self.hintStateChanged = True
-                    break
-                indexTab += 1
 
             if not(self.hintTabs[self.hintLevelActive].isUnlocked) and self.playerState.remainingHintCoins >= coreProp.LAYTON_PUZZLE_HINT_COST:
-                if Screen.buttonYes.wasClicked(event.pos):
+                self.buttonYes.handleEvent(event)
+                self.buttonNo.handleEvent(event)
+                if self.buttonYes.getPressedStatus():
                     self.playerState.remainingHintCoins -= coreProp.LAYTON_PUZZLE_HINT_COST
                     self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel += 1
                     self.hintTabs[self.hintLevelActive].isUnlocked = True
                     self.hintStateChanged = True
-                elif Screen.buttonNo.wasClicked(event.pos):
+                elif self.buttonNo.getPressedStatus():
                     self.isContextFinished = True
+            
+            for indexTab, tab in enumerate(self.hintTabs[0:self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel + 1]):
+                tab.handleEvent(event)
+                if tab.wasClicked(event.pos) and indexTab != self.hintLevelActive:
+                    self.hintLevelActive = indexTab
+                    self.hintStateChanged = True
+                    break
+            return True
+        return False

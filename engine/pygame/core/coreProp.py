@@ -2,9 +2,11 @@ import pygame
 from os import path
 
 pygame.init()
+pygame.display.set_caption("LAYTON1")
 
 ENGINE_FPS = 60
 ENGINE_PERFORMANCE_MODE = False
+ENGINE_DEBUG_MODE = True
 
 PATH_SAVE = None
 PATH_ASSET_ROOT     = path.dirname(path.dirname(path.dirname(path.dirname(path.realpath(__file__))))) + "\\assets\\"

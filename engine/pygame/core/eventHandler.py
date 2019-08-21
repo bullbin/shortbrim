@@ -37,13 +37,11 @@ class LaytonEventGraphics(coreState.LaytonContext):
     def executeCommand(self, command):
         if command.opcode == b'\x6c':           # Draw static image
             self.drawnEvents.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0], y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT))
-            self.drawnEvents[-1].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2][0:-4] + ".txt")
             if not(self.drawnEvents[-1].setAnimationFromName(command.operands[3])):
                 self.drawnEvents[-1].setActiveFrame(0)
 
         elif command.opcode == b'\x6d':           # Draw animated image
             self.drawnAnimEvents.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0], y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT))
-            self.drawnAnimEvents[-1].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2][0:-4] + ".txt")
             if not(self.drawnAnimEvents[-1].setAnimationFromName(command.operands[3])):
                 self.drawnAnimEvents[-1].setActiveFrame(0)
             # SpwnFrame not handled

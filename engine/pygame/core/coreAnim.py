@@ -8,7 +8,9 @@ pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HE
         
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0, imageIsSurface=False):
-        if imageIsSurface:
+        if imagePath == None:
+            self.image = pygame.Surface((1,1))
+        elif imageIsSurface:
             self.image = imagePath
         else:
             self.image = pygame.image.load(imagePath).convert_alpha()
@@ -88,7 +90,7 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0):
+    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True):
         self.pos = (x,y)
         self.frames = []
         self.dimensions = (0,0)
@@ -119,6 +121,9 @@ class AnimatedImage():
                 print("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
         else:
             print("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
+        
+        if importAnimPair:
+            self.fromImages(frameRootPath + "\\" + frameName + ".txt")
 
     def fromImages(self, animText):
         if path.exists(animText):
@@ -174,17 +179,28 @@ class AnimatedImage():
             return True
         self.animActive = None
         return False
+    
+    def setAnimationFromNameAndReturnInitialFrame(self, anim):
+        if self.setAnimationFromName(anim):
+            return self.frames[self.animMap[self.animActive].indices[0]]
+        else:
+            return None
 
     def setAnimationFromIndex(self, index):
         if index < len(self.animMap.keys()):
             self.animMap[list(self.animMap.keys())[index]].reset()
             self.animActive = list(self.animMap.keys())[index]
+            return True
+        return False
     
     def setActiveFrame(self, frameIndex):
         if frameIndex < len(self.frames):
             self.animActiveFrame = frameIndex
         elif len(self.frames) > 0:
             self.animActiveFrame = frameIndex % len(self.frames)
+        else:
+            return False
+        return True
     
     def wasClicked(self, mousePos):
         if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
@@ -192,9 +208,55 @@ class AnimatedImage():
                 return True
         return False
 
+class StaticButton(StaticImage):
+    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False):
+        StaticImage.__init__(self, imagePath, x, y, imageIsSurface)
+        self.reset()
+    
+    def reset(self):
+        self.wasClickedIn = False
+        self.wasClickedOut = False
+    
+    def registerButtonDown(self, event):
+        if self.wasClicked(event.pos):
+            self.wasClickedIn = True
+            self.wasClickedOut = False
+        else:
+            self.reset()
+    
+    def registerButtonUp(self, event):
+        if self.wasClickedIn and self.wasClicked(event.pos):
+            self.wasClickedOut = True
+        else:
+            self.reset()
+    
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.registerButtonDown(event)   
+        if event.type == pygame.MOUSEBUTTONUP:
+            self.registerButtonUp(event)
+
+    def getPressedStatus(self):
+        if self.wasClickedOut:
+            self.reset()
+            return True
+        return False
+
+class AnimatedButton(StaticButton):
+    def __init__(self, imagePathInitial, imagePathPressed, x, y, imageIsSurface):
+        StaticButton.__init__(self, imagePathInitial, x, y, imageIsSurface)
+        self.imageButtonPressed = StaticImage(imagePathPressed, x, y, imageIsSurface)
+    
+    def draw(self, gameDisplay):
+        if self.wasClickedIn and self.wasClicked(pygame.mouse.get_pos()): 
+            self.imageButtonPressed.draw(gameDisplay)
+        else:
+            super().draw(gameDisplay)
+
 class FontMap():
     def __init__(self, fontImage, fontXml, encoding="utf-8", tilesPerLine=16, tileGap=2, xFontGap=1, yFontGap=1, calculateWidth=False, calculateWidthSkipChar=[]):
         self.fontMap = {}
+        self.isLoaded = False
         self.fontWidth = 0
         self.fontHeight = 0
         self.fontBlendColour = pygame.Color(255,255,255)
@@ -255,6 +317,7 @@ class FontMap():
                     offsetY += self.fontHeight + tileGap
                 else:
                     break
+            self.isLoaded = True
         else:
             print("Font: Path '" + fontImage + "' does not exist!")
 
@@ -328,16 +391,35 @@ class AnimatedText():
     def drawBitmapFont(self, gameDisplay, location=(0,0)):
         gameDisplay.blit(self.textRender, location)
 
-class Fader():
+class AnimatedFader():
+    
     def __init__(self):
-        self.strength = 0
-        self.interval = 0.1
+        pass
 
-    def draw(self, gameDisplay):
-        faderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH,coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert()
-        faderSurface.set_alpha(ceil(self.strength * 255))
-        faderSurface.fill((0,0,0))
-        gameDisplay.blit(faderSurface, (0,0))
+class AnimatedPulser():
+
+    def __init__(self, interval=0.1, min=0, max=1, minStop=0, maxStop=0, mode=0):
+        self.strength = 0
+        self.interval = interval
+        self.min = min
+        self.max = max
+        self.minStop = minStop
+        self.maxStop = maxStop
+        self.timeSinceLastWait = 0
+
+        if mode == 0:
+            self.update = self.updateSine
+        else:
+            self.update = self.updateLinear
+    
+    def updateSine(self, gameClockDelta):
+        pass
+
+    def updateLinear(self, gameClockDelta):
+        pass
+
+    def getStrength(self):
+        return self.strength
 
 class TextScroller():
     def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):

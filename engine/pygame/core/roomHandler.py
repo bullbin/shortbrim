@@ -37,7 +37,6 @@ class LaytonRoomTapObject(coreState.LaytonContext):
     portraitPos = (backgroundPos[0] + 6, backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
     cursorBs = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait")
     cursorBs.pos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.dimensions[0] + 4), (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.dimensions[1] + 4))
-    cursorBs.fromImages(coreProp.PATH_ASSET_ANI + "cursor_wait.txt")
 
     def __init__(self, indexCharacter, indexTobj, font):
         coreState.LaytonContext.__init__(self)
@@ -126,7 +125,6 @@ class LaytonRoomEventSpawner():
 class LaytonRoomGraphics(coreState.LaytonContext):
 
     animTap = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "touch_icon")
-    animTap.fromImages(coreProp.PATH_ASSET_ANI + "touch_icon.txt")
 
     def __init__(self, playerState):
         coreState.LaytonContext.__init__(self)
@@ -166,19 +164,15 @@ class LaytonRoomGraphics(coreState.LaytonContext):
             
             self.animObjects.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2],
                                                            x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-            if self.animObjects[-1].fromImages(coreProp.PATH_ASSET_ANI + command.operands[2] + ".txt"):
-                self.animObjects[-1].setAnimationFromIndex(0)
-            else:
-                self.animObjects[-1].setActiveFrame(0)
+            if not(self.animObjects[-1].setAnimationFromIndex(0)):
+                    self.animObjects[-1].setActiveFrame(0)
 
         elif command.opcode == b'\x50':                     # Add interactable sprite
             if command.operands[4] not in self.drawnEvents and (path.exists(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + ".png")
                                                                 or path.exists(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + "_0.png")):
                 self.animObjects.append(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "obj_" + str(command.operands[4]),
                                                            x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-                if self.animObjects[-1].fromImages(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + ".txt"):
-                    self.animObjects[-1].setAnimationFromIndex(0)
-                else:
+                if not(self.animObjects[-1].setAnimationFromIndex(0)):
                     self.animObjects[-1].setActiveFrame(0)
                 self.drawnEvents.append(command.operands[4])
 
