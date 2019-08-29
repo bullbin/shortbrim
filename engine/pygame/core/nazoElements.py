@@ -33,6 +33,10 @@ class Match():
             if self.pos[1] + self.surfaceMatch.get_height() >= mousePos[1] and mousePos[1] >= self.pos[1]:
                 return True
         return False
+    
+    def handleEvent(self, event):
+        pass
+
 
 class TraceLocation():
     def __init__(self, x, y, diameter, isAnswer):
@@ -58,3 +62,33 @@ class IndependentTile(coreAnim.StaticImage):
     
     def reset(self):
         self.pos = self.sourcePos
+
+class IndependentIndexedTile(IndependentTile):
+    def __init__(self, sourceAnim, sourceAnimName, index, x=0, y=0):
+        IndependentTile.__init__(self, sourceAnim, sourceAnimName, x, y)
+        self.index = index
+
+class IndependentTileMatch(IndependentTile):
+    def __init__(self, sourceAnim, sourceAnimName, rot, x=0, y=0):
+        IndependentTile.__init__(self, sourceAnim, sourceAnimName, x, y)
+        self.image.set_colorkey((0,0,0))
+        self.sourceImage = self.image
+        self.sourceRot = -rot
+        self.rotImage = 0
+        self.rotPending = -rot
+    
+    def update(self, gameClockDelta):   # Rotate the image to make it correct
+        if self.rotImage != self.rotPending:
+            self.image = pygame.transform.rotate(self.sourceImage, self.rotPending)
+            self.rotImage = self.rotPending
+
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.image, self.image.get_rect(center=self.pos))
+
+    def getRot(self):
+        return - self.rot
+
+    def reset(self):
+        super().reset()
+        self.rot = self.sourceRot
+        self.image = self.sourceImage

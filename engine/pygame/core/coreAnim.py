@@ -2,14 +2,17 @@
 
 import coreProp, pygame
 from os import path
-from math import ceil
+from math import ceil, sin, cos, pi
 
 pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
         
 class StaticImage():
-    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False):
-        if imagePath == None:
-            self.image = pygame.Surface((1,1))
+    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
+        if imagePath == None or imageIsNull:
+            if imageNullDimensions != None:
+                self.image = pygame.Surface(imageNullDimensions)
+            else:
+                self.image = pygame.Surface((1,1))
         elif imageIsSurface:
             self.image = imagePath
         else:
@@ -209,8 +212,8 @@ class AnimatedImage():
         return False
 
 class StaticButton(StaticImage):
-    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False):
-        StaticImage.__init__(self, imagePath, x, y, imageIsSurface)
+    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
+        StaticImage.__init__(self, imagePath, x, y, imageIsSurface, imageIsNull, imageNullDimensions)
         self.reset()
     
     def reset(self):
@@ -392,36 +395,77 @@ class AnimatedText():
         gameDisplay.blit(self.textRender, location)
 
 class AnimatedFader():
+
+    MODE_SINE_SHARP = 0
+    MODE_SINE_SMOOTH = 1
+    MODE_TRIANGLE = 2
     
-    def __init__(self):
-        pass
-
-class AnimatedPulser():
-
-    def __init__(self, interval=0.1, min=0, max=1, minStop=0, maxStop=0, mode=0):
-        self.strength = 0
-        self.interval = interval
-        self.min = min
-        self.max = max
-        self.minStop = minStop
-        self.maxStop = maxStop
-        self.timeSinceLastWait = 0
-
-        if mode == 0:
-            self.update = self.updateSine
+    def __init__(self, durationCycle, mode, loop, cycle=True, inverted=False):
+        self.durationCycle = durationCycle // 2
+        self.doFullCycle = cycle
+        self.loop = loop
+        self.inverted = inverted
+        if cycle:
+            self.initalInverted = inverted
+        self.reset()
+        if coreProp.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
+            self.getStrength = self.getStrengthTriangle
+        elif mode == AnimatedFader.MODE_SINE_SHARP:
+            self.getStrength = self.getStrengthSineSingleEase
+        elif mode == AnimatedFader.MODE_SINE_SMOOTH:
+            self.getStrength = self.getStrengthSineDoubleEase
         else:
-            self.update = self.updateLinear
+            print("AnimatedFader: Fader initialised with bad fade mode!")
+            self.getStrength = self.getStrengthTriangle
+
+    def reset(self):
+        self.isActive = True
+        self.durationElapsed = 0
+
+    def update(self, gameClockDelta):
+        if self.isActive:
+            self.durationElapsed += gameClockDelta
+            if self.durationElapsed >= self.durationCycle:
+                self.inverted = not(self.inverted)
+                self.durationElapsed = self.durationElapsed % self.durationCycle
+                if not(self.loop):
+                    if self.doFullCycle:
+                        if self.inverted == self.initalInverted:
+                            self.isActive = False
+                    else:
+                        self.isActive = False
     
-    def updateSine(self, gameClockDelta):
-        pass
+    def getStrengthSineDoubleEase(self):
+        if self.isActive:
+            if self.inverted:
+                return (cos(pi * (self.durationElapsed / self.durationCycle)) + 1) / 2
+            else:
+                return 1 - ((cos(pi * (self.durationElapsed / self.durationCycle)) + 1) / 2)
+        else:
+            return self.inverted
 
-    def updateLinear(self, gameClockDelta):
-        pass
+    def getStrengthSineSingleEase(self):
+        if self.isActive:
+            if self.inverted:
+                return 1 - (sin((pi/2) * (self.durationElapsed / self.durationCycle)))
+            else:
+                return (sin((pi/2) * (self.durationElapsed / self.durationCycle)))
+        else:
+            return self.inverted
 
-    def getStrength(self):
-        return self.strength
+    def getStrengthTriangle(self):
+        if self.isActive:
+            if self.inverted:
+                return 1 - (self.durationElapsed / self.durationCycle)
+            else:
+                return self.durationElapsed / self.durationCycle
+        else:
+            return self.inverted
 
 class TextScroller():
+    """Text renderer that handles newlines, colour switching and character replacement codes.
+    Text is automatically animated; to render immediately, call skip() prior to drawing
+    """
     def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):
         self.textInput = textInput
         indexReplacementCharStart = self.textInput.find("<")
@@ -477,7 +521,7 @@ class TextScroller():
     def update(self, gameClockDelta):
         if self.drawIncomplete:
             self.timeSinceLastUpdate += gameClockDelta
-            if self.timeSinceLastUpdate >= self.frameStep:
+            while self.timeSinceLastUpdate >= self.frameStep:
                 self.timeSinceLastUpdate -= self.frameStep
                 self.incrementText()
 
@@ -493,3 +537,7 @@ class TextScroller():
                 lineText.draw(gameDisplay, location=(x,y))
                 x += lineText.textRender.get_width()
             y += self.font.get_height()
+
+def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
+    return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
+                                            round(surface.get_height() * scaleFactorY)))

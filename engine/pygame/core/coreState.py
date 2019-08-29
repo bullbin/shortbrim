@@ -22,6 +22,7 @@ class LaytonPlayerState():
     def __init__(self):
         self.name = "LT1_ENGINE"
         self.puzzleData = {}
+        self.puzzletTutorialsCompleted = []
         self.currentRoom = 0
         self.remainingHintCoins = 0
         self.hintCoinsFound = []
@@ -101,7 +102,7 @@ class LaytonScreen():
                 self.updateStackPointers()
                 self.hasStackChanged = False
             
-            for indexUpdate in range(self.stackLastBackElement, len(self.stack)):
+            for indexUpdate in range(len(self.stack) - 1, self.stackLastBackElement - 1, -1):
                 self.stack[indexUpdate].update(gameClockDelta)
                 self.stackChangePrior = self.hasStackChanged
                 self.addToStack(self.stack[indexUpdate].getFutureContext())
@@ -115,11 +116,9 @@ class LaytonScreen():
                     self.updateStackPointers()
                     self.stack[indexUpdate].screenStackUpdate = False
                     self.hasStackChanged = False
-
-            if self.stack[-1].getContextState():
-                # The last object on the stack has finished operation, start deleting it.
-                self.stack.pop()
-                self.hasStackChanged = True
+                if self.stack[indexUpdate].getContextState():   # Stack object has finished operation
+                    self.stack.remove(self.stack[indexUpdate])
+                    self.hasStackChanged = True
 
     def handleEvent(self, event):
         for indexUpdate in range(len(self.stack), self.stackLastBlockElement, -1):

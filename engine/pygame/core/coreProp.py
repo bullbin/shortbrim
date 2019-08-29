@@ -25,7 +25,8 @@ GRAPHICS_FONT_CHAR_SUBSTITUTION = {"po":"£"}
 GRAPHICS_FONT_COLOR_MAP = {"x":(0,0,0),
                            "r":(255,0,0),
                            "g":(0,255,0),
-                           "b":(0,0,255)}
+                           "b":(0,0,255),
+                           "w":(255,255,255)}
 
 LAYTON_PUZZLE_HINT_COST     = 1
 LAYTON_SCREEN_HEIGHT        = 192
