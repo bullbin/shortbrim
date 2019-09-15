@@ -86,7 +86,7 @@ class gdScript():
             #         reader.seek(tempOperands[0])
             if opcode == b'\x48': # Set puzzle context (lol help)
                 self.contextPuzzle = tempOperands[0]
-                invalidateCommand = True
+                #invalidateCommand = True
             
             if self.contextPuzzle != None:
                 if opcode in [b'\x49', b'\x4a', b'\x4d']:

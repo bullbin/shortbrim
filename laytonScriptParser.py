@@ -252,6 +252,8 @@ class gdScript():
         elif command == b'\x76':
             print("GD: [PUZZLE  ] Set amount of valid solutions!\n               Max     : " + str(params[0]))
 
+        # b'\x78', b'\x79' appear to be event character-related
+        
         elif command == b'\x7e':
             print("GD: [GRAPHICS] Draw TS animated image!\n               Location: (" + str(params[0]) + ", " + str(params[1]) + ")\n               Sprite  : " + params[2] + "\n               SpwnAnim: " + params[3])
             for param in params[4:]:
@@ -310,6 +312,10 @@ class gdScript():
         
         elif command == b'\xb1':
             print("GD: [PUZZLE  ] Set sliding puzzle parameters!\n               SolLoc  : (" + str(params[0]) + ", " + str(params[1]) + ")\n               Unknown : " + str(params[2]))
+
+        elif command == b'\xb4':
+            print("GD: [GRAPHICS] ?? Set horizontal mirroring parameter!\n               SpriteId: " + str(params[0]) + "\n               IsMirror: " + params[1])
+
         elif command == b'\xb6':
             print("GD: [DEBUG   ] " + params[1] + "\t: " + params[0])
         elif command == b'\xba':

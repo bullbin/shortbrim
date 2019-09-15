@@ -181,7 +181,7 @@ class LaytonRoomGraphics(coreState.LaytonContext):
                                                       (command.operands[3], command.operands[4]), command.operands[5]))
             self.eventHintId.append(command.operands[0])
         else:
-            print("UnkCommand: " + str(command.opcode))
+            print("ErrGraphicsUnkCommand: " + str(command.opcode))
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -215,10 +215,7 @@ class LaytonRoomHandler(coreState.LaytonSubscreen):
 
         self.addToStack(LaytonRoomBackground(roomIndex, playerState))
         self.addToStack(LaytonRoomGraphics(playerState))
-
         self.commandFocus = self.stack[-1]
-
-        # self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"))
         self.executeGdScript(coreLib.gdScript(playerState, coreProp.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"))
         self.addToStack(LaytonRoomUi(playerState))
 
@@ -233,32 +230,8 @@ class LaytonRoomHandler(coreState.LaytonSubscreen):
     def executeCommand(self, command):
         print("CommandNoTarget: " + str(command.opcode))
 
-def play(eventIndex, playerState):
-    isActive = True
-    gameDisplay = pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
-    gameClock = pygame.time.Clock()
-
-    rootHandler = LaytonRoomHandler(eventIndex, playerState)
-
-    gameClockDelta = 0
-
-    while isActive:
-
-        rootHandler.update(gameClockDelta)
-        rootHandler.draw(gameDisplay)
-        pygame.display.update()
-
-        for event in pygame.event.get():
-            
-            if event.type == pygame.QUIT:
-                isActive = False
-            else:
-                rootHandler.handleEvent(event)
-                
-        gameClockDelta = gameClock.tick(coreProp.ENGINE_FPS)
-
 playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-play(8, playerState)
+coreState.play(LaytonRoomHandler(4, playerState), playerState)

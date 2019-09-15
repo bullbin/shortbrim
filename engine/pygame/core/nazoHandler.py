@@ -34,7 +34,7 @@ class LaytonTouchOverlay(coreState.LaytonContext):
         self.imageTouch = self.imageTouch.setAnimationFromNameAndReturnInitialFrame("touch")
         self.imageTouchPos = ((coreProp.LAYTON_SCREEN_WIDTH - self.imageTouch.get_width()) // 2,
                               ((coreProp.LAYTON_SCREEN_HEIGHT - self.imageTouch.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
-        self.imageTouchAlphaFader = coreAnim.AnimatedFader(1000, coreAnim.AnimatedFader.MODE_SINE_SMOOTH, True, inverted=True)
+        self.imageTouchAlphaFader = coreAnim.AnimatedFader(5000, coreAnim.AnimatedFader.MODE_SINE_SMOOTH, True, inverted=True)
 
     def update(self, gameClockDelta):
         self.imageTouchAlphaFader.update(gameClockDelta)
@@ -286,7 +286,7 @@ class PuzzletInteractableDragContext(LaytonContextPuzzlet):
 class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
 
     spriteMatch = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "match")
-    for frame in spriteMatch.frames:
+    for frame in spriteMatch.frames:    # Hack: Blendmode issue? Override alpha colour as black rather than green
         frame.set_colorkey(coreProp.GRAPHICS_FONT_COLOR_MAP["x"])
 
     def __init__(self):
@@ -297,6 +297,9 @@ class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
         for element in self.elements:
             element.update(gameClockDelta)
     
+    def evaluateSolution(self):
+        return super().evaluateSolution()
+
     def executeCommand(self, command):
         if command.opcode == b'\x2a':
             self.elements.append(nazoElements.IndependentTileMatch(PuzzletInteractableMatchContext.spriteMatch, "match", command.operands[2],
@@ -308,6 +311,9 @@ class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
             self.drawNewMoveCounter()
         else:
             print("ErrUnrecognised: " + str(command.opcode))
+    
+    def handleEvent(self, event):
+        return super().handleEvent(event)
 
 class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
     
@@ -488,7 +494,7 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
         self.tileClickOffset = (0,0)
         self.tileActiveDrawPosition = (0,0)
         self.tileActive = None
-    
+
     def draw(self, gameDisplay):
         self.buttonSubmit.draw(gameDisplay)
         self.buttonRestart.draw(gameDisplay)
@@ -544,6 +550,11 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
                 return True
         return False
 
+    def switchTiles(self, sourceTile, destTile, isOccupied):
+        if isOccupied:  # Switch slots
+            self.tileSlotDict[sourceTile] = self.tileSlotDict[self.tileActive]
+        self.tileSlotDict[self.tileActive] = destTile
+
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONUP:
             self.buttonSubmit.registerButtonUp(event)
@@ -557,8 +568,7 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
                 self.reset()
 
             elif self.tileActive != None:
-                tileTargetIndex = 0
-                for tileTarget in self.tileTargets:
+                for tileTargetIndex, tileTarget in enumerate(self.tileTargets):
                     if (abs(event.pos[0] - self.tileClickOffset[0] - tileTarget[0]) <= PuzzletInteractableTileContext.TILE_SWITCH_REGION and
                         abs(event.pos[1] - self.tileClickOffset[1]- tileTarget[1]) <= PuzzletInteractableTileContext.TILE_SWITCH_REGION):
                         isOccupied = False
@@ -570,11 +580,8 @@ class PuzzletInteractableTileContext(LaytonContextPuzzlet):
                                 isOccupied = True
                                 break
                         if isFree:
-                            if isOccupied:  # Switch slots
-                                self.tileSlotDict[tileIndex] = self.tileSlotDict[self.tileActive]
-                            self.tileSlotDict[self.tileActive] = tileTargetIndex
+                            self.switchTiles(tileIndex, tileTargetIndex, isOccupied)
                         break
-                    tileTargetIndex += 1
                 self.tileActive = None
             self.tileClickOffset = (0,0)
 
@@ -719,7 +726,7 @@ class PuzzletInteractableTraceButtonContext(LaytonContextPuzzlet):
             self.cursorColour = pygame.Color(command.operands[0], command.operands[1], command.operands[2])
         elif command.opcode == b'\xd4':
             self.traceLocations.append(nazoElements.TraceLocation(command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT,
-                                                                  command.operands[2], {"true":True, "false":False}[command.operands[3]]))
+                                                                  command.operands[2], coreProp.LAYTON_STRING_BOOLEAN[command.operands[3]]))
         else:
             print("ErrTraceButtonUnkCommand: " + str(command.opcode))
     
@@ -899,6 +906,61 @@ class PuzzletInteractableCutPuzzleContext(LaytonContextPuzzlet):
         for center in self.nodes:
             pygame.draw.circle(gameDisplay, pygame.Color(0,0,255), center, 1)
 
+class PuzzletInteractableRiverCrossContext(LaytonContextPuzzlet):
+    def __init__(self):
+        LaytonContextPuzzlet.__init__(self)
+        self.puzzleMoveFont  = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cup_numbers")
+        self.puzzleCurrentMoves = 0
+        self.imageRaft = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "river_raft")
+        self.imageRaft = coreAnim.StaticImage(self.imageRaft.setAnimationFromNameAndReturnInitialFrame("raft"), x=56, y=coreProp.LAYTON_SCREEN_HEIGHT + 104, imageIsSurface=True,)
+        self.imageChicken = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "river_chicken")
+        self.imageChicken.setAnimationFromName("bird")
+        self.imageWolf = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "river_wolf")
+        self.imageWolf.setAnimationFromName("wolf")
+        self.posChickens = []
+        self.posWolves = []
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x31':
+            self.posChickens.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+        elif command.opcode == b'\x32':
+            self.posWolves.append((command.operands[0], command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
+        else:
+            print("ErrRiverCrossUnkCommand: " + str(command.opcode))
+
+    def update(self, gameClockDelta):
+        self.imageWolf.update(gameClockDelta)
+        self.imageChicken.update(gameClockDelta)
+
+    def draw(self, gameDisplay):
+        self.imageRaft.draw(gameDisplay)
+        for pos in self.posWolves:
+            self.imageWolf.pos = pos
+            self.imageWolf.draw(gameDisplay)
+        for pos in self.posChickens:
+            self.imageChicken.pos = pos
+            self.imageChicken.draw(gameDisplay)
+    
+    def evaluateSolution(self):
+        return False
+    
+class PuzzletInteractableCupContext(PuzzletInteractableTileContext):
+    def __init__(self):
+        PuzzletInteractableTileContext.__init__(self)
+    
+    def switchTiles(self, sourceTile, destTile, isOccupied):
+        pass
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x3a':
+            self.tileSlotDict[len(self.tiles)] = len(self.tileTargets)
+            self.tiles.append(pygame.Surface((24,24)))
+            self.tiles[-1].fill((int(len(self.tiles) * 64), int(len(self.tiles) * 64), int(len(self.tiles) * 64)))
+            print(self.tiles[-1])
+            self.tileTargets.append((command.operands[1], command.operands[2] + coreProp.LAYTON_SCREEN_HEIGHT))
+        else:
+            print("ErrUnkCupCommand: " + str(command.opcode))
+
 class LaytonPuzzletTutorialOverlay(coreState.LaytonContext):
     # 3 is DrawInput, 6 is Scale, 7 is the raft game, 9 is Cup, 15 is the sliding puzzle game,
     # 16 is the raft game with cabbages, 18 is the car game, 21 is the sliding puzzle
@@ -969,13 +1031,15 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
                        "On Off":PuzzletInteractableOnOffContext, "Tile":PuzzletInteractableTileContext,
                        "Coin":PuzzletInteractableCoinContext, "Queen":PuzzletInteractableQueenContext,
                        "Trace Button":PuzzletInteractableTraceButtonContext, "Trace":PuzzletInteractableTraceContext,
-                       "Cut Puzzle":PuzzletInteractableCutPuzzleContext, "Place Target":PuzzletInteractablePlaceTargetContext}
+                       "Cut Puzzle":PuzzletInteractableCutPuzzleContext, "Place Target":PuzzletInteractablePlaceTargetContext,
+                       "River Cross":PuzzletInteractableRiverCrossContext, "Cup":PuzzletInteractableCupContext}
     defaultBackgrounds = {"Match":"match_bg.png", "Coin":"coin_bg.png"}
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonSubscreen.__init__(self)
         self.commandFocus = None
         self.puzzleHintCount = 0
+        self.puzzleIndex = puzzleIndex
 
         self.addToStack(LaytonPuzzleBackground(puzzleIndex, playerState))
         self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qscript\\q" + str(puzzleIndex) + "_param.gds"))
@@ -998,8 +1062,7 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
                     self.commandFocus = self.stack[1]
 
                     if not(self.stack[0].backgroundIsLoaded):
-                        if command.operands[0] in LaytonPuzzleHandler.defaultBackgrounds.keys():
-                            # Attempt to load an alternative background
+                        if command.operands[0] in LaytonPuzzleHandler.defaultBackgrounds.keys(): # Attempt to load an alternative background
                             self.stack[0].backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + LaytonPuzzleHandler.defaultBackgrounds[command.operands[0]]).convert()
                         else:
                             print("BG: No default background found!")
@@ -1012,9 +1075,6 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
             else:
                 self.commandFocus.executeCommand(command)
     
-    def executeCommand(self, command):
-        print("CommandNoTarget: " + str(command.opcode))
-    
     def updateSubscreenMethods(self, gameClockDelta):
         if self.commandFocus != None:
             if self.commandFocus.registerVictory:
@@ -1026,52 +1086,8 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
             elif self.commandFocus.registerQuit:
                 self.isContextFinished = True
 
-def play(puzzleIndex, playerState):
-    isActive = True
-    gameDisplay = pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
-    gameClock = pygame.time.Clock()
-    gameClockDelta = 0
-    rootHandler = LaytonPuzzleHandler(puzzleIndex, playerState)
-
-    while isActive:
-        
-        rootHandler.update(gameClockDelta)
-        rootHandler.draw(gameDisplay)
-
-        if coreProp.ENGINE_DEBUG_MODE:
-            debugFont = playerState.getFont("fontq")
-            debugGameFps = round(gameClock.get_fps(), 2)
-
-            if coreProp.ENGINE_PERFORMANCE_MODE:
-                debugFps = coreAnim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=(255,0,0))
-            else:
-                if debugGameFps == coreProp.ENGINE_FPS:
-                    perfColour = (0,255,0)
-                elif debugGameFps > coreProp.ENGINE_FPS:
-                    perfColour = (255,0,255)
-                else:
-                    debugGameFpsRatio = debugGameFps/coreProp.ENGINE_FPS
-                    perfColour = (round((1-debugGameFpsRatio) * 255), round(debugGameFpsRatio * 255), 0)
-                debugFps = coreAnim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=perfColour)
-                debugFpsShadow = pygame.Surface((debugFps.textRender.get_width(), debugFps.textRender.get_height()))
-                debugFpsShadow.set_alpha(127)
-                gameDisplay.blit(debugFpsShadow, (0,0))
-
-            debugFps.draw(gameDisplay)
-
-        pygame.display.update()
-
-        for event in pygame.event.get():
-            
-            if event.type == pygame.QUIT:
-                isActive = False
-            else:
-                rootHandler.handleEvent(event)
-                
-        gameClockDelta = gameClock.tick(coreProp.ENGINE_FPS)
-
-playerState = coreState.LaytonPlayerState()
-playerState.puzzleLoadData()
-playerState.puzzleLoadNames()
-playerState.remainingHintCoins = 10
-play(43, playerState)    #4:Trace Button, 9:Coin, 10:Connect, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut
+#playerState = coreState.LaytonPlayerState()
+#playerState.puzzleLoadData()
+#playerState.puzzleLoadNames()
+#playerState.remainingHintCoins = 10
+#coreState.play(LaytonPuzzleHandler(9, playerState), playerState) #4:Trace Button, 9:Coin, 10:Connect, 11:Scale, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut

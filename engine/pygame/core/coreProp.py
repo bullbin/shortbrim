@@ -5,7 +5,8 @@ pygame.init()
 pygame.display.set_caption("LAYTON1")
 
 ENGINE_FPS = 60
-ENGINE_PERFORMANCE_MODE = False
+ENGINE_FORCE_BUSY_WAIT  = False     # Performance-intensive, but ensures stable frametimes
+ENGINE_PERFORMANCE_MODE = True      # Reduces graphical accuracy in favour of performance
 ENGINE_DEBUG_MODE = True
 
 PATH_SAVE = None
@@ -31,3 +32,5 @@ GRAPHICS_FONT_COLOR_MAP = {"x":(0,0,0),
 LAYTON_PUZZLE_HINT_COST     = 1
 LAYTON_SCREEN_HEIGHT        = 192
 LAYTON_SCREEN_WIDTH         = 256
+
+LAYTON_STRING_BOOLEAN = {"true":True, "false":False}

@@ -1,43 +1,6 @@
 import pygame, coreAnim
 from math import sqrt
 
-class Match():
-
-    MOVE_RADIUS = 5
-    SHADOW_OFFSET = 2
-    
-    def __init__(self, surfaceMatch, surfaceShadow, posX, posY, rot):
-        self.surfaceMatch = surfaceMatch
-        self.surfaceShadow = surfaceShadow
-        self.pos = (posX, posY)
-        self.rot = -rot
-        self.region = 32
-        self.drawShadow = True
-
-    def getRot(self):
-        return -self.rot
-
-    def draw(self, gameDisplay):
-        if self.drawShadow:
-            appliedSurface = pygame.transform.rotate(self.surfaceShadow, self.rot)
-            x,y = self.pos
-            x += Match.SHADOW_OFFSET; y += Match.SHADOW_OFFSET 
-            appliedSurfaceRect = appliedSurface.get_rect(center=(x,y))
-            gameDisplay.blit(appliedSurface, (appliedSurfaceRect.x, appliedSurfaceRect.y))
-        appliedSurface = pygame.transform.rotate(self.surfaceMatch, self.rot)
-        appliedSurfaceRect = appliedSurface.get_rect(center=self.pos)
-        gameDisplay.blit(appliedSurface, (appliedSurfaceRect.x, appliedSurfaceRect.y))
-    
-    def wasClicked(self, mousePos):
-        if self.pos[0] + self.surfaceMatch.get_width() >= mousePos[0] and mousePos[0] >= self.pos[0]:
-            if self.pos[1] + self.surfaceMatch.get_height() >= mousePos[1] and mousePos[1] >= self.pos[1]:
-                return True
-        return False
-    
-    def handleEvent(self, event):
-        pass
-
-
 class TraceLocation():
     def __init__(self, x, y, diameter, isAnswer):
         self.pos = (x, y)
@@ -69,6 +32,10 @@ class IndependentIndexedTile(IndependentTile):
         self.index = index
 
 class IndependentTileMatch(IndependentTile):
+
+    MATCH_HEIGHT = 5
+    MATCH_LENGTH = 40
+
     def __init__(self, sourceAnim, sourceAnimName, rot, x=0, y=0):
         IndependentTile.__init__(self, sourceAnim, sourceAnimName, x, y)
         self.image.set_colorkey((0,0,0))
@@ -92,3 +59,11 @@ class IndependentTileMatch(IndependentTile):
         super().reset()
         self.rot = self.sourceRot
         self.image = self.sourceImage
+    
+    def wasClicked(self, mousePos):
+        # Rotate the mousePos to fit the shape
+        return False
+
+class IndependentTileCup(IndependentTile):
+    def __init__(self, sourceAnim, sourceAnimName, x=0, y=0):
+        IndependentTile.__init__(self, sourceAnim, sourceAnimName, x, y)

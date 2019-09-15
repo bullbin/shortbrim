@@ -19,6 +19,9 @@ class StaticImage():
             self.image = pygame.image.load(imagePath).convert_alpha()
         self.pos = (x,y)
 
+    def getImage(self):
+        return self.image
+
     def update(self, gameClockDelta):
         pass
 
@@ -160,9 +163,18 @@ class AnimatedImage():
             print("AnimatedImage: Cannot import " + animText + " as it does not exist!")
             return False
     
+    def getImage(self):
+        try:
+            return self.frames[self.animActiveFrame]
+        except:
+            return None
+
+    def getAnim(self):
+        return self.animActive
+
     def draw(self, gameDisplay):
         if self.animActiveFrame != None:
-            gameDisplay.blit(self.frames[self.animActiveFrame], self.pos)
+            gameDisplay.blit(self.getImage(), self.pos)
 
     def update(self, gameClockDelta):
         if self.animActive != None:
@@ -182,6 +194,11 @@ class AnimatedImage():
             return True
         self.animActive = None
         return False
+    
+    def setAnimationFromNameIfNotActive(self, anim):
+        if self.animActive != anim:
+            return self.setAnimationFromName(anim)
+        return True
     
     def setAnimationFromNameAndReturnInitialFrame(self, anim):
         if self.setAnimationFromName(anim):
@@ -425,9 +442,9 @@ class AnimatedFader():
     def update(self, gameClockDelta):
         if self.isActive:
             self.durationElapsed += gameClockDelta
-            if self.durationElapsed >= self.durationCycle:
+            while self.durationElapsed >= self.durationCycle:
                 self.inverted = not(self.inverted)
-                self.durationElapsed = self.durationElapsed % self.durationCycle
+                self.durationElapsed = self.durationElapsed - self.durationCycle
                 if not(self.loop):
                     if self.doFullCycle:
                         if self.inverted == self.initalInverted:
@@ -466,8 +483,59 @@ class TextScroller():
     """Text renderer that handles newlines, colour switching and character replacement codes.
     Text is automatically animated; to render immediately, call skip() prior to drawing
     """
+
+    LAYTON_CONTROL_CHAR = ['#', '@', '&']
+
     def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):
         self.textInput = textInput
+        self.frameStep = 1000/targetFramerate
+        self.textPosOffset = textPosOffset
+        self.font = font
+        self.reset()
+        self.substituteChars()
+
+    def incrementText(self):    # There are much faster ways to do this, consider writing to a surface then just masking instead of redrawing per character
+        if self.textPos < len(self.textInput):
+            if self.textInput[self.textPos] in TextScroller.LAYTON_CONTROL_CHAR:
+                if self.textInput[self.textPos] == "#":
+                    if self.textCurrentColour != self.textInput[self.textPos + 1]:
+                        self.textCurrentColour = self.textInput[self.textPos + 1]
+                        if self.textPos == self.textNewline:
+                            self.textNewline += 2
+                        self.textPos += 2
+                        if self.textPos < len(self.textInput) and self.textPos > 2:
+                            if self.textInput[self.textPos] != "\n":    # Register colour change between rects
+                                self.textNewline = self.textPos
+                                self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+                elif self.textInput[self.textPos] == '@':
+                    if self.textInput[self.textPos + 1] == "w":         # Wait
+                        self.isPaused = True
+                        self.durationPause = 500
+                    else:
+                        print("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
+                    self.textPos += 2
+                elif self.textInput[self.textPos] == '&':
+                    tempStringControl = ""
+                    while self.textInput[self.textPos + 1] != '&':
+                        tempStringControl += self.textInput[self.textPos + 1]
+                        self.textPos += 1
+                    self.textPos += 2
+                    self.controlStrings.append(tempStringControl)   # Pygame events could be used but it could make finding the source difficult
+            if self.textPos < len(self.textInput):
+                if self.textInput[self.textPos] == "\n" or len(self.textRects) == 0:
+                    if len(self.textRects) == 0:
+                        self.textNewline = self.textPos
+                    else:
+                        self.textNewline = self.textPos + 1
+                    self.textRects.append([AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
+                else:
+                    self.textRects[-1][-1].text = self.textInput[self.textNewline:self.textPos + 1]
+                    self.textRects[-1][-1].update(None)
+                self.textPos += 1
+        else:
+            self.drawIncomplete = False
+    
+    def substituteChars(self):
         indexReplacementCharStart = self.textInput.find("<")
         while indexReplacementCharStart != -1:
             indexReplacementCharEnd = indexReplacementCharStart + 1
@@ -480,50 +548,38 @@ class TextScroller():
                 self.textInput = self.textInput[:indexReplacementCharStart] + self.textInput[indexReplacementCharEnd + 1:]
             indexReplacementCharStart = self.textInput.find("<")
 
+    def reset(self):
         self.textNewline = 0
         self.textCurrentColour = "x"
         self.textPos = 0
-        self.textPosOffset = textPosOffset
         self.textRects = []
-        self.font = font
         self.drawIncomplete = True
-        self.frameStep = 1000/targetFramerate
+        self.isControlString = False
+
+        self.isPaused = False
+        self.durationPause = 0
+        self.durationElapsedPause = 0
+
+        self.controlStrings = []
         self.timeSinceLastUpdate = 0
 
-    def incrementText(self):    # There are much faster ways to do this, consider writing to a surface then just masking instead of redrawing per character
-        if self.textPos < len(self.textInput):
-            if self.textInput[self.textPos] == "#":
-                if self.textCurrentColour != self.textInput[self.textPos + 1]:
-                    self.textCurrentColour = self.textInput[self.textPos + 1]
-                    if self.textPos == self.textNewline:
-                        self.textNewline += 2
-                    self.textPos += 2
-                    if self.textPos < len(self.textInput) and self.textPos > 2:
-                        if self.textInput[self.textPos] != "\n":
-                            # Register colour change between rects
-                            self.textNewline = self.textPos
-                            self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+    def updateText(self):
+        while self.timeSinceLastUpdate >= self.frameStep:
+            self.timeSinceLastUpdate -= self.frameStep
+            self.incrementText()
 
-            if self.textPos < len(self.textInput):
-                if self.textInput[self.textPos] == "\n" or self.textPos == 0:
-                    self.textRects.append([AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
-                    if self.textPos == 0:
-                        self.textNewline = self.textPos
-                    else:
-                        self.textNewline = self.textPos + 1
-                else:
-                    self.textRects[-1][-1].text = self.textInput[self.textNewline:self.textPos + 1]
-                    self.textRects[-1][-1].update(None)
-                self.textPos += 1
-        else:
-            self.drawIncomplete = False
-    
     def update(self, gameClockDelta):
         if self.drawIncomplete:
-            self.timeSinceLastUpdate += gameClockDelta
-            while self.timeSinceLastUpdate >= self.frameStep:
-                self.timeSinceLastUpdate -= self.frameStep
-                self.incrementText()
+            if self.isPaused:
+                self.durationElapsedPause += gameClockDelta
+                if self.durationPause <= self.durationElapsedPause:
+                    self.isPaused = False
+                    self.timeSinceLastUpdate += (self.durationElapsedPause - self.durationPause)
+                    self.durationPause = 0
+                    self.durationElapsedPause = 0
+            else:
+                self.timeSinceLastUpdate += gameClockDelta
+            self.updateText()
 
     def skip(self):
         while self.drawIncomplete:
