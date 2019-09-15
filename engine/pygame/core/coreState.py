@@ -28,14 +28,13 @@ class LaytonPlayerState():
         self.hintCoinsFound = []
         self.fonts = {}
 
-        if coreProp.GRAPHICS_USE_GAME_FONTS:
-            for fontName, fontEncoding, fontSpacing in [("font18", "shift-jis", 1), ("fontevent", "cp1252", 4), ("fontq", "cp1252", 2)]:
+        for fontName, fontEncoding, fontSpacing, altFontSize in [("font18", "shift-jis", 1, 17), ("fontevent", "cp1252", 4, 18), ("fontq", "cp1252", 2, 17)]:
+            if coreProp.GRAPHICS_USE_GAME_FONTS:
                 self.fonts[fontName] = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + fontName + ".png", coreProp.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, yFontGap=fontSpacing)
                 if not(self.fonts[fontName].isLoaded):
-                    self.fonts[fontName] = pygame.font.SysFont('freesansmono', 17)
-        else:
-            for fontName in ["font18", "fontevent", "fontq"]:
-                self.fonts[fontName] = pygame.font.SysFont('freesansmono', 17)
+                    self.fonts[fontName] = coreAnim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), fontSpacing)
+            else:
+                self.fonts[fontName] = coreAnim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), fontSpacing)
 
     def getFont(self, fontName):
         if fontName in self.fonts.keys():

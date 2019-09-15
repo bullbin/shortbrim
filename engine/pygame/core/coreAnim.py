@@ -352,7 +352,14 @@ class FontMap():
     
     def get_height(self):           # Used to preserve pygame compatibility
         return self.fontHeight + self.fontSpacing[1]
-    
+
+class FontVector():
+    def __init__(self, font, yFontGap):
+        self.font = font
+        self.yFontGap = yFontGap
+    def get_height(self):
+        return self.font.get_height() + self.yFontGap
+
 class AnimatedText():
     def __init__(self, font, initString = "", colour=(0,0,0)):
         self.text = initString
@@ -367,12 +374,12 @@ class AnimatedText():
             self.draw = self.drawBitmapFont
             self.updateBitmapFont(None)
         else:
-            self.textRender = self.font.render(self.text,True,colour,None)
+            self.textRender = self.font.font.render(self.text,True,colour,None)
             self.update = self.updateRasterFont
             self.draw = self.drawRasterFont
 
     def updateRasterFont(self, gameClockDelta):
-        self.textRender = self.font.render(self.text,True,self.textColour,None)
+        self.textRender = self.font.font.render(self.text,True,self.textColour,None)
 
     def drawRasterFont(self, gameDisplay, location=(0,0)):
         textRect = self.textRender.get_rect()

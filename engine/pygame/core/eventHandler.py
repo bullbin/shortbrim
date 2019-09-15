@@ -9,6 +9,8 @@ class LaytonCharacterController():
         self.isFlipped = False
         self.isFlippedMouth = False
         self.nameSurface = None
+        self.animBody = None
+        self.animMouth = None
     
     def setAnimBody(self, anim, animName=None):
         self.animBody = anim
@@ -101,7 +103,8 @@ class LaytonEventGraphics(coreState.LaytonContext):
         self.eventTextScroller      = coreAnim.TextScroller(playerState.getFont("fontevent"), "", targetFramerate=60)
         self.eventIndex             = eventIndex
         self.eventCharacters        = []
-        self.eventCharactersBodyMouthLoadIndices = [0,0]
+        self.eventCharactersBodyMouthLoadIndices    = [0,0]
+        self.eventCharactersLeftRightActive         = [-1,-1]
         self.eventPuzzleHandler = None
 
         self.eventTextImageWindow.pos = ((coreProp.LAYTON_SCREEN_WIDTH - self.eventTextImageWindow.dimensions[0]) // 2,
@@ -164,8 +167,10 @@ class LaytonEventGraphics(coreState.LaytonContext):
             event.update(gameClockDelta)
         if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):   # Switch to signalling technique to reduce overhead when writing event code
             if self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_LEFT:
+                self.eventCharactersLeftRightActive[0] = self.eventText[self.eventTextIndex].indexChar
                 self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx2")
             elif self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_RIGHT:
+                self.eventCharactersLeftRightActive[1] = self.eventText[self.eventTextIndex].indexChar
                 self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx")
             else:
                 self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx3")
@@ -177,8 +182,9 @@ class LaytonEventGraphics(coreState.LaytonContext):
                 self.eventTextLoadedIndex += 1
 
     def draw(self, gameDisplay):
-        for event in self.eventCharacters:
-            event.draw(gameDisplay)
+        for indexChar in self.eventCharactersLeftRightActive:
+            if indexChar != -1:
+                self.eventCharacters[indexChar].draw(gameDisplay)
         if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):
             self.eventTextImageWindow.draw(gameDisplay)
             self.eventTextScroller.draw(gameDisplay)
@@ -217,4 +223,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-coreState.play(LaytonEventHandler(6, playerState), playerState) #Event 14, 17 has overlaying issues
+coreState.play(LaytonEventHandler(1, playerState), playerState)
