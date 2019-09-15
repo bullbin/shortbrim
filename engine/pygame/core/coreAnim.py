@@ -515,17 +515,20 @@ class TextScroller():
                                 self.textNewline = self.textPos
                                 self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
                 elif self.textInput[self.textPos] == '@':
-                    if self.textInput[self.textPos + 1] == "w":         # Wait
-                        self.isPaused = True
-                        self.durationPause = 500
-                    elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
-                        print("TextScroller: Paused until tap!")
-                        self.isWaitingForTap = True
-                    elif self.textInput[self.textPos + 1] == "c":
-                        print("TextScroller: Clear!")
+                    if self.textInput[self.textPos + 1] == "c":
                         self.textRects = []
+                        self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 3:]
                     else:
-                        print("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
+                        if self.textInput[self.textPos + 1] == "w":         # Wait
+                            self.isPaused = True
+                            self.durationPause = 500
+                        elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
+                            self.isWaitingForTap = True
+                        else:
+                            print("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
+                        self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
+                        if self.textPos != self.textNewline:
+                            self.textPos -= 1
 
                 elif self.textInput[self.textPos] == '&':
                     tempStringControl = ""
@@ -533,8 +536,7 @@ class TextScroller():
                         tempStringControl += self.textInput[self.textPos + 1]
                         self.textPos += 1
                     self.textInput = self.textInput[0:self.textPos - len(tempStringControl)] + self.textInput[self.textPos + 2:]
-                    
-                    print(tempStringControl)
+                    print("TextScroller: Signal", tempStringControl)
                     self.controlStrings.append(tempStringControl)   # Pygame events could be used but it could make finding the source difficult
 
             if self.textPos < len(self.textInput):
