@@ -29,7 +29,7 @@ class LaytonPlayerState():
         self.fonts = {}
 
         if coreProp.GRAPHICS_USE_GAME_FONTS:
-            for fontName, fontEncoding, fontSpacing in [("font18", "shift-jis", 1), ("fontevent", "cp1252", 3), ("fontq", "cp1252", 2)]:
+            for fontName, fontEncoding, fontSpacing in [("font18", "shift-jis", 1), ("fontevent", "cp1252", 4), ("fontq", "cp1252", 2)]:
                 self.fonts[fontName] = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + fontName + ".png", coreProp.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, yFontGap=fontSpacing)
                 if not(self.fonts[fontName].isLoaded):
                     self.fonts[fontName] = pygame.font.SysFont('freesansmono', 17)

@@ -511,16 +511,25 @@ class TextScroller():
                     if self.textInput[self.textPos + 1] == "w":         # Wait
                         self.isPaused = True
                         self.durationPause = 500
+                    elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
+                        print("TextScroller: Paused until tap!")
+                        self.isWaitingForTap = True
+                    elif self.textInput[self.textPos + 1] == "c":
+                        print("TextScroller: Clear!")
+                        self.textRects = []
                     else:
                         print("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
-                    self.textPos += 2
+
                 elif self.textInput[self.textPos] == '&':
                     tempStringControl = ""
                     while self.textInput[self.textPos + 1] != '&':
                         tempStringControl += self.textInput[self.textPos + 1]
                         self.textPos += 1
-                    self.textPos += 2
+                    self.textInput = self.textInput[0:self.textPos - len(tempStringControl)] + self.textInput[self.textPos + 2:]
+                    
+                    print(tempStringControl)
                     self.controlStrings.append(tempStringControl)   # Pygame events could be used but it could make finding the source difficult
+
             if self.textPos < len(self.textInput):
                 if self.textInput[self.textPos] == "\n" or len(self.textRects) == 0:
                     if len(self.textRects) == 0:
@@ -557,6 +566,7 @@ class TextScroller():
         self.isControlString = False
 
         self.isPaused = False
+        self.isWaitingForTap = False
         self.durationPause = 0
         self.durationElapsedPause = 0
 
@@ -577,7 +587,7 @@ class TextScroller():
                     self.timeSinceLastUpdate += (self.durationElapsedPause - self.durationPause)
                     self.durationPause = 0
                     self.durationElapsedPause = 0
-            else:
+            elif not(self.isWaitingForTap):
                 self.timeSinceLastUpdate += gameClockDelta
             self.updateText()
 

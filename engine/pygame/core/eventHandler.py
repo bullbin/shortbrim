@@ -7,6 +7,7 @@ pygame.init()
 class LaytonCharacterController():
     def __init__(self):
         self.isFlipped = False
+        self.isFlippedMouth = False
         self.nameSurface = None
     
     def setAnimBody(self, anim, animName=None):
@@ -17,20 +18,17 @@ class LaytonCharacterController():
     
     def setAnimMouth(self, anim):
         self.animMouth = anim
-
-    def drawFlipped(self, gameDisplay):
-        if self.animBody != None and self.animBody.getImage() != None:
-            gameDisplay.blit(pygame.transform.flip(self.animBody.getImage(), True, False), self.animBody.pos)
-        if self.animMouth != None:
-            self.animMouth.draw(gameDisplay)
         
     def draw(self, gameDisplay):
-        if self.isFlipped:
-            self.drawFlipped(gameDisplay)
-        else:
-            if self.animBody != None:
+        if self.animBody != None and self.animBody.getImage() != None:
+            if self.isFlipped and self.animBody.getImage() != None:
+                gameDisplay.blit(pygame.transform.flip(self.animBody.getImage(), True, False), self.animBody.pos)
+            else:
                 self.animBody.draw(gameDisplay)
-            if self.animMouth != None:
+        if self.animMouth != None:
+            if self.isFlippedMouth and self.animMouth.getImage() != None:
+                gameDisplay.blit(pygame.transform.flip(self.animMouth.getImage(), True, False), self.animMouth.pos)
+            else:
                 self.animMouth.draw(gameDisplay)
     
     def update(self, gameClockDelta):
@@ -100,7 +98,7 @@ class LaytonEventGraphics(coreState.LaytonContext):
         self.eventTextIndex         = 0
         self.eventTextLoadedIndex   = -1
         self.eventTextImageWindow   = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "event_window_1")
-        self.eventTextScroller      = coreAnim.TextScroller(playerState.getFont("fontevent"), "", targetFramerate=30)
+        self.eventTextScroller      = coreAnim.TextScroller(playerState.getFont("fontevent"), "", targetFramerate=60)
         self.eventIndex             = eventIndex
         self.eventCharacters        = []
         self.eventCharactersBodyMouthLoadIndices = [0,0]
@@ -108,7 +106,7 @@ class LaytonEventGraphics(coreState.LaytonContext):
 
         self.eventTextImageWindow.pos = ((coreProp.LAYTON_SCREEN_WIDTH - self.eventTextImageWindow.dimensions[0]) // 2,
                                          (coreProp.LAYTON_SCREEN_HEIGHT * 2) - self.eventTextImageWindow.dimensions[1] - 1)
-        self.eventTextScroller.textPosOffset = (self.eventTextImageWindow.pos[0] + 8,
+        self.eventTextScroller.textPosOffset = (self.eventTextImageWindow.pos[0] + 12,
                                                 self.eventTextImageWindow.pos[1] + 14)
         self.eventTextImageNamePos = (self.eventTextImageWindow.pos[0] + 2,
                                       self.eventTextImageWindow.pos[1] - 3)
@@ -149,7 +147,10 @@ class LaytonEventGraphics(coreState.LaytonContext):
         elif command.opcode == b'\x9d':
             self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_LEFT, command.operands[0], command.operands[1]))
         elif command.opcode == b'\xb4':
-            self.eventCharacters[command.operands[0]].isFlipped = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
+            if command.operands[0] >= len(self.eventCharacters):
+                self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
+            else:
+                self.eventCharacters[command.operands[0]].isFlipped = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
         else:
             print("ErrEventUnkCommand: " + str(command.opcode))
     
@@ -186,8 +187,13 @@ class LaytonEventGraphics(coreState.LaytonContext):
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONUP:
-            if self.eventTextIndex < len(self.eventText) - 1:
-                self.eventTextIndex += 1
+            if self.eventTextScroller.isWaitingForTap:
+                self.eventTextScroller.isWaitingForTap = False
+            elif self.eventTextScroller.drawIncomplete:
+                self.eventTextScroller.skip()
+            else:
+                if self.eventTextIndex < len(self.eventText) - 1:
+                    self.eventTextIndex += 1
 
 class LaytonEventHandler(coreState.LaytonSubscreen):
     def __init__(self, eventIndex, playerState):
@@ -211,4 +217,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-coreState.play(LaytonEventHandler(3, playerState), playerState) #Event 14, 17 has overlaying issues
+coreState.play(LaytonEventHandler(6, playerState), playerState) #Event 14, 17 has overlaying issues
