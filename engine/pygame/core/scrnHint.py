@@ -1,4 +1,4 @@
-import coreProp, coreAnim, coreState, pygame
+import pygame, coreProp, coreAnim, coreState
 
 pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
 

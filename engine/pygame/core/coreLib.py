@@ -20,7 +20,7 @@ class gdOperation():
         self.operands = operands
 
 class gdScript():
-    def __init__(self, playerState, filename, enableBranching=False, useBranchingHack=True):
+    def __init__(self, filename, playerState, enableBranching=False, useBranchingHack=True):
         self.commands = []
         self.commandLoc = []
         self.length = 0
@@ -76,17 +76,9 @@ class gdScript():
             elif paramId == 12: # End of entire file
                 break
         
-        if enableBranching:     # Allows instructions that change instruction order to work correctly
-            # if opcode == b'\x17':     # I don't think this is a simple jump command because this realllly causes bad looping
-            #     print("[GDLIB] Jump from " + str(reader.tell()) + " to " + str(tempOperands[0]))
-            #     if tempOperands[0] == self.lastJump:
-            #         print("Loop detected. Read error!")
-            #     else:
-            #         self.lastJump = tempOperands[0]
-            #         reader.seek(tempOperands[0])
-            if opcode == b'\x48': # Set puzzle context (lol help)
+        if enableBranching:
+            if opcode == b'\x48':  # Select puzzle
                 self.contextPuzzle = tempOperands[0]
-                #invalidateCommand = True
             
             if self.contextPuzzle != None:
                 if opcode in [b'\x49', b'\x4a', b'\x4d']:

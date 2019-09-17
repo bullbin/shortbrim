@@ -233,12 +233,12 @@ class gdScript():
         # Event-related stuff (untested)
         elif command == b'\x6e':
             if len(params) == 2:
-                print("GD: [EVENT   ] ?? Set anim for character " + str(params[0]) + ": " + params[1])
+                print("GD: [EVENT   ] ?? Set body anim for character " + str(params[0]) + ": " + params[1])
             else:
                 print("GD: [EVENT   ] ??")
         elif command == b'\x6f':
             if len(params) == 2:
-                print("GD: [EVENT   ] ?? Set alt anim for character " + str(params[0]) + ": " + params[1])
+                print("GD: [EVENT   ] ?? Set mouth anim for character " + str(params[0]) + ": " + params[1])
             else:
                 print("GD: [EVENT   ] ??")
           
@@ -338,9 +338,12 @@ class gdScript():
             print("GD: [PUZZLE  ] Set HL puzzle answer!\n               AnsIndex: " + str(params[0]) + "\n               Answer  : " + str(params[1]))
         elif command == b'\xfc':
             print("GD: [PUZZLE  ] Change answer box to alternative image " + params[0])
+
+        # Video playback
         elif command == b'\xfd':
             print("GD: [VIDEO   ] Display subtitle!\n               File   : " + self.filename.split("\\")[-1][0:-4] + "_" + str(params[0]) + ".txt\n               Start  : " + str(params[1]) + "\n               Length : " + str(params[2]))
-        
+        elif command == b'\xfe':
+            print("GD: [VIDEO   ] Start video playback!\n               ClipIndx: " + str(params[0]))
         else:
             print("--  Unimplemented command: " + str(command))
             paramCount = 0

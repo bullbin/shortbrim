@@ -1,6 +1,6 @@
 # Animation Components of LAYTON1
 
-import coreProp, pygame
+import coreProp, constUserEvent, pygame
 from os import path
 from math import ceil, sin, cos, pi
 
@@ -514,10 +514,11 @@ class TextScroller():
                             if self.textInput[self.textPos] != "\n":    # Register colour change between rects
                                 self.textNewline = self.textPos
                                 self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
-                elif self.textInput[self.textPos] == '@':
+                elif self.textInput[self.textPos] == '@':       # Only bug remaining is that clearing under low framerates can wipe far too early
                     if self.textInput[self.textPos + 1] == "c":
                         self.textRects = []
-                        self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 3:]
+                        self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
+                        self.textPos += 1
                     else:
                         if self.textInput[self.textPos + 1] == "w":         # Wait
                             self.isPaused = True
@@ -530,14 +531,19 @@ class TextScroller():
                         if self.textPos != self.textNewline:
                             self.textPos -= 1
 
-                elif self.textInput[self.textPos] == '&':
+                if self.textInput[self.textPos] == '&':
                     tempStringControl = ""
-                    while self.textInput[self.textPos + 1] != '&':
-                        tempStringControl += self.textInput[self.textPos + 1]
-                        self.textPos += 1
-                    self.textInput = self.textInput[0:self.textPos - len(tempStringControl)] + self.textInput[self.textPos + 2:]
-                    print("TextScroller: Signal", tempStringControl)
-                    self.controlStrings.append(tempStringControl)   # Pygame events could be used but it could make finding the source difficult
+                    tempTextPos = self.textPos
+                    while self.textInput[tempTextPos + 1] != '&':
+                        tempStringControl += self.textInput[tempTextPos + 1]
+                        tempTextPos += 1
+                        if len(tempStringControl) > 30:
+                            print("TextScrollerControlGrabError: Fetched", tempStringControl)
+                            break
+                    self.textInput = self.textInput[0:self.textPos] + self.textInput[tempTextPos + 2:]
+                    pygame.event.post(pygame.event.Event(constUserEvent.ANIM_SET_ANIM, {constUserEvent.PARAM:tempStringControl}))
+                    if self.textPos != self.textNewline:
+                        self.textPos -= 1
 
             if self.textPos < len(self.textInput):
                 if self.textInput[self.textPos] == "\n" or len(self.textRects) == 0:
@@ -571,16 +577,13 @@ class TextScroller():
         self.textCurrentColour = "x"
         self.textPos = 0
         self.textRects = []
+        self.timeSinceLastUpdate = 0
         self.drawIncomplete = True
-        self.isControlString = False
 
         self.isPaused = False
         self.isWaitingForTap = False
         self.durationPause = 0
         self.durationElapsedPause = 0
-
-        self.controlStrings = []
-        self.timeSinceLastUpdate = 0
 
     def updateText(self):
         while self.timeSinceLastUpdate >= self.frameStep:
@@ -599,6 +602,11 @@ class TextScroller():
             elif not(self.isWaitingForTap):
                 self.timeSinceLastUpdate += gameClockDelta
             self.updateText()
+
+    def getDrawingState(self):
+        if self.isPaused or self.isWaitingForTap or not(self.drawIncomplete):
+            return False
+        return True
 
     def skip(self):
         while self.drawIncomplete:

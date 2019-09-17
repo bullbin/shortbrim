@@ -1,8 +1,5 @@
-import coreState, coreProp, coreAnim, gdsLib, coreLib, pygame
-
-# Testing only
+import pygame, coreState, coreProp, coreAnim, coreLib
 from os import path
-import ctypes; ctypes.windll.user32.SetProcessDPIAware()
 pygame.init()
 
 class LaytonRoomBackground(coreState.LaytonContext):

@@ -1,6 +1,8 @@
 # State Components of LAYTON1
 
-import coreProp, pygame, coreAnim, gdsLib
+import coreProp, pygame, coreAnim, coreLib
+from os import path     # Scale window to ensure perfect pixels
+import ctypes; ctypes.windll.user32.SetProcessDPIAware()
 
 class LaytonPuzzleDataEntry():
     def __init__(self, decayValues):
@@ -28,7 +30,7 @@ class LaytonPlayerState():
         self.hintCoinsFound = []
         self.fonts = {}
 
-        for fontName, fontEncoding, fontSpacing, altFontSize in [("font18", "shift-jis", 1, 17), ("fontevent", "cp1252", 4, 18), ("fontq", "cp1252", 2, 17)]:
+        for fontName, fontEncoding, fontSpacing, altFontSize in [("font18", "shift-jis", 1, 17), ("fontevent", "cp1252", 4, 17), ("fontq", "cp1252", 2, 17)]:
             if coreProp.GRAPHICS_USE_GAME_FONTS:
                 self.fonts[fontName] = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + fontName + ".png", coreProp.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, yFontGap=fontSpacing)
                 if not(self.fonts[fontName].isLoaded):
@@ -44,7 +46,7 @@ class LaytonPlayerState():
     def puzzleLoadNames(self):
         if len(self.puzzleData.keys()) == 0:
             self.puzzleLoadData()
-        qscript = gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qinfo\\" + coreProp.LAYTON_ASSET_LANG + "\\qscript.gds")
+        qscript = coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qinfo\\" + coreProp.LAYTON_ASSET_LANG + "\\qscript.gds", None)
         for instruction in qscript.commands:
             if instruction.opcode == b'\xdc':
                 try:
@@ -56,13 +58,53 @@ class LaytonPlayerState():
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
 
     def puzzleLoadData(self):
-        pscript = gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds")
+        pscript = coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds", None)
         for instruction in pscript.commands:
             if instruction.opcode == b'\xc3': # Set picarot decay
                 self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry(instruction.operands[1:])
 
-class LaytonScreen():
+class LaytonContext():
     def __init__(self):
+        self.screenObject           = None
+        self.screenNextObject       = None
+        self.screenBlockInput       = False     # This context absorbs all inputs, whether in the context or not
+        self.screenIsOverlay        = False     # Requires drawing of all screens below it - slow
+        self.screenIsBasicOverlay   = False     # Overlays only above the screen below it
+
+        self.transitionsEnableIn    = True
+        self.transitionsEnableOut   = True
+
+        self.screenStackUpdate = False
+        self.isContextFinished = False
+
+    def getContextState(self):
+        return self.isContextFinished
+    
+    def getFutureContext(self):
+        if self.screenNextObject != None:
+            screenNextObject = self.screenNextObject
+            self.screenNextObject = None
+            return screenNextObject
+        return None
+    
+    def executeCommand(self, command):
+        print("ErrNoRedefinitionCommand: " + str(command.opcode))
+
+    def setStackUpdate(self):
+        self.screenStackUpdate = True
+
+    def draw(self, gameDisplay): pass
+    
+    def update(self, gameClockDelta): pass
+    
+    def handleEvent(self, event): return False
+
+class LaytonScreen(LaytonContext):
+    def __init__(self):
+        LaytonContext.__init__(self)
+        self.screenBlockInput       = True
+        self.transitionsEnableIn    = False
+        self.transitionsEnableOut   = False
         self.stack = []
         self.stackLastBackElement = 0
         self.stackLastBlockElement = 0
@@ -124,7 +166,8 @@ class LaytonScreen():
     def handleEvent(self, event):
         for indexUpdate in range(len(self.stack), self.stackLastBlockElement, -1):
             if self.stack[indexUpdate - 1].handleEvent(event):  # Event was absorbed, remove from queue
-                break      
+                break
+        return True   
 
 class LaytonSubscreen(LaytonScreen):
     def __init__(self):
@@ -136,42 +179,6 @@ class LaytonSubscreen(LaytonScreen):
         self.updateSubscreenMethods(gameClockDelta)
     
     def updateSubscreenMethods(self, gameClockDelta): pass
-
-class LaytonContext():
-    def __init__(self):
-        self.screenObject           = None
-        self.screenNextObject       = None
-        self.screenBlockInput       = False     # This context absorbs all inputs, whether in the context or not
-        self.screenIsOverlay        = False     # Requires drawing of all screens below it - slow
-        self.screenIsBasicOverlay   = False     # Overlays only above the screen below it
-
-        self.transitionsEnableIn    = True
-        self.transitionsEnableOut   = True
-
-        self.screenStackUpdate = False
-        self.isContextFinished = False
-
-    def getContextState(self):
-        return self.isContextFinished
-    
-    def getFutureContext(self):
-        if self.screenNextObject != None:
-            screenNextObject = self.screenNextObject
-            self.screenNextObject = None
-            return screenNextObject
-        return None
-    
-    def executeCommand(self, command):
-        print("ErrNoRedefinitionCommand: " + str(command.opcode))
-
-    def setStackUpdate(self):
-        self.screenStackUpdate = True
-
-    def draw(self, gameDisplay): pass
-    
-    def update(self, gameClockDelta): pass
-    
-    def handleEvent(self, event): return False
 
 def tickQuality(gameClock):
     return gameClock.tick_busy_loop(coreProp.ENGINE_FPS)

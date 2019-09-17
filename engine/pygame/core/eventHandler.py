@@ -1,4 +1,4 @@
-import coreProp, coreState, coreLib, coreAnim, pygame, nazoHandler
+import pygame, nazoHandler, coreProp, coreState, coreLib, coreAnim, constUserEvent
 from os import path
 
 import ctypes; ctypes.windll.user32.SetProcessDPIAware()
@@ -20,6 +20,14 @@ class LaytonCharacterController():
     
     def setAnimMouth(self, anim):
         self.animMouth = anim
+    
+    def changeBodyAnim(self, animName):
+        if self.animBody != None:
+            self.animBody.setAnimationFromName(animName)
+    
+    def changeMouthAnim(self, animName):
+        if self.animMouth != None:
+            self.animMouth.setAnimationFromName(animName)
         
     def draw(self, gameDisplay):
         if self.animBody != None and self.animBody.getImage() != None:
@@ -39,6 +47,11 @@ class LaytonCharacterController():
         if self.animMouth != None:
             self.animMouth.update(gameClockDelta)
 
+class LaytonCharacterAnimNamePacket():
+    def __init__(self, indexChar, animName):
+        self.animName = animName
+        self.indexChar = indexChar
+
 class LaytonEventTextController():
 
     CHAR_LEFT = 0
@@ -48,7 +61,14 @@ class LaytonEventTextController():
         self.direction = direction
         self.indexText = indexText
         self.indexChar = indexChar
+        self.animNamePacketsBody = []
+        self.animNamePacketsMouth = []
     
+    def getAnimBody(self):
+        return self.animNamePacketsBody
+    def getAnimMouth(self):
+        return self.animNamePacketsMouth
+
     def getText(self, indexEvent):
         if indexEvent < 100:
             textPathFolder = "000"
@@ -113,7 +133,13 @@ class LaytonEventGraphics(coreState.LaytonContext):
                                                 self.eventTextImageWindow.pos[1] + 14)
         self.eventTextImageNamePos = (self.eventTextImageWindow.pos[0] + 2,
                                       self.eventTextImageWindow.pos[1] - 3)
+
+        self.clearTemps()
     
+    def clearTemps(self):
+        self.eventTempAnimControllersBody = []
+        self.eventTempAnimControllersMouth = []
+
     def executeCommand(self, command):
         if command.opcode == b'\x48':           # Select puzzle
             if self.eventPuzzleHandler != None:
@@ -145,10 +171,26 @@ class LaytonEventGraphics(coreState.LaytonContext):
             if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setAnimationFromName(command.operands[3])):
                 self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setActiveFrame(0)
             self.eventCharactersBodyMouthLoadIndices[1] += 1
+
+        elif command.opcode == b'\x6e':
+            self.eventTempAnimControllersBody.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
+        elif command.opcode == b'\x6f':
+            self.eventTempAnimControllersMouth.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
+
         elif command.opcode == b'\x9c':
             self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_RIGHT, command.operands[0], command.operands[1]))
+            if len(self.eventTempAnimControllersBody) > 0:
+                self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
+            if len(self.eventTempAnimControllersMouth) > 0:
+                self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
+            self.clearTemps()
         elif command.opcode == b'\x9d':
             self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_LEFT, command.operands[0], command.operands[1]))
+            if len(self.eventTempAnimControllersBody) > 0:
+                self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
+            if len(self.eventTempAnimControllersMouth) > 0:
+                self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
+            self.clearTemps()
         elif command.opcode == b'\xb4':
             if command.operands[0] >= len(self.eventCharacters):
                 self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
@@ -160,6 +202,10 @@ class LaytonEventGraphics(coreState.LaytonContext):
     def incrementEventText(self):
         if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):
             self.eventTextScroller.textInput = self.eventText[self.eventTextIndex].getText(self.eventIndex)
+            for bodyController in self.eventText[self.eventTextIndex].getAnimBody():
+                self.eventCharacters[bodyController.indexChar].changeBodyAnim(bodyController.animName)
+            for mouthController in self.eventText[self.eventTextIndex].getAnimMouth():
+                self.eventCharacters[mouthController.indexChar].changeMouthAnim(mouthController.animName)
             self.eventTextScroller.reset()
 
     def update(self, gameClockDelta):
@@ -200,6 +246,16 @@ class LaytonEventGraphics(coreState.LaytonContext):
             else:
                 if self.eventTextIndex < len(self.eventText) - 1:
                     self.eventTextIndex += 1
+                elif len(self.eventText) > 0 and self.eventPuzzleHandler != None:
+                    self.screenNextObject = self.eventPuzzleHandler
+
+        if event.type == constUserEvent.ANIM_SET_ANIM:
+            event.command = event.data.split(" ")
+            print("LogEventCommand: Animation switched!")
+            if self.eventCharacters[int(event.command[1])].animBody != None:
+                self.eventCharacters[int(event.command[1])].animBody.setAnimationFromName(event.command[2])
+            if self.eventCharacters[int(event.command[1])].animMouth != None:
+                self.eventCharacters[int(event.command[1])].animMouth.setAnimationFromName(event.command[2])
 
 class LaytonEventHandler(coreState.LaytonSubscreen):
     def __init__(self, eventIndex, playerState):
@@ -208,7 +264,7 @@ class LaytonEventHandler(coreState.LaytonSubscreen):
         self.addToStack(LaytonEventBackground(playerState))
         self.addToStack(LaytonEventGraphics(eventIndex, playerState))
         self.commandFocus = self.stack[-1]
-        self.executeGdScript(coreLib.gdScript(playerState, coreProp.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds", enableBranching=True))
+        self.executeGdScript(coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds", playerState, enableBranching=True))
 
     def executeGdScript(self, puzzleScript):
         for command in puzzleScript.commands:
@@ -223,4 +279,4 @@ playerState = coreState.LaytonPlayerState()
 playerState.puzzleLoadData()
 playerState.puzzleLoadNames()
 playerState.remainingHintCoins = 10
-coreState.play(LaytonEventHandler(1, playerState), playerState)
+coreState.play(LaytonEventHandler(1, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash

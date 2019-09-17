@@ -1,4 +1,4 @@
-import coreProp, coreState, coreAnim, pygame, nazoElements, scrnHint, gdsLib
+import pygame, nazoElements, scrnHint, coreProp, coreState, coreAnim, coreLib
 from os import path
 from math import sqrt
 
@@ -1009,21 +1009,23 @@ class LaytonPuzzletTutorialOverlay(coreState.LaytonContext):
             self.isContextFinished = True
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.puzzletFrames[self.indexPuzzletCurrentFrame], (0, coreProp.LAYTON_SCREEN_HEIGHT))
+        if not(self.isContextFinished):
+            gameDisplay.blit(self.puzzletFrames[self.indexPuzzletCurrentFrame], (0, coreProp.LAYTON_SCREEN_HEIGHT))
     
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            for button in self.buttons:
-                button.registerButtonDown(event)
-        elif event.type == pygame.MOUSEBUTTONUP:
-            for button in self.buttons:
-                button.registerButtonUp(event)
-            if self.buttons[0].getPressedStatus() and self.indexPuzzletCurrentFrame > 0:
-                self.indexPuzzletCurrentFrame -= 1
-            elif self.buttons[2].getPressedStatus() and self.indexPuzzletCurrentFrame < len(self.puzzletFrames) - 1:
-                self.indexPuzzletCurrentFrame += 1
-            elif self.buttons[1].getPressedStatus():
-                self.isContextFinished = True
+        if not(self.isContextFinished): # Events can be initialised before updating, causing invalid loading
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for button in self.buttons:
+                    button.registerButtonDown(event)
+            elif event.type == pygame.MOUSEBUTTONUP:
+                for button in self.buttons:
+                    button.registerButtonUp(event)
+                if self.buttons[0].getPressedStatus() and self.indexPuzzletCurrentFrame > 0:
+                    self.indexPuzzletCurrentFrame -= 1
+                elif self.buttons[2].getPressedStatus() and self.indexPuzzletCurrentFrame < len(self.puzzletFrames) - 1:
+                    self.indexPuzzletCurrentFrame += 1
+                elif self.buttons[1].getPressedStatus():
+                    self.isContextFinished = True
 
 class LaytonPuzzleHandler(coreState.LaytonSubscreen):
 
@@ -1042,7 +1044,7 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
         self.puzzleIndex = puzzleIndex
 
         self.addToStack(LaytonPuzzleBackground(puzzleIndex, playerState))
-        self.executeGdScript(gdsLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qscript\\q" + str(puzzleIndex) + "_param.gds"))
+        self.executeGdScript(coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qscript\\q" + str(puzzleIndex) + "_param.gds", None))
         self.addToStack(LaytonPuzzleUi(puzzleIndex, playerState, self.puzzleHintCount))
         if self.commandFocus != None:
             self.addToStack(LaytonPuzzletTutorialOverlay(self.commandFocus, playerState))
