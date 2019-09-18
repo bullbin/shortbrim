@@ -96,13 +96,20 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True):
+    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=True):
         self.pos = (x,y)
         self.frames = []
         self.dimensions = (0,0)
         self.animMap = {}
         self.animActive = None
         self.animActiveFrame = None
+
+        self.usesAlpha = usesAlpha
+        self.alpha = 255
+        if self.usesAlpha:
+            self.draw = self.drawAlpha
+        else:
+            self.draw = self.drawNormal
         
         if path.exists(frameRootPath):
             if path.exists(frameRootPath + "\\" + frameName + "_0." + frameRootExtension):
@@ -163,6 +170,10 @@ class AnimatedImage():
             print("AnimatedImage: Cannot import " + animText + " as it does not exist!")
             return False
     
+    def reset(self):
+        if self.animActive != None:
+            self.animMap[self.animActive].reset()
+
     def getImage(self):
         try:
             return self.frames[self.animActiveFrame]
@@ -172,7 +183,17 @@ class AnimatedImage():
     def getAnim(self):
         return self.animActive
 
-    def draw(self, gameDisplay):
+    def drawAlpha(self, gameDisplay):
+        if self.animActiveFrame != None:
+            if self.alpha > 0:
+                if self.alpha == 255:
+                    self.drawNormal(gameDisplay)
+                else:
+                    tempAlphaSurface = self.getImage().copy().convert_alpha()
+                    tempAlphaSurface.fill((255, 255, 255, self.alpha), None, pygame.BLEND_RGBA_MULT)
+                    gameDisplay.blit(tempAlphaSurface, self.pos)
+
+    def drawNormal(self, gameDisplay):
         if self.animActiveFrame != None:
             gameDisplay.blit(self.getImage(), self.pos)
 
@@ -182,7 +203,10 @@ class AnimatedImage():
             self.animActiveFrame = tempFrame[1] 
             if not(tempFrame[0]):
                 self.animActive = None
-    
+
+    def setAlpha(self, alpha):
+        self.alpha = round(alpha)
+
     def setInitialFrameFromAnimation(self):
         if self.animActive != None:
             self.animActiveFrame = self.animMap[self.animActive].indices[0]
@@ -429,8 +453,8 @@ class AnimatedFader():
         self.doFullCycle = cycle
         self.loop = loop
         self.inverted = inverted
-        if cycle:
-            self.initalInverted = inverted
+        self.initalInverted = inverted
+
         self.reset()
         if coreProp.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
             self.getStrength = self.getStrengthTriangle
@@ -444,6 +468,7 @@ class AnimatedFader():
 
     def reset(self):
         self.isActive = True
+        self.inverted = self.initalInverted
         self.durationElapsed = 0
 
     def update(self, gameClockDelta):
@@ -485,6 +510,27 @@ class AnimatedFader():
                 return self.durationElapsed / self.durationCycle
         else:
             return self.inverted
+
+class AlphaSurface():
+    def __init__(self, alpha):
+        self.alpha = alpha
+        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+
+    def setAlpha(self, alpha):
+        self.alpha = alpha
+
+    def draw(self, gameDisplay):
+        if self.alpha > 0:
+            if self.alpha == 255:
+                gameDisplay.blit(self.surface, (0,0))
+            else:
+                tempAlphaSurface = self.surface.copy().convert_alpha()
+                tempAlphaSurface.fill((255, 255, 255, self.alpha), None, pygame.BLEND_RGBA_MULT)
+                gameDisplay.blit(tempAlphaSurface, (0,0))
+    
+    def clear(self):
+        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface.fill((0,0,0,0))
 
 class TextScroller():
     """Text renderer that handles newlines, colour switching and character replacement codes.

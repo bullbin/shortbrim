@@ -1,8 +1,8 @@
 # State Components of LAYTON1
 
 import coreProp, pygame, coreAnim, coreLib
-from os import path     # Scale window to ensure perfect pixels
-import ctypes; ctypes.windll.user32.SetProcessDPIAware()
+from os import path
+import ctypes; ctypes.windll.user32.SetProcessDPIAware() # Scale window to ensure perfect pixels
 
 class LaytonPuzzleDataEntry():
     def __init__(self, decayValues):
@@ -179,6 +179,10 @@ class LaytonSubscreen(LaytonScreen):
         self.updateSubscreenMethods(gameClockDelta)
     
     def updateSubscreenMethods(self, gameClockDelta): pass
+
+def debugPrint(line):
+    if coreProp.ENGINE_DEBUG_MODE:
+        print(line)
 
 def tickQuality(gameClock):
     return gameClock.tick_busy_loop(coreProp.ENGINE_FPS)
