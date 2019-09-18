@@ -229,7 +229,7 @@ class LaytonEventGraphics(coreState.LaytonContext):
             else:
                 self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx3")
             
-            if self.eventTextImageWindowFader.inverted != self.eventTextImageWindowFader.initalInverted:
+            if self.eventTextImageWindowFader.inverted != self.eventTextImageWindowFader.initialInverted:
                 if self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_LEFT:
                     self.eventCharactersLeftRightActive[0] = self.eventText[self.eventTextIndex].indexChar
                 elif self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_RIGHT:

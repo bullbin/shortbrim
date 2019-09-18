@@ -2,6 +2,11 @@
 
 from struct import unpack
 from os import path
+import coreProp
+
+def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
+    if coreProp.ENGINE_DEBUG_MODE:
+        print(line)
 
 def seekToNextOperation(reader):
     reader.read(2)
@@ -39,9 +44,9 @@ class gdScript():
                     tempCommand = self.parseCommand(laytonScript, enableBranching, useBranchingHack)
                     if not(tempCommand[0]):
                         self.commands.append(tempCommand[1])
-            print("[GDLIB] Reading complete!")
+            debugPrint("LogGdsLoad: Reading complete!")
         except FileNotFoundError:
-            print("[GDLIB] Err: GDS does not exist!")
+            debugPrint("ErrGdsLoad: GDS does not exist!")
 
     def parseCommand(self, reader, enableBranching, useBranchingHack):
         self.commandLoc.append(reader.tell())
@@ -64,7 +69,7 @@ class gdScript():
             elif paramId == 6 or paramId == 7:
                 tempOperands.append(int.from_bytes(reader.read(4), 'little') + 6)
                 if tempOperands[-1] >= self.length:
-                    print("[GDLIB] Err: Seek location out of bounds")
+                    debugPrint("ErrGdsParseFatal: Seek location out of bounds")
                     tempOperands[-1] == self.length - 2 # Set to location of break command
                 else:
                     previousLength = reader.tell()

@@ -96,7 +96,7 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=True):
+    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=False):
         self.pos = (x,y)
         self.frames = []
         self.dimensions = (0,0)
@@ -453,7 +453,7 @@ class AnimatedFader():
         self.doFullCycle = cycle
         self.loop = loop
         self.inverted = inverted
-        self.initalInverted = inverted
+        self.initialInverted = inverted
 
         self.reset()
         if coreProp.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
@@ -468,7 +468,7 @@ class AnimatedFader():
 
     def reset(self):
         self.isActive = True
-        self.inverted = self.initalInverted
+        self.inverted = self.initialInverted
         self.durationElapsed = 0
 
     def update(self, gameClockDelta):
@@ -479,7 +479,7 @@ class AnimatedFader():
                 self.durationElapsed = self.durationElapsed - self.durationCycle
                 if not(self.loop):
                     if self.doFullCycle:
-                        if self.inverted == self.initalInverted:
+                        if self.inverted == self.initialInverted:
                             self.isActive = False
                     else:
                         self.isActive = False

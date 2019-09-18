@@ -88,7 +88,7 @@ class LaytonContext():
         return None
     
     def executeCommand(self, command):
-        print("ErrNoRedefinitionCommand: " + str(command.opcode))
+        debugPrint("ErrNoRedefinitionCommand: " + str(command.opcode))
 
     def setStackUpdate(self):
         self.screenStackUpdate = True
@@ -137,7 +137,7 @@ class LaytonScreen(LaytonContext):
             invStackIndex -= 1
 
     def executeCommand(self, command):
-        print("CommandNoTarget: " + str(command.opcode))
+        debugPrint("CommandNoTarget: " + str(command.opcode))
 
     def update(self, gameClockDelta):
         if len(self.stack) >= 1:

@@ -86,13 +86,13 @@ class LaytonRoomUi(coreState.LaytonContext):
 
 class LaytonRoomTapObject(coreState.LaytonContext):
     
-    backgroundBs = pygame.image.load(coreProp.PATH_ASSET_ANI + "room_tobj_0.png").convert_alpha()
-    backgroundPos = ((coreProp.LAYTON_SCREEN_WIDTH - backgroundBs.get_width()) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - backgroundBs.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
-    backgroundTransBs = backgroundBs.copy().convert()
-    backgroundTransBsDuration = 250
-    portraitPos = (backgroundPos[0] + 6, backgroundPos[1] + ((backgroundBs.get_height() - 24) // 2))
-    cursorBs = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait")
-    cursorBs.pos = ((backgroundPos[0] + backgroundBs.get_width()) - (cursorBs.dimensions[0] + 4), (backgroundPos[1] + backgroundBs.get_height()) - (cursorBs.dimensions[1] + 4))
+    DURATION_BACKGROUND_TRANS_BS = 500
+    BACKGROUND_BS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "room_tobj", usesAlpha=True)
+    BACKGROUND_BS.pos = ((coreProp.LAYTON_SCREEN_WIDTH - BACKGROUND_BS.dimensions[0]) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - BACKGROUND_BS.dimensions[1]) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+    BACKGROUND_BS.setAnimationFromName("gfx")
+    BACKGROUND_PORTRAIT = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "room_tobjp", x=BACKGROUND_BS.pos[0] + 6, y=BACKGROUND_BS.pos[1] + ((BACKGROUND_BS.dimensions[1] - 24) // 2))
+    CURSOR_BS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait")
+    CURSOR_BS.pos = ((BACKGROUND_BS.pos[0] + BACKGROUND_BS.dimensions[0]) - (CURSOR_BS.dimensions[0] + 4), (BACKGROUND_BS.pos[1] + BACKGROUND_BS.dimensions[1]) - (CURSOR_BS.dimensions[1] + 4))
 
     def __init__(self, indexCharacter, indexTobj, font):
         coreState.LaytonContext.__init__(self)
@@ -100,70 +100,50 @@ class LaytonRoomTapObject(coreState.LaytonContext):
         self.transitionsEnableIn    = False         # The background actually fades in but the context switcher only supports fading to black
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundPortrait     = pygame.image.load(coreProp.PATH_ASSET_ANI + "room_tobjp_" + str(indexCharacter) + ".png").convert_alpha()
+        self.backgroundPortrait     = LaytonRoomTapObject.BACKGROUND_PORTRAIT.setAnimationFromNameAndReturnInitialFrame(str(indexCharacter))
+        self.backgroundTransFader   = coreAnim.AnimatedFader(LaytonRoomTapObject.DURATION_BACKGROUND_TRANS_BS, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
 
         with open(coreProp.PATH_ASSET_ROOM + "tobj\\" + coreProp.LAYTON_ASSET_LANG + "\\tobj\\t_" + str(indexTobj) + ".txt", 'r') as tText:
             tobjFillText = tText.read()
         
         if type(font) == coreAnim.FontMap:
-            tobjTextPos = (LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
-                           LaytonRoomTapObject.backgroundPos[1] + ((LaytonRoomTapObject.backgroundBs.get_height() + font.getSpacing()[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+            tobjTextPos = (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] - LaytonRoomTapObject.BACKGROUND_BS.pos[0]),
+                           LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] + font.getSpacing()[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
         else:
-            tobjTextPos = (LaytonRoomTapObject.portraitPos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.portraitPos[0] - LaytonRoomTapObject.backgroundPos[0]),
-                           LaytonRoomTapObject.backgroundPos[1] + ((LaytonRoomTapObject.backgroundBs.get_height() - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+            tobjTextPos = (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] - LaytonRoomTapObject.BACKGROUND_BS.pos[0]),
+                           LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
         self.tobjText               = coreAnim.TextScroller(font, tobjFillText, textPosOffset=tobjTextPos)
         self.tobjText.skip()
 
-        LaytonRoomTapObject.cursorBs.setAnimationFromIndex(0)
-        self.transitioning = True
-        self.transitioningIn = True
-        self.backgroundAlpha = 0
-        self.transitioningTotal = 0
+        LaytonRoomTapObject.CURSOR_BS.setAnimationFromIndex(0)
 
     def update(self, gameClockDelta):
-        if self.transitioning == True:
-            self.transitioningTotal += gameClockDelta
-            if self.transitioningTotal >= LaytonRoomTapObject.backgroundTransBsDuration:
-                self.transitioningTotal = LaytonRoomTapObject.backgroundTransBsDuration
-                self.transitioning = False
-                if self.transitioningIn:
-                    self.transitioningIn = False
-                else:
-                    self.isContextFinished = True
-
-            if self.transitioningIn:
-                intensity = round((self.transitioningTotal / LaytonRoomTapObject.backgroundTransBsDuration) * 255)
-            else:
-                intensity = 255 - round((self.transitioningTotal / LaytonRoomTapObject.backgroundTransBsDuration) * 255)
-            
-            if coreProp.ENGINE_PERFORMANCE_MODE:
-                LaytonRoomTapObject.backgroundTransBs.set_alpha(intensity)
-            else:
-                LaytonRoomTapObject.backgroundTransBs = LaytonRoomTapObject.backgroundBs.copy().convert_alpha()
-                LaytonRoomTapObject.backgroundTransBs.fill((255, 255, 255, intensity), None, pygame.BLEND_RGBA_MULT)
+        LaytonRoomTapObject.BACKGROUND_BS.update(gameClockDelta)
+        self.backgroundTransFader.update(gameClockDelta)
+        LaytonRoomTapObject.BACKGROUND_BS.setAlpha(self.backgroundTransFader.getStrength() * 255)
+        if not(self.backgroundTransFader.isActive) and self.backgroundTransFader.getStrength() == 0:
+            self.isContextFinished = True
         else:
-            LaytonRoomTapObject.cursorBs.update(gameClockDelta)
+            LaytonRoomTapObject.CURSOR_BS.update(gameClockDelta)
 
     def draw(self, gameDisplay):
-        if self.transitioning:
-            gameDisplay.blit(LaytonRoomTapObject.backgroundTransBs, LaytonRoomTapObject.backgroundPos)
-        else:
-            gameDisplay.blit(LaytonRoomTapObject.backgroundBs, LaytonRoomTapObject.backgroundPos)
-            gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.portraitPos)
-            LaytonRoomTapObject.cursorBs.draw(gameDisplay)
+        LaytonRoomTapObject.BACKGROUND_BS.draw(gameDisplay)
+        if not(self.backgroundTransFader.isActive):
+            gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos)
+            LaytonRoomTapObject.CURSOR_BS.draw(gameDisplay)
             self.tobjText.draw(gameDisplay)
 
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and self.transitioning == False:
-            self.transitioning = True
-            self.transitioningTotal = 0
+        if event.type == pygame.MOUSEBUTTONUP and not(self.backgroundTransFader.isActive):
+            self.backgroundTransFader.initialInverted = True
+            self.backgroundTransFader.reset()
 
 class LaytonRoomTapRegion():
     def __init__(self, indexCharacter, pos, dimensions, indexTobj):
         self.pos = pos
         self.dimensions = dimensions
         self.indexTobj = indexTobj
-        self.indexCharacter = indexCharacter - 1
+        self.indexCharacter = indexCharacter
 
     def wasClicked(self, mousePos):
         if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
@@ -248,15 +228,15 @@ class LaytonRoomGraphics(coreState.LaytonContext):
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.animTapDraw = True
-            for eventTobj in self.eventTap:
-                if eventTobj.wasClicked(event.pos):
-                    self.screenNextObject = eventTobj.getContext(self.playerState)
-                    self.animTapDraw = False
-                    return True
             for animObject in self.eventObjects:
                 if animObject.wasClicked(event.pos):
                     self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.indexEvent, event.pos, self.playerState)
                     coreState.debugPrint("WarnGraphicsCommand: Spawned event handler for ID " + str(animObject.indexEvent))
+                    self.animTapDraw = False
+                    return True
+            for eventTobj in self.eventTap:
+                if eventTobj.wasClicked(event.pos):
+                    self.screenNextObject = eventTobj.getContext(self.playerState)
                     self.animTapDraw = False
                     return True
 
@@ -312,4 +292,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonRoomHandler(4, playerState), playerState)
+    coreState.play(LaytonRoomHandler(100, playerState), playerState)
