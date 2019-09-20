@@ -5,7 +5,11 @@ from os import path
 from math import ceil, sin, cos, pi
 
 pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
-        
+
+def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
+    if coreProp.ENGINE_DEBUG_MODE:
+        print(line)
+
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
         if imagePath == None or imageIsNull:
@@ -119,7 +123,7 @@ class AnimatedImage():
                         try:
                             self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
                         except:
-                            print("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
+                            debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
                         imageIndex += 1
                     else:
                         break
@@ -129,11 +133,11 @@ class AnimatedImage():
                     self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
                     self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
                 except:
-                    print("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
+                    debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
             else:
-                print("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
+                debugPrint("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
         else:
-            print("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
+            debugPrint("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
         
         if importAnimPair:
             self.fromImages(frameRootPath + "\\" + frameName + ".txt")
@@ -167,7 +171,7 @@ class AnimatedImage():
                     lineIndex += 1
             return True
         else:
-            print("AnimatedImage: Cannot import " + animText + " as it does not exist!")
+            debugPrint("AnimatedImage: Cannot import " + animText + " as it does not exist!")
             return False
     
     def reset(self):
@@ -325,11 +329,11 @@ class FontMap():
                 self.fontHeight = int((self.fontSurface.get_height() - (tempRowCount + 1) * tileGap) / tempRowCount)
 
             except UnicodeDecodeError:
-                print("Font: Error reading XML!")
+                debugPrint("Font: Error reading XML!")
             except ValueError:
-                print("Font: Unsupported character spacing!")
+                debugPrint("Font: Unsupported character spacing!")
             except FileNotFoundError:
-                print("Font: No XML at path '" + fontXml + "'")
+                debugPrint("Font: No XML at path '" + fontXml + "'")
 
             offsetY = tileGap
             charIndex = 0
@@ -363,7 +367,7 @@ class FontMap():
                     break
             self.isLoaded = True
         else:
-            print("Font: Path '" + fontImage + "' does not exist!")
+            debugPrint("Font: Path '" + fontImage + "' does not exist!")
 
     def getChar(self, char):
         try:
@@ -463,7 +467,7 @@ class AnimatedFader():
         elif mode == AnimatedFader.MODE_SINE_SMOOTH:
             self.getStrength = self.getStrengthSineDoubleEase
         else:
-            print("AnimatedFader: Fader initialised with bad fade mode!")
+            debugPrint("AnimatedFader: Fader initialised with bad fade mode!")
             self.getStrength = self.getStrengthTriangle
 
     def reset(self):
@@ -572,7 +576,7 @@ class TextScroller():
                         elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
                             self.isWaitingForTap = True
                         else:
-                            print("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
+                            debugPrint("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
                         self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
                         if self.textPos != self.textNewline:
                             self.textPos -= 1
@@ -584,7 +588,7 @@ class TextScroller():
                         tempStringControl += self.textInput[tempTextPos + 1]
                         tempTextPos += 1
                         if len(tempStringControl) > 30:
-                            print("TextScrollerControlGrabError: Fetched", tempStringControl)
+                            debugPrint("TextScrollerControlGrabError: Fetched " + tempStringControl)
                             break
                     self.textInput = self.textInput[0:self.textPos] + self.textInput[tempTextPos + 2:]
                     pygame.event.post(pygame.event.Event(constUserEvent.ANIM_SET_ANIM, {constUserEvent.PARAM:tempStringControl}))
@@ -614,7 +618,7 @@ class TextScroller():
             try:
                 self.textInput = self.textInput[:indexReplacementCharStart] + coreProp.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
             except KeyError:
-                print("TextScroller: Character '" + self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd] + "' has no substitution!")
+                debugPrint("TextScroller: Character '" + self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd] + "' has no substitution!")
                 self.textInput = self.textInput[:indexReplacementCharStart] + self.textInput[indexReplacementCharEnd + 1:]
             indexReplacementCharStart = self.textInput.find("<")
 

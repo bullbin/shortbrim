@@ -83,6 +83,7 @@ class LaytonEventTextController():
             return ""
 
 class LaytonEventBackground(coreState.LaytonContext):
+
     def __init__(self, playerState):
         coreState.LaytonContext.__init__(self)
         self.transitionsEnableIn    = False
@@ -103,7 +104,7 @@ class LaytonEventBackground(coreState.LaytonContext):
                     self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
         else:
             coreState.debugPrint("ErrUnkCommand: " + str(command.opcode))
-    
+
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundTs, (0, 0))
         gameDisplay.blit(self.backgroundBs, (0, coreProp.LAYTON_SCREEN_HEIGHT))
@@ -112,7 +113,8 @@ class LaytonEventGraphics(coreState.LaytonContext):
 
     DURATION_TAP_FADE_IN = 500
     DURATION_TEXT_TRANSITION = 500
-
+    DURATION_FADE_IN = 500
+    
     def __init__(self, eventIndex, playerState):
         coreState.LaytonContext.__init__(self)
         self.screenIsOverlay = True
@@ -141,8 +143,12 @@ class LaytonEventGraphics(coreState.LaytonContext):
                                                coreProp.LAYTON_SCREEN_HEIGHT * 2 - round(self.eventTextCursorTapAnim.dimensions[1] * 1.25))
         self.eventTextCursorTapAnim.setAnimationFromName("touch")
         self.eventTextCursorTapAnimFader    = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
-        self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, inverted=True)
+        self.eventTextImageWindowFader = self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, coreAnim.AnimatedFader.MODE_TRIANGLE, False, cycle=False)
         self.eventTextSurface = coreAnim.AlphaSurface(0)
+
+        self.backgroundFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_FADE_IN, coreAnim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
+        self.workaroundDisableAdditionalEntries = False
+        self.workaroundIntensiveInit = True
 
         self.clearTemps()
     
@@ -187,20 +193,27 @@ class LaytonEventGraphics(coreState.LaytonContext):
         elif command.opcode == b'\x6f':
             self.eventTempAnimControllersMouth.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
 
-        elif command.opcode == b'\x9c':
+        elif command.opcode == b'\x9c' and not(self.workaroundDisableAdditionalEntries):
             self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_RIGHT, command.operands[0], command.operands[1]))
             if len(self.eventTempAnimControllersBody) > 0:
                 self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
             if len(self.eventTempAnimControllersMouth) > 0:
                 self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
             self.clearTemps()
-        elif command.opcode == b'\x9d':
+            if len(command.operands) > 2:
+                self.workaroundDisableAdditionalEntries = True
+                coreState.debugPrint("WarnEventGraphics: Text workaround triggered!")
+        elif command.opcode == b'\x9d' and not(self.workaroundDisableAdditionalEntries):
             self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_LEFT, command.operands[0], command.operands[1]))
             if len(self.eventTempAnimControllersBody) > 0:
                 self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
             if len(self.eventTempAnimControllersMouth) > 0:
                 self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
             self.clearTemps()
+            if len(command.operands) > 2:
+                self.workaroundDisableAdditionalEntries = True
+                coreState.debugPrint("WarnEventGraphics: Text workaround triggered!")
+
         elif command.opcode == b'\xb4':
             if command.operands[0] >= len(self.eventCharacters):
                 self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
@@ -219,65 +232,81 @@ class LaytonEventGraphics(coreState.LaytonContext):
             self.eventTextScroller.reset()
 
     def update(self, gameClockDelta):
-        for event in self.eventCharacters:
-            event.update(gameClockDelta)
-        if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):   # Switch to signalling technique to reduce overhead when writing event code
-            if self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_LEFT:
-                self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx2")
-            elif self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_RIGHT:
-                self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx")
+        if not(self.workaroundIntensiveInit) or self.workaroundIntensiveInit and gameClockDelta <= round(1000 / coreProp.ENGINE_FPS):   # Skip first init cycle if the engine just loaded a file, it will be huge
+            if self.backgroundFader.isActive:
+                self.backgroundFader.update(gameClockDelta)
             else:
-                self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx3")
-            
-            if self.eventTextImageWindowFader.inverted != self.eventTextImageWindowFader.initialInverted:
-                if self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_LEFT:
-                    self.eventCharactersLeftRightActive[0] = self.eventText[self.eventTextIndex].indexChar
-                elif self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_RIGHT:
-                    self.eventCharactersLeftRightActive[1] = self.eventText[self.eventTextIndex].indexChar
-            
-            if not(self.eventTextScroller.getDrawingState()):
-                self.eventTextCursorTapAnimFader.update(gameClockDelta)
-                self.eventTextCursorTapAnim.setAlpha(self.eventTextCursorTapAnimFader.getStrength() * 255)
-                self.eventTextCursorTapAnim.update(gameClockDelta)
-            else:
-                self.eventTextCursorTapAnim.reset()
-                self.eventTextCursorTapAnimFader.reset()
+                for event in self.eventCharacters:
+                    event.update(gameClockDelta)
+                if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):   # Switch to signalling technique to reduce overhead when writing event code
+                    if self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_LEFT:
+                        self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx2")
+                    elif self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_RIGHT:
+                        self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx")
+                    else:
+                        self.eventTextImageWindow.setAnimationFromNameIfNotActive("gfx3")
+                    
+                    if self.eventTextImageWindowFader.inverted != self.eventTextImageWindowFader.initialInverted:
+                        if self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_LEFT:
+                            self.eventCharactersLeftRightActive[0] = self.eventText[self.eventTextIndex].indexChar
+                        elif self.eventText[self.eventTextIndex].direction == LaytonEventTextController.CHAR_RIGHT:
+                            self.eventCharactersLeftRightActive[1] = self.eventText[self.eventTextIndex].indexChar
+                    
+                    if not(self.eventTextScroller.getDrawingState()):
+                        self.eventTextCursorTapAnimFader.update(gameClockDelta)
+                        self.eventTextCursorTapAnim.setAlpha(self.eventTextCursorTapAnimFader.getStrength() * 255)
+                        self.eventTextCursorTapAnim.update(gameClockDelta)
+                    else:
+                        self.eventTextCursorTapAnim.reset()
+                        self.eventTextCursorTapAnimFader.reset()
 
-            while self.eventTextLoadedIndex < self.eventTextIndex:
-                self.incrementEventText()
-                self.eventTextLoadedIndex += 1
-                if self.eventTextIndex == 0:
-                    self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION // 2, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False, inverted=False)
-                elif self.eventTextLoadedIndex == len(self.eventText) - 1:
-                    self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION // 2, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False, inverted=True)
-                else:
-                    self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, inverted=True)
-                self.eventTextImageWindowFader.reset()
+                    while self.eventTextLoadedIndex < self.eventTextIndex:
+                        self.incrementEventText()
+                        self.eventTextLoadedIndex += 1
+                        if self.eventTextLoadedIndex > 0:
+                            if self.eventTextLoadedIndex == len(self.eventText) - 1:
+                                self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION // 2, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False, inverted=True)
+                            else:
+                                self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, inverted=True)
+                            self.eventTextImageWindowFader.reset()
 
-            if (self.eventTextImageWindowFader.getStrength() == 1):
-                self.eventTextScroller.update(gameClockDelta)
+                    if (self.eventTextImageWindowFader.getStrength() == 1):
+                        self.eventTextScroller.update(gameClockDelta)
 
-            self.eventTextImageWindowFader.update(gameClockDelta)
-            self.eventTextImageWindow.setAlpha(self.eventTextImageWindowFader.getStrength() * 255)
-            self.eventTextImageWindow.update(gameClockDelta)
+                    self.eventTextImageWindowFader.update(gameClockDelta)
+                    self.eventTextImageWindow.update(gameClockDelta)
+        else:
+            self.workaroundIntensiveInit = False
 
     def draw(self, gameDisplay):
         for indexChar in self.eventCharactersLeftRightActive:
             if indexChar != -1:
                 self.eventCharacters[indexChar].draw(gameDisplay)
-        if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):
-            self.eventTextImageWindow.draw(gameDisplay)
-            self.eventTextScroller.draw(gameDisplay)
-            self.eventTextSurface.clear()
 
-            if self.eventCharacters[self.eventText[self.eventTextIndex].indexChar].nameSurface != None:
-                self.eventTextSurface.surface.blit(self.eventCharacters[self.eventText[self.eventTextIndex].indexChar].nameSurface, self.eventTextImageNamePos)
-            
-            self.eventTextSurface.setAlpha(self.eventTextImageWindowFader.getStrength() * 255)
-            self.eventTextSurface.draw(gameDisplay)
+        if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):
+            if not(self.backgroundFader.isActive):
+                self.eventTextSurface.setAlpha(self.eventTextImageWindowFader.getStrength() * 255)
+                self.eventTextSurface.clear()
+                self.eventTextImageWindow.draw(self.eventTextSurface.surface)
+
+                if self.eventTextImageWindowFader.isActive and self.eventTextIndex > 0:
+                    if self.eventTextImageWindowFader.initialInverted != self.eventTextImageWindowFader.inverted and self.eventCharacters[self.eventText[self.eventTextIndex].indexChar].nameSurface != None:
+                        self.eventTextSurface.surface.blit(self.eventCharacters[self.eventText[self.eventTextIndex].indexChar].nameSurface, self.eventTextImageNamePos)
+                    elif self.eventCharacters[self.eventText[self.eventTextIndex - 1].indexChar].nameSurface != None:
+                        self.eventTextSurface.surface.blit(self.eventCharacters[self.eventText[self.eventTextIndex - 1].indexChar].nameSurface, self.eventTextImageNamePos)
+                elif self.eventCharacters[self.eventText[self.eventTextIndex].indexChar].nameSurface != None:
+                    self.eventTextSurface.surface.blit(self.eventCharacters[self.eventText[self.eventTextIndex].indexChar].nameSurface, self.eventTextImageNamePos)
+
+                self.eventTextSurface.draw(gameDisplay)
+                self.eventTextScroller.draw(gameDisplay)
 
         if not(self.eventTextScroller.getDrawingState()):
             self.eventTextCursorTapAnim.draw(gameDisplay)
+        
+        if self.backgroundFader.isActive:
+            tempFaderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+            tempFaderSurface.fill((0,0,0,round(self.backgroundFader.getStrength() * 255)))
+            gameDisplay.blit(tempFaderSurface, (0,0))
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONUP:
@@ -290,8 +319,8 @@ class LaytonEventGraphics(coreState.LaytonContext):
                     else:
                         if self.eventTextIndex < len(self.eventText) - 1:
                             self.eventTextIndex += 1
-                if self.eventTextIndex == len(self.eventText) - 1 and self.eventPuzzleHandler != None:
-                        self.screenNextObject = self.eventPuzzleHandler
+                        if self.eventTextIndex == len(self.eventText) - 1 and self.eventPuzzleHandler != None:
+                            self.screenNextObject = self.eventPuzzleHandler
 
         if event.type == constUserEvent.ANIM_SET_ANIM:
             event.command = event.data.split(" ")
@@ -327,4 +356,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonEventHandler(1, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
+    coreState.play(LaytonEventHandler(9, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash

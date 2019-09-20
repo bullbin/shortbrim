@@ -16,10 +16,10 @@ class AnimatedImageEvent(coreAnim.AnimatedImage):
 
 class LaytonHelperEventHandlerSpawner(coreState.LaytonContext):
 
-    DURATION_EVENT_FADE_OUT = 333
-    DURATION_EVENT_ICON_JUMP = 444
-    DURATION_EVENT_ICON_JUMP_PAUSE = 222
-    HEIGHT_EVENT_ICON_JUMP = 25
+    DURATION_EVENT_FADE_OUT = 500
+    DURATION_EVENT_ICON_JUMP = 333
+    DURATION_EVENT_ICON_JUMP_PAUSE = 333
+    HEIGHT_EVENT_ICON_JUMP = 20
     ICON_BUTTONS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "icon_buttons") 
     ICON_BUTTONS.setAnimationFromName("found")
 
@@ -34,9 +34,9 @@ class LaytonHelperEventHandlerSpawner(coreState.LaytonContext):
         self.playerState = playerState
         self.faderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
         self.eventBlackoutFader = coreAnim.AnimatedFader(LaytonHelperEventHandlerSpawner.DURATION_EVENT_FADE_OUT,
-                                                         coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
+                                                         coreAnim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False)
         self.iconBounceFader = coreAnim.AnimatedFader(LaytonHelperEventHandlerSpawner.DURATION_EVENT_ICON_JUMP,
-                                                      coreAnim.AnimatedFader.MODE_SINE_SMOOTH, False)
+                                                      coreAnim.AnimatedFader.MODE_SINE_SHARP, False)
         self.iconBounceWaitDuration = 0                          
         self.iconBounceCenter = (pos[0] - (LaytonHelperEventHandlerSpawner.ICON_BUTTONS.dimensions[0] // 2),
                                  pos[1] - (LaytonHelperEventHandlerSpawner.ICON_BUTTONS.dimensions[1] // 2))
@@ -50,7 +50,7 @@ class LaytonHelperEventHandlerSpawner(coreState.LaytonContext):
         if not(self.iconBounceFader.isActive):
             if self.iconBounceWaitDuration >= LaytonHelperEventHandlerSpawner.DURATION_EVENT_ICON_JUMP_PAUSE:
                 self.eventBlackoutFader.update(gameClockDelta)
-                if self.eventBlackoutFader.getStrength() == 1:
+                if not(self.eventBlackoutFader.isActive) and self.eventBlackoutFader.getStrength() == 1:
                     self.screenNextObject = eventHandler.LaytonEventHandler(self.indexEvent, self.playerState)
                     self.isContextFinished = True
             else:
@@ -230,7 +230,8 @@ class LaytonRoomGraphics(coreState.LaytonContext):
             self.animTapDraw = True
             for animObject in self.eventObjects:
                 if animObject.wasClicked(event.pos):
-                    self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.indexEvent, event.pos, self.playerState)
+                    boundingBoxCenterPos = (animObject.pos[0] + animObject.bounding[0] // 2, animObject.pos[1] + animObject.bounding[1] // 2)
+                    self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.indexEvent, boundingBoxCenterPos, self.playerState)
                     coreState.debugPrint("WarnGraphicsCommand: Spawned event handler for ID " + str(animObject.indexEvent))
                     self.animTapDraw = False
                     return True
@@ -292,4 +293,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonRoomHandler(100, playerState), playerState)
+    coreState.play(LaytonRoomHandler(50, playerState), playerState)
