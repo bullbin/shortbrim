@@ -192,7 +192,7 @@ class AltClock():
     PYGAME_GET_FPS_AVERAGE_CALLS = 10
 
     def __init__(self):
-        self.prevFrame = time.time()
+        self.prevFrame = time.perf_counter()
         self.frameTimeHistory = []
 
         if coreProp.ENGINE_DEBUG_MODE:
@@ -217,17 +217,17 @@ class AltClock():
     
     def tickAltTimerQuality(self, gameClockInterval):
         lastPrevFrame = self.prevFrame
-        while (time.time() - lastPrevFrame) < gameClockInterval:
+        while (time.perf_counter() - lastPrevFrame) < gameClockInterval:
             pass
-        self.prevFrame = time.time()
-        return (time.time() - lastPrevFrame) * 1000
+        self.prevFrame = time.perf_counter()
+        return (time.perf_counter() - lastPrevFrame) * 1000
 
     def tickAltTimerPerformance(self, gameClockInterval):
         lastPrevFrame = self.prevFrame
-        if (time.time() - lastPrevFrame) < gameClockInterval:
-            time.sleep((gameClockInterval) - (time.time() - lastPrevFrame))
-        self.prevFrame = time.time()
-        return (time.time() - lastPrevFrame) * 1000
+        if (time.perf_counter() - lastPrevFrame) < gameClockInterval:
+            time.sleep((gameClockInterval) - (time.perf_counter() - lastPrevFrame))
+        self.prevFrame = time.perf_counter()
+        return (time.perf_counter() - lastPrevFrame) * 1000
 
     def get_fps(self):
         if len(self.frameTimeHistory) == AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
