@@ -4,6 +4,13 @@ import coreProp, pygame, coreAnim, coreLib
 from os import path
 import ctypes; ctypes.windll.user32.SetProcessDPIAware() # Scale window to ensure perfect pixels
 
+if coreProp.ENGINE_FORCE_USE_ALT_TIMER:
+    import time
+
+def debugPrint(line):
+    if coreProp.ENGINE_DEBUG_MODE:
+        print(line)
+
 class LaytonPuzzleDataEntry():
     def __init__(self, decayValues):
         self.name = ""
@@ -180,26 +187,72 @@ class LaytonSubscreen(LaytonScreen):
     
     def updateSubscreenMethods(self, gameClockDelta): pass
 
-def debugPrint(line):
-    if coreProp.ENGINE_DEBUG_MODE:
-        print(line)
+class AltClock():
 
-def tickQuality(gameClock):
-    return gameClock.tick_busy_loop(coreProp.ENGINE_FPS)
+    PYGAME_GET_FPS_AVERAGE_CALLS = 10
 
-def tickPerformance(gameClock):
-    return gameClock.tick(coreProp.ENGINE_FPS)
+    def __init__(self):
+        self.prevFrame = time.time()
+        self.frameTimeHistory = []
+
+        if coreProp.ENGINE_DEBUG_MODE:
+            if coreProp.ENGINE_FORCE_BUSY_WAIT:
+                def tick(gameClockInterval):
+                    self.frameTimeHistory.append(self.tickAltTimerQuality(gameClockInterval))
+                    if len(self.frameTimeHistory) > AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
+                        self.frameTimeHistory = self.frameTimeHistory[-AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:]
+                    return self.frameTimeHistory[-1]
+            else:
+                def tick(gameClockInterval):
+                    self.frameTimeHistory.append(self.tickAltTimerPerformance(gameClockInterval))
+                    if len(self.frameTimeHistory) > AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
+                        self.frameTimeHistory = self.frameTimeHistory[-AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:]
+                    return self.frameTimeHistory[-1]
+            self.tick = tick
+        else:
+            if coreProp.ENGINE_FORCE_BUSY_WAIT:
+                self.tick = self.tickAltTimerQuality
+            else:
+                self.tick = self.tickAltTimerPerformance
+    
+    def tickAltTimerQuality(self, gameClockInterval):
+        lastPrevFrame = self.prevFrame
+        while (time.time() - lastPrevFrame) < gameClockInterval:
+            pass
+        self.prevFrame = time.time()
+        return (time.time() - lastPrevFrame) * 1000
+
+    def tickAltTimerPerformance(self, gameClockInterval):
+        lastPrevFrame = self.prevFrame
+        if (time.time() - lastPrevFrame) < gameClockInterval:
+            time.sleep((gameClockInterval) - (time.time() - lastPrevFrame))
+        self.prevFrame = time.time()
+        return (time.time() - lastPrevFrame) * 1000
+
+    def get_fps(self):
+        if len(self.frameTimeHistory) == AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
+            total = 0
+            for frameTime in self.frameTimeHistory:
+                total += frameTime
+            return 1000 / (total / AltClock.PYGAME_GET_FPS_AVERAGE_CALLS)
+        return 0
 
 def play(rootHandler, playerState):
     isActive = True
     gameDisplay = pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
-    gameClock = pygame.time.Clock()
     gameClockDelta = 0
     
-    if coreProp.ENGINE_FORCE_BUSY_WAIT:
-        tick = tickQuality
+    if coreProp.ENGINE_FORCE_USE_ALT_TIMER:
+        gameClock = AltClock()
+        gameClockInterval = coreProp.ENGINE_FRAME_INTERVAL / 1000
+        tick = gameClock.tick
     else:
-        tick = tickPerformance
+        gameClock = pygame.time.Clock()
+        gameClockInterval = coreProp.ENGINE_FPS
+        if coreProp.ENGINE_FORCE_BUSY_WAIT:
+            tick = gameClock.tick_busy_loop
+        else:
+            tick = gameClock.tick
 
     while isActive:
         
@@ -234,5 +287,5 @@ def play(rootHandler, playerState):
                 isActive = False
             else:
                 rootHandler.handleEvent(event)
-                
-        gameClockDelta = tick(gameClock)
+        
+        gameClockDelta = tick(gameClockInterval)

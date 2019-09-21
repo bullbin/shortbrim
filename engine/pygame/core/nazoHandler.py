@@ -146,7 +146,6 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        
 
         try:
             try:
@@ -1097,4 +1096,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonPuzzleHandler(19, playerState), playerState) #4:Trace Button, 9:Coin, 10:Connect, 11:Scale, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut
+    coreState.play(LaytonPuzzleHandler(9, playerState), playerState) #4:Trace Button, 9:Coin, 10:Connect, 11:Scale, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut

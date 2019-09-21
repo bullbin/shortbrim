@@ -5,9 +5,11 @@ pygame.init()
 pygame.display.set_caption("LAYTON1")
 
 ENGINE_FPS = 60
-ENGINE_FORCE_BUSY_WAIT  = False     # Performance-intensive, but ensures stable frametimes
-ENGINE_PERFORMANCE_MODE = False      # Reduces graphical accuracy in favour of performance
-ENGINE_DEBUG_MODE = False
+ENGINE_FRAME_INTERVAL = 1000 / ENGINE_FPS
+ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive, but ensures stable frametimes; best with original timer
+ENGINE_FORCE_USE_ALT_TIMER      = True      # Enforces alternate timer with lower overhead and support for arbitrary framerates
+ENGINE_PERFORMANCE_MODE         = False     # Reduces graphical accuracy in favour of performance
+ENGINE_DEBUG_MODE               = True
 
 PATH_SAVE = None
 PATH_ASSET_ROOT     = path.dirname(path.dirname(path.dirname(path.dirname(path.realpath(__file__))))) + "\\assets\\"
