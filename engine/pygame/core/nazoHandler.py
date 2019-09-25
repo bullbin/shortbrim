@@ -20,9 +20,14 @@ class LaytonContextPuzzlet(coreState.LaytonContext):
         self.registerVictory = False
         self.registerLoss = True
 
+class LaytonIntroOverlay(coreState.LaytonContext):
+    def __init__(self):
+        coreState.LaytonContext.__init__(self)
+        self.isContextFinished = True
+
 class LaytonTouchOverlay(coreState.LaytonContext):
 
-    imageTouchAlphaBounds = (63,248)
+    imageTouchAlphaBounds = coreAnim.prepareTwoTupleOffset((63, 248))
     imageTouchAlphaRange = imageTouchAlphaBounds[1] - imageTouchAlphaBounds[0]
 
     def __init__(self):
@@ -31,17 +36,17 @@ class LaytonTouchOverlay(coreState.LaytonContext):
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
         self.imageTouch = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG, "qend_touch")
-        self.imageTouch = self.imageTouch.setAnimationFromNameAndReturnInitialFrame("touch")
-        self.imageTouchPos = ((coreProp.LAYTON_SCREEN_WIDTH - self.imageTouch.get_width()) // 2,
-                              ((coreProp.LAYTON_SCREEN_HEIGHT - self.imageTouch.get_height()) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+        self.imageTouch = coreAnim.StaticImage(self.imageTouch.setAnimationFromNameAndReturnInitialFrame("touch"), useScalingSurf=False, imageIsSurface=True)
+        self.imageTouch.setPos(((coreProp.LAYTON_SCREEN_WIDTH - self.imageTouch.getDimensions()[0]) // 2,
+                               ((coreProp.LAYTON_SCREEN_HEIGHT - self.imageTouch.getDimensions()[1]) // 2) + coreProp.LAYTON_SCREEN_HEIGHT))
         self.imageTouchAlphaFader = coreAnim.AnimatedFader(5000, coreAnim.AnimatedFader.MODE_SINE_SMOOTH, True, inverted=True)
 
     def update(self, gameClockDelta):
         self.imageTouchAlphaFader.update(gameClockDelta)
-        self.imageTouch.set_alpha(LaytonTouchOverlay.imageTouchAlphaBounds[0] + round(self.imageTouchAlphaFader.getStrength() * LaytonTouchOverlay.imageTouchAlphaRange))
+        self.imageTouch.image.set_alpha(LaytonTouchOverlay.imageTouchAlphaBounds[0] + round(self.imageTouchAlphaFader.getStrength() * LaytonTouchOverlay.imageTouchAlphaRange))
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.imageTouch, self.imageTouchPos)
+        self.imageTouch.draw(gameDisplay)
 
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -83,8 +88,11 @@ class LaytonScrollerOverlay(coreState.LaytonContext):
 class LaytonPuzzleUi(LaytonContextPuzzlet):
 
     buttonHint      = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG, "hint_buttons")
-    buttonHint.pos  = (coreProp.LAYTON_SCREEN_WIDTH - buttonHint.dimensions[0], coreProp.LAYTON_SCREEN_HEIGHT)
+    buttonHint.setPos((coreProp.LAYTON_SCREEN_WIDTH - buttonHint.getDimensions()[0], coreProp.LAYTON_SCREEN_HEIGHT))
     buttonHintFlashDelay = 15000
+    PUZZLE_FONT_PLACEMENT = [27,75,228,6]
+    for _indexFont in range(len(PUZZLE_FONT_PLACEMENT)):
+        PUZZLE_FONT_PLACEMENT[_indexFont] = coreAnim.prepareOffset(PUZZLE_FONT_PLACEMENT[_indexFont])
 
     def __init__(self, puzzleIndex, playerState, puzzleHintCount):
         LaytonContextPuzzlet.__init__(self)
@@ -117,10 +125,10 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
         if self.puzzleHintCount > 0:
             LaytonPuzzleUi.buttonHint.draw(gameDisplay)
         # Draw puzzle index text
-        for bannerText, xPosInitial in [(self.puzzleIndexText, 27),
-                                        (format(str(self.playerState.puzzleData[self.puzzleIndex].getValue()), '>3'), 75),
-                                        (format(str(self.playerState.remainingHintCoins), '>3'), 228)]:
-            self.puzzleAnimFont.pos = (xPosInitial,6)
+        for indexBannerText, bannerText in enumerate([self.puzzleIndexText,
+                                                      format(str(self.playerState.puzzleData[self.puzzleIndex].getValue()), '>3'),
+                                                      format(str(self.playerState.remainingHintCoins), '>3')]):
+            self.puzzleAnimFont.pos = (LaytonPuzzleUi.PUZZLE_FONT_PLACEMENT[indexBannerText], LaytonPuzzleUi.PUZZLE_FONT_PLACEMENT[-1])
             for char in bannerText:
                 if self.puzzleAnimFont.setAnimationFromName(char):
                     self.puzzleAnimFont.setInitialFrameFromAnimation()
@@ -137,7 +145,7 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
 
 class LaytonPuzzleBackground(coreState.LaytonContext):
 
-    backgroundTs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png")
+    backgroundTs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png", usesAlpha=False)
 
     def __init__(self, puzzleIndex, playerState):
         coreState.LaytonContext.__init__(self)
@@ -149,25 +157,26 @@ class LaytonPuzzleBackground(coreState.LaytonContext):
 
         try:
             try:
+                self.backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q" + str(puzzleIndex) + "_bg.png", y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
                 self.backgroundIsLoaded = True
-                self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q" + str(puzzleIndex) + "_bg.png")
             except:
-                self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "q" + str(puzzleIndex) + "_bg.png")
+                self.backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + "q" + str(puzzleIndex) + "_bg.png", y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
+                self.backgroundIsLoaded = True
         except:
             self.backgroundIsLoaded = False
-            self.backgroundBs = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT))
-            self.backgroundBs.fill(coreProp.GRAPHICS_FONT_COLOR_MAP['g'])
+            self.backgroundBs = coreAnim.StaticImage(pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT)), y=coreProp.LAYTON_SCREEN_HEIGHT, imageIsSurface=True)
+            self.backgroundBs.image.fill(coreProp.GRAPHICS_FONT_COLOR_MAP['g'])
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
-        gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
+        LaytonPuzzleBackground.backgroundTs.draw(gameDisplay)
+        self.backgroundBs.draw(gameDisplay)
 
 class PuzzletInteractableDragContext(LaytonContextPuzzlet):
 
     promptNoMove        = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\nomoretouch.png", y=coreProp.LAYTON_SCREEN_HEIGHT)
     moveCounterMaxLength = 1
-    moveCounterScale = (0.5, 2.5)
-    moveCounterPos = (44, coreProp.LAYTON_SCREEN_HEIGHT + 172)
+    moveCounterScale = (coreAnim.prepareOffset(0.5), coreAnim.prepareOffset(2.5))
+    moveCounterPos = (coreAnim.prepareOffset(44), coreAnim.prepareOffset(coreProp.LAYTON_SCREEN_HEIGHT + 172))
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -316,8 +325,8 @@ class PuzzletInteractableMatchContext(PuzzletInteractableDragContext):
 
 class PuzzletInteractableCoinContext(PuzzletInteractableDragContext):
     
-    COIN_ACCEPTABLE_REGION = 6
-    COIN_SHADOW_OFFSET = 1
+    COIN_ACCEPTABLE_REGION = coreAnim.prepareOffset(6)
+    COIN_SHADOW_OFFSET = coreAnim.prepareOffset(1)
     spriteCoin = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "coin")
     spriteShadow = nazoElements.IndependentTile(spriteCoin, "shadow")
 
@@ -987,8 +996,9 @@ class LaytonPuzzletTutorialOverlay(coreState.LaytonContext):
             indexPuzzletFrame = 0
             while path.isfile(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\puzzlet"
                   + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame) + ".png"):
-                self.puzzletFrames.append(pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\puzzlet"
-                                                            + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame) + ".png").convert())
+                self.puzzletFrames.append(coreAnim.StaticImage(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\puzzlet"
+                                                            + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame) + ".png",
+                                                            y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False))
                 indexPuzzletFrame += 1
                 self.buttons = [coreAnim.StaticButton(None, x=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[0][0],
                                                             y=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[0][1],
@@ -1008,7 +1018,7 @@ class LaytonPuzzletTutorialOverlay(coreState.LaytonContext):
 
     def draw(self, gameDisplay):
         if not(self.isContextFinished):
-            gameDisplay.blit(self.puzzletFrames[self.indexPuzzletCurrentFrame], (0, coreProp.LAYTON_SCREEN_HEIGHT))
+            self.puzzletFrames[self.indexPuzzletCurrentFrame].draw(gameDisplay)
     
     def handleEvent(self, event):
         if not(self.isContextFinished): # Events can be initialised before updating, causing invalid loading
@@ -1052,12 +1062,13 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
             self.addToStack(LaytonPuzzletTutorialOverlay(self.commandFocus, playerState))
         self.addToStack(LaytonScrollerOverlay(puzzleIndex, playerState))
         self.addToStack(LaytonTouchOverlay())
+        self.addToStack(LaytonIntroOverlay())
 
     def executeGdScript(self, puzzleScript):
         for command in puzzleScript.commands:
             if command.opcode == b'\x0b':
                 try:
-                    self.stack[0].backgroundBs = pygame.image.load((coreProp.PATH_ASSET_BG + command.operands[0].replace("?", coreProp.LAYTON_ASSET_LANG))[0:-4] + ".png").convert()
+                    self.stack[0].backgroundBs = coreAnim.StaticImage(((coreProp.PATH_ASSET_BG + command.operands[0].replace("?", coreProp.LAYTON_ASSET_LANG))[0:-4] + ".png"), y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
                 except:
                     coreState.debugPrint("Replace background: " + command.operands[0])
             elif command.opcode == b'\x1b':
@@ -1065,9 +1076,9 @@ class LaytonPuzzleHandler(coreState.LaytonSubscreen):
                     self.addToStack(LaytonPuzzleHandler.defaultHandlers[command.operands[0]]())
                     self.commandFocus = self.stack[1]
 
-                    if not(self.stack[0].backgroundIsLoaded):
+                    if not(self.stack[0].backgroundIsLoaded) or command.operands[0] in LaytonPuzzleHandler.defaultBackgrounds.keys():
                         if command.operands[0] in LaytonPuzzleHandler.defaultBackgrounds.keys(): # Attempt to load an alternative background
-                            self.stack[0].backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + LaytonPuzzleHandler.defaultBackgrounds[command.operands[0]]).convert()
+                            self.stack[0].backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + LaytonPuzzleHandler.defaultBackgrounds[command.operands[0]], y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
                         else:
                             coreState.debugPrint("BG: No default background found!")
                 else:

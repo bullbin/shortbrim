@@ -10,21 +10,72 @@ def debugPrint(line):   # Function needs to be moved from coreState to avoid cyc
     if coreProp.ENGINE_DEBUG_MODE:
         print(line)
 
+def prepareScaledSurface(surface):
+    return scaleSurfaceCopy(surface, coreProp.SCREEN_RESOLUTION_SCALE, coreProp.SCREEN_RESOLUTION_SCALE)
+def prepareScaledSurfaceStub(surface):
+    return surface
+def prepareScaledOffset(offset):
+    return offset * coreProp.SCREEN_RESOLUTION_SCALE
+def prepareOffset(offset):
+    return offset
+
+if coreProp.SCREEN_ENABLE_UPSCALE and coreProp.SCREEN_USE_COMPLEX_UPSCALE:
+    prepareSurface = prepareScaledSurface
+    prepareOffset = prepareScaledOffset
+else:
+    prepareSurface = prepareScaledSurfaceStub
+    prepareOffset = prepareOffset
+
+def prepareTwoTupleOffset(offset):
+    return (prepareOffset(offset[0]), prepareOffset(offset[1]))
+
 class StaticImage():
-    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
+
+    def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None, usesAlpha=True, useScalingSurf=True, useScalingPos=True):
+        if useScalingSurf:
+            def inlinePrepareSurf(surf):
+                return prepareSurface(surf)
+        else:
+            def inlinePrepareSurf(surf):
+                return surf
+
         if imagePath == None or imageIsNull:
             if imageNullDimensions != None:
-                self.image = pygame.Surface(imageNullDimensions)
+                self.image = pygame.Surface((prepareOffset(imageNullDimensions[0]), prepareOffset(imageNullDimensions[1])))
             else:
                 self.image = pygame.Surface((1,1))
         elif imageIsSurface:
-            self.image = imagePath
+            self.image = prepareSurface(imagePath)
         else:
-            self.image = pygame.image.load(imagePath).convert_alpha()
-        self.pos = (x,y)
+            if usesAlpha:
+                self.image = inlinePrepareSurf(pygame.image.load(imagePath).convert_alpha())
+            else:
+                self.image = inlinePrepareSurf(pygame.image.load(imagePath).convert())
+
+        if (coreProp.SCREEN_ENABLE_UPSCALE and coreProp.SCREEN_USE_COMPLEX_UPSCALE) and useScalingPos:
+            self.setPos = self.setPosScaled
+        else:
+            self.setPos = self.setPosOriginal
+        self.setPos((x,y))
+        self.useScalingSurf = useScalingSurf
+
+    def setPosOriginal(self, pos):
+        self.pos = pos
+    
+    def setPosScaled(self, pos):
+        self.pos = (pos[0] * coreProp.SCREEN_RESOLUTION_SCALE, pos[1] * coreProp.SCREEN_RESOLUTION_SCALE)
+
+    def getDimensions(self):
+        if (coreProp.SCREEN_ENABLE_UPSCALE and coreProp.SCREEN_USE_COMPLEX_UPSCALE) and self.useScalingSurf:
+            return (self.image.get_width()[0] // coreProp.SCREEN_RESOLUTION_SCALE, self.image.get_width()[1] // coreProp.SCREEN_RESOLUTION_SCALE)
+        else:
+            return (self.image.get_width(), self.image.get_height())
 
     def getImage(self):
         return self.image
+
+    def getRect(self):
+        return pygame.Rect(self.pos, (self.image.get_width(), self.image.get_height()))
 
     def update(self, gameClockDelta):
         pass
@@ -100,13 +151,27 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=False):
-        self.pos = (x,y)
+    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=False, useScalingPos=True, useScalingSurf=True):
+        if useScalingSurf:
+            def inlinePrepareSurf(surf):
+                return prepareSurface(surf)
+        else:
+            def inlinePrepareSurf(surf):
+                return surf
+
+        self.useScalingSurf = useScalingSurf
+
         self.frames = []
         self.dimensions = (0,0)
         self.animMap = {}
         self.animActive = None
         self.animActiveFrame = None
+
+        if (coreProp.SCREEN_ENABLE_UPSCALE and coreProp.SCREEN_USE_COMPLEX_UPSCALE) and useScalingPos:
+            self.setPos = self.setPosScaled
+        else:
+            self.setPos = self.setPosOriginal
+        self.setPos((x,y))
 
         self.usesAlpha = usesAlpha
         self.alpha = 255
@@ -121,7 +186,7 @@ class AnimatedImage():
                 while True:
                     if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
                         try:
-                            self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
+                            self.frames.append(inlinePrepareSurf(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert()))
                         except:
                             debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
                         imageIndex += 1
@@ -130,7 +195,7 @@ class AnimatedImage():
                 self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
             elif path.exists(frameRootPath + "\\" + frameName + "." + frameRootExtension):
                 try:
-                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
+                    self.frames.append(inlinePrepareSurf(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha()))
                     self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
                 except:
                     debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
@@ -177,15 +242,30 @@ class AnimatedImage():
     def reset(self):
         if self.animActive != None:
             self.animMap[self.animActive].reset()
-
+    
+    def setPosOriginal(self, pos):
+        self.pos = pos
+    
+    def setPosScaled(self, pos):
+        self.pos = (pos[0] * coreProp.SCREEN_RESOLUTION_SCALE, pos[1] * coreProp.SCREEN_RESOLUTION_SCALE)
+   
     def getImage(self):
         try:
             return self.frames[self.animActiveFrame]
         except:
             return None
 
+    def getDimensions(self):
+        if (coreProp.SCREEN_ENABLE_UPSCALE and coreProp.SCREEN_USE_COMPLEX_UPSCALE) and self.useScalingSurf:
+            return (self.dimensions[0] // coreProp.SCREEN_RESOLUTION_SCALE, self.dimensions[1] // coreProp.SCREEN_RESOLUTION_SCALE)
+        else:
+            return self.dimensions
+
     def getAnim(self):
         return self.animActive
+
+    def getRect(self):
+        return pygame.Rect(self.pos, self.dimensions)
 
     def drawAlpha(self, gameDisplay):
         if self.animActiveFrame != None:
@@ -518,10 +598,14 @@ class AnimatedFader():
 class AlphaSurface():
     def __init__(self, alpha):
         self.alpha = alpha
-        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface((prepareOffset(coreProp.LAYTON_SCREEN_WIDTH), prepareOffset(coreProp.LAYTON_SCREEN_HEIGHT * 2))).convert_alpha()
+        print("AlphaSurface::", self.surface.get_width())
 
     def setAlpha(self, alpha):
         self.alpha = alpha
+
+    def getRect(self):
+        return pygame.Rect((0,0), (self.surface.get_width(), self.surface.get_height()))
 
     def draw(self, gameDisplay):
         if self.alpha > 0:
@@ -533,7 +617,6 @@ class AlphaSurface():
                 gameDisplay.blit(tempAlphaSurface, (0,0))
     
     def clear(self):
-        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
         self.surface.fill((0,0,0,0))
 
 class TextScroller():

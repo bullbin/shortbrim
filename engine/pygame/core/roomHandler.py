@@ -19,7 +19,7 @@ class LaytonHelperEventHandlerSpawner(coreState.LaytonContext):
     DURATION_EVENT_FADE_OUT = 500
     DURATION_EVENT_ICON_JUMP = 333
     DURATION_EVENT_ICON_JUMP_PAUSE = 333
-    HEIGHT_EVENT_ICON_JUMP = 20
+    HEIGHT_EVENT_ICON_JUMP = coreAnim.prepareOffset(20)
     ICON_BUTTONS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "icon_buttons") 
     ICON_BUTTONS.setAnimationFromName("found")
 
@@ -72,12 +72,12 @@ class LaytonRoomBackground(coreState.LaytonContext):
         self.screenBlockInput       = True
 
         try:
-            self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "room_" + str(roomIndex) + "_bg.png").convert()
+            self.backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + "room_" + str(roomIndex) + "_bg.png", y=coreProp.LAYTON_SCREEN_HEIGHT)
         except:
-            self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png").convert()
+            self.backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + coreProp.LAYTON_ASSET_LANG + "\\q_bg.png",  y=coreProp.LAYTON_SCREEN_HEIGHT)
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.backgroundBs, (0,coreProp.LAYTON_SCREEN_HEIGHT))
+        self.backgroundBs.draw(gameDisplay)
 
 class LaytonRoomUi(coreState.LaytonContext):
     def __init__(self, playerState):
@@ -88,11 +88,11 @@ class LaytonRoomTapObject(coreState.LaytonContext):
     
     DURATION_BACKGROUND_TRANS_BS = 500
     BACKGROUND_BS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "room_tobj", usesAlpha=True)
-    BACKGROUND_BS.pos = ((coreProp.LAYTON_SCREEN_WIDTH - BACKGROUND_BS.dimensions[0]) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - BACKGROUND_BS.dimensions[1]) // 2) + coreProp.LAYTON_SCREEN_HEIGHT)
+    BACKGROUND_BS.setPos(((coreProp.LAYTON_SCREEN_WIDTH - BACKGROUND_BS.getDimensions()[0]) // 2, ((coreProp.LAYTON_SCREEN_HEIGHT - BACKGROUND_BS.getDimensions()[1]) // 2) + coreProp.LAYTON_SCREEN_HEIGHT))
     BACKGROUND_BS.setAnimationFromName("gfx")
-    BACKGROUND_PORTRAIT = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "room_tobjp", x=BACKGROUND_BS.pos[0] + 6, y=BACKGROUND_BS.pos[1] + ((BACKGROUND_BS.dimensions[1] - 24) // 2))
-    CURSOR_BS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait")
-    CURSOR_BS.pos = ((BACKGROUND_BS.pos[0] + BACKGROUND_BS.dimensions[0]) - (CURSOR_BS.dimensions[0] + 4), (BACKGROUND_BS.pos[1] + BACKGROUND_BS.dimensions[1]) - (CURSOR_BS.dimensions[1] + 4))
+    BACKGROUND_PORTRAIT = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "room_tobjp", x=BACKGROUND_BS.pos[0] + coreAnim.prepareOffset(6), y=BACKGROUND_BS.pos[1] + ((BACKGROUND_BS.dimensions[1] - coreAnim.prepareOffset(24)) // 2), useScalingPos=False)
+    CURSOR_BS = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait", useScalingPos=False)
+    CURSOR_BS.setPos(((BACKGROUND_BS.pos[0] + BACKGROUND_BS.dimensions[0]) - (CURSOR_BS.dimensions[0] + coreAnim.prepareOffset(4)), (BACKGROUND_BS.pos[1] + BACKGROUND_BS.dimensions[1]) - (CURSOR_BS.dimensions[1] + coreAnim.prepareOffset(4))))
 
     def __init__(self, indexCharacter, indexTobj, font):
         coreState.LaytonContext.__init__(self)
@@ -140,8 +140,8 @@ class LaytonRoomTapObject(coreState.LaytonContext):
 
 class LaytonRoomTapRegion():
     def __init__(self, indexCharacter, pos, dimensions, indexTobj):
-        self.pos = pos
-        self.dimensions = dimensions
+        self.pos = (coreAnim.prepareOffset(pos[0]), coreAnim.prepareOffset(pos[1]))
+        self.dimensions = (coreAnim.prepareOffset(dimensions[0]), coreAnim.prepareOffset(dimensions[1]))
         self.indexTobj = indexTobj
         self.indexCharacter = indexCharacter
 
@@ -213,7 +213,7 @@ class LaytonRoomGraphics(coreState.LaytonContext):
                                                                 or path.exists(coreProp.PATH_ASSET_ANI + "obj_" + str(command.operands[4]) + "_0.png")):
                 self.eventObjects.append(AnimatedImageEvent(command.operands[5], coreProp.PATH_ASSET_ANI, "obj_" + str(command.operands[4]),
                                                            x = command.operands[0], y = command.operands[1] + coreProp.LAYTON_SCREEN_HEIGHT))
-                self.eventObjects[-1].bounding = [command.operands[2], command.operands[3]]
+                self.eventObjects[-1].bounding = [coreAnim.prepareOffset(command.operands[2]), coreAnim.prepareOffset(command.operands[3])]
                 if not(self.eventObjects[-1].setAnimationFromIndex(0)):
                     self.eventObjects[-1].setActiveFrame(0)
                 self.drawnEvents.append(command.operands[4])
@@ -279,7 +279,7 @@ class LaytonRoomHandler(coreState.LaytonSubscreen):
 
         for command in puzzleScript.commands:
             if command.opcode == b'\x0b':
-                self.stack[0].backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-3] + "png").convert()
+                self.stack[0].backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + command.operands[0][0:-3] + "png", y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
             elif self.commandFocus == None:
                 self.executeCommand(command)
             else:
@@ -293,4 +293,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonRoomHandler(50, playerState), playerState)
+    coreState.play(LaytonRoomHandler(3, playerState), playerState)

@@ -89,25 +89,25 @@ class LaytonEventBackground(coreState.LaytonContext):
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundBs = pygame.Surface((0,0))
-        self.backgroundTs = pygame.Surface((0,0))
+        self.backgroundBs = coreAnim.StaticImage(None, imageIsNull=True)
+        self.backgroundTs = coreAnim.StaticImage(None, imageIsNull=True)
     
     def executeCommand(self, command):
         if command.opcode == b'\x0c':       # Draw image, TS
             if path.exists(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
-                self.backgroundTs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
+                self.backgroundTs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png", usesAlpha=False)
         elif command.opcode == b'\x0b':     # Draw image, BS. Note that the game does not use this image - it uses the darker version
             if path.exists(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
-                if "room" in command.operands[0][0:-4] and path.exists(coreProp.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png"):
-                    self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png")   # Darkened image
+                if "room" in command.operands[0][0:-4] and path.exists(coreProp.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png"): # Darkened image
+                    self.backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png", y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
                 else:
-                    self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
+                    self.backgroundBs = coreAnim.StaticImage(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png", y=coreProp.LAYTON_SCREEN_HEIGHT, usesAlpha=False)
         else:
             coreState.debugPrint("ErrUnkCommand: " + str(command.opcode))
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.backgroundTs, (0, 0))
-        gameDisplay.blit(self.backgroundBs, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+        self.backgroundTs.draw(gameDisplay)
+        self.backgroundBs.draw(gameDisplay)
 
 class LaytonEventGraphics(coreState.LaytonContext):
 
@@ -132,15 +132,15 @@ class LaytonEventGraphics(coreState.LaytonContext):
         self.eventCharactersLeftRightActive         = [-1,-1]
         self.eventPuzzleHandler = None
 
-        self.eventTextImageWindow.pos = ((coreProp.LAYTON_SCREEN_WIDTH - self.eventTextImageWindow.dimensions[0]) // 2,
-                                         (coreProp.LAYTON_SCREEN_HEIGHT * 2) - self.eventTextImageWindow.dimensions[1] - 1)
-        self.eventTextScroller.textPosOffset = (self.eventTextImageWindow.pos[0] + 12,
-                                                self.eventTextImageWindow.pos[1] + 14)
+        self.eventTextImageWindow.setPos(((coreProp.LAYTON_SCREEN_WIDTH - self.eventTextImageWindow.getDimensions()[0]) // 2,
+                                         (coreProp.LAYTON_SCREEN_HEIGHT * 2) - self.eventTextImageWindow.getDimensions()[1] - coreAnim.prepareOffset(1)))
+        self.eventTextScroller.textPosOffset = (self.eventTextImageWindow.pos[0] +  coreAnim.prepareOffset(12),
+                                                self.eventTextImageWindow.pos[1] + coreAnim.prepareOffset(14))
         self.eventTextImageNamePos = (self.eventTextImageWindow.pos[0] + 2,
                                       self.eventTextImageWindow.pos[1] - 3)
         self.eventTextCursorTapAnim         = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait", usesAlpha=True)
-        self.eventTextCursorTapAnim.pos     = (coreProp.LAYTON_SCREEN_WIDTH - round(self.eventTextCursorTapAnim.dimensions[0] * 1.5),
-                                               coreProp.LAYTON_SCREEN_HEIGHT * 2 - round(self.eventTextCursorTapAnim.dimensions[1] * 1.25))
+        self.eventTextCursorTapAnim.setPos((coreProp.LAYTON_SCREEN_WIDTH - round(self.eventTextCursorTapAnim.getDimensions()[0] * 1.5),
+                                           coreProp.LAYTON_SCREEN_HEIGHT * 2 - round(self.eventTextCursorTapAnim.getDimensions()[1] * 1.25)))
         self.eventTextCursorTapAnim.setAnimationFromName("touch")
         self.eventTextCursorTapAnimFader    = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
         self.eventTextImageWindowFader = self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, coreAnim.AnimatedFader.MODE_TRIANGLE, False, cycle=False)
@@ -304,7 +304,7 @@ class LaytonEventGraphics(coreState.LaytonContext):
             self.eventTextCursorTapAnim.draw(gameDisplay)
         
         if self.backgroundFader.isActive:
-            tempFaderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+            tempFaderSurface = pygame.Surface((coreAnim.prepareOffset(coreProp.LAYTON_SCREEN_WIDTH), coreAnim.prepareOffset(coreProp.LAYTON_SCREEN_HEIGHT * 2))).convert_alpha()
             tempFaderSurface.fill((0,0,0,round(self.backgroundFader.getStrength() * 255)))
             gameDisplay.blit(tempFaderSurface, (0,0))
     
@@ -356,4 +356,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonEventHandler(9, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
+    coreState.play(LaytonEventHandler(70, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash

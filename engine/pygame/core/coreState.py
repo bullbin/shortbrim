@@ -84,6 +84,8 @@ class LaytonContext():
         self.screenStackUpdate = False
         self.isContextFinished = False
 
+        self.drawBoundingRect = pygame.Rect((0,0), (coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_WIDTH * 2))
+
     def getContextState(self):
         return self.isContextFinished
     
@@ -102,7 +104,7 @@ class LaytonContext():
 
     def draw(self, gameDisplay): pass
     
-    def update(self, gameClockDelta): pass
+    def update(self, gameClockDelta): return False 
     
     def handleEvent(self, event): return False
 
@@ -224,8 +226,10 @@ class AltClock():
 
     def tickAltTimerPerformance(self, gameClockInterval):
         lastPrevFrame = self.prevFrame
-        if (time.perf_counter() - lastPrevFrame) < gameClockInterval:
+        try:
             time.sleep((gameClockInterval) - (time.perf_counter() - lastPrevFrame))
+        except:
+            pass
         self.prevFrame = time.perf_counter()
         return (time.perf_counter() - lastPrevFrame) * 1000
 
@@ -238,8 +242,9 @@ class AltClock():
         return 0
 
 def play(rootHandler, playerState):
+    
     isActive = True
-    gameDisplay = pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
+    gameDisplay = pygame.display.set_mode((coreAnim.prepareOffset(coreProp.LAYTON_SCREEN_WIDTH), coreAnim.prepareOffset(coreProp.LAYTON_SCREEN_HEIGHT * 2)))
     gameClockDelta = 0
     
     if coreProp.ENGINE_FORCE_USE_ALT_TIMER:
