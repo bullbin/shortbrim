@@ -1,13 +1,13 @@
 # Animation Components of LAYTON1
 
-import coreProp, constUserEvent, pygame
+import conf, const, pygame
 from os import path
 from math import ceil, sin, cos, pi
 
-pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
+pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
 
 def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
-    if coreProp.ENGINE_DEBUG_MODE:
+    if conf.ENGINE_DEBUG_MODE:
         print(line)
 
 class StaticImage():
@@ -45,7 +45,7 @@ class AnimatedFrameCollection():
         if framerate == 0:
             self.getUpdatedFrame = self.getNullUpdatedFrame
         else:
-            if coreProp.ENGINE_PERFORMANCE_MODE:
+            if conf.ENGINE_PERFORMANCE_MODE:
                 self.frameInterval = 1000/self.framerate
                 self.getUpdatedFrame = self.getAccurateUpdatedFrame
             else:
@@ -395,7 +395,7 @@ class AnimatedText():
         self.font = font
         if type(self.font) == FontMap:
             self.textRender = pygame.Surface((len(self.text) * self.font.fontWidth, self.font.fontHeight))
-            if coreProp.ENGINE_PERFORMANCE_MODE:
+            if conf.ENGINE_PERFORMANCE_MODE:
                 self.update = self.updateBitmapFontFast
             else:
                 self.update = self.updateBitmapFont
@@ -460,7 +460,7 @@ class AnimatedFader():
         self.initialInverted = inverted
 
         self.reset()
-        if coreProp.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
+        if conf.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
             self.getStrength = self.getStrengthTriangle
         elif mode == AnimatedFader.MODE_SINE_SHARP:
             self.getStrength = self.getStrengthSineSingleEase
@@ -518,7 +518,7 @@ class AnimatedFader():
 class AlphaSurface():
     def __init__(self, alpha):
         self.alpha = alpha
-        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
 
     def setAlpha(self, alpha):
         self.alpha = alpha
@@ -533,7 +533,7 @@ class AlphaSurface():
                 gameDisplay.blit(tempAlphaSurface, (0,0))
     
     def clear(self):
-        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
         self.surface.fill((0,0,0,0))
 
 class TextScroller():
@@ -543,7 +543,7 @@ class TextScroller():
 
     LAYTON_CONTROL_CHAR = ['#', '@', '&']
 
-    def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):
+    def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
         self.textInput = textInput
         self.frameStep = 1000/targetFramerate
         self.textPosOffset = textPosOffset
@@ -563,7 +563,7 @@ class TextScroller():
                         if self.textPos < len(self.textInput) and self.textPos > 2:
                             if self.textInput[self.textPos] != "\n":    # Register colour change between rects
                                 self.textNewline = self.textPos
-                                self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+                                self.textRects[-1].append(AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
                 elif self.textInput[self.textPos] == '@':       # Only bug remaining is that clearing under low framerates can wipe far too early
                     if self.textInput[self.textPos + 1] == "c":
                         self.textRects = []
@@ -591,7 +591,7 @@ class TextScroller():
                             debugPrint("TextScrollerControlGrabError: Fetched " + tempStringControl)
                             break
                     self.textInput = self.textInput[0:self.textPos] + self.textInput[tempTextPos + 2:]
-                    pygame.event.post(pygame.event.Event(constUserEvent.ANIM_SET_ANIM, {constUserEvent.PARAM:tempStringControl}))
+                    pygame.event.post(pygame.event.Event(const.ANIM_SET_ANIM, {const.PARAM:tempStringControl}))
                     if self.textPos != self.textNewline:
                         self.textPos -= 1
 
@@ -601,7 +601,7 @@ class TextScroller():
                         self.textNewline = self.textPos
                     else:
                         self.textNewline = self.textPos + 1
-                    self.textRects.append([AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
+                    self.textRects.append([AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
                 else:
                     self.textRects[-1][-1].text = self.textInput[self.textNewline:self.textPos + 1]
                     self.textRects[-1][-1].update(None)
@@ -616,7 +616,7 @@ class TextScroller():
             while self.textInput[indexReplacementCharEnd] != ">":
                 indexReplacementCharEnd += 1
             try:
-                self.textInput = self.textInput[:indexReplacementCharStart] + coreProp.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
+                self.textInput = self.textInput[:indexReplacementCharStart] + conf.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
             except KeyError:
                 debugPrint("TextScroller: Character '" + self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd] + "' has no substitution!")
                 self.textInput = self.textInput[:indexReplacementCharStart] + self.textInput[indexReplacementCharEnd + 1:]

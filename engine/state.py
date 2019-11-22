@@ -1,14 +1,14 @@
 # State Components of LAYTON1
 
-import coreProp, pygame, coreAnim, coreLib
+import conf, pygame, anim, script
 from os import path
 import ctypes; ctypes.windll.user32.SetProcessDPIAware() # Scale window to ensure perfect pixels
 
-if coreProp.ENGINE_FORCE_USE_ALT_TIMER:
+if conf.ENGINE_FORCE_USE_ALT_TIMER:
     import time
 
 def debugPrint(line):
-    if coreProp.ENGINE_DEBUG_MODE:
+    if conf.ENGINE_DEBUG_MODE:
         print(line)
 
 class LaytonPuzzleDataEntry():
@@ -38,12 +38,12 @@ class LaytonPlayerState():
         self.fonts = {}
 
         for fontName, fontEncoding, xFontSpacing, yFontSpacing, altFontSize in [("font18", "shift-jis", 1, 1, 17), ("fontevent", "cp1252", 1, 3, 17), ("fontq", "cp1252", 1, 2, 17)]:
-            if coreProp.GRAPHICS_USE_GAME_FONTS:
-                self.fonts[fontName] = coreAnim.FontMap(coreProp.PATH_ASSET_FONT + fontName + ".png", coreProp.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, xFontGap=xFontSpacing, yFontGap=yFontSpacing)
+            if conf.GRAPHICS_USE_GAME_FONTS:
+                self.fonts[fontName] = anim.FontMap(conf.PATH_ASSET_FONT + fontName + ".png", conf.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, xFontGap=xFontSpacing, yFontGap=yFontSpacing)
                 if not(self.fonts[fontName].isLoaded):
-                    self.fonts[fontName] = coreAnim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
+                    self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
             else:
-                self.fonts[fontName] = coreAnim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
+                self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
 
     def getFont(self, fontName):
         if fontName in self.fonts.keys():
@@ -53,7 +53,7 @@ class LaytonPlayerState():
     def puzzleLoadNames(self):
         if len(self.puzzleData.keys()) == 0:
             self.puzzleLoadData()
-        qscript = coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "qinfo\\" + coreProp.LAYTON_ASSET_LANG + "\\qscript.gds", None)
+        qscript = script.gdScript(conf.PATH_ASSET_SCRIPT + "qinfo\\" + conf.LAYTON_ASSET_LANG + "\\qscript.gds", None)
         for instruction in qscript.commands:
             if instruction.opcode == b'\xdc':
                 try:
@@ -65,7 +65,7 @@ class LaytonPlayerState():
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
 
     def puzzleLoadData(self):
-        pscript = coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds", None)
+        pscript = script.gdScript(conf.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds", None)
         for instruction in pscript.commands:
             if instruction.opcode == b'\xc3': # Set picarot decay
                 self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry(instruction.operands[1:])
@@ -195,8 +195,8 @@ class AltClock():
         self.prevFrame = time.perf_counter()
         self.frameTimeHistory = []
 
-        if coreProp.ENGINE_DEBUG_MODE:
-            if coreProp.ENGINE_FORCE_BUSY_WAIT:
+        if conf.ENGINE_DEBUG_MODE:
+            if conf.ENGINE_FORCE_BUSY_WAIT:
                 def tick(gameClockInterval):
                     self.frameTimeHistory.append(self.tickAltTimerQuality(gameClockInterval))
                     if len(self.frameTimeHistory) > AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
@@ -210,7 +210,7 @@ class AltClock():
                     return self.frameTimeHistory[-1]
             self.tick = tick
         else:
-            if coreProp.ENGINE_FORCE_BUSY_WAIT:
+            if conf.ENGINE_FORCE_BUSY_WAIT:
                 self.tick = self.tickAltTimerQuality
             else:
                 self.tick = self.tickAltTimerPerformance
@@ -239,17 +239,17 @@ class AltClock():
 
 def play(rootHandler, playerState):
     isActive = True
-    gameDisplay = pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
+    gameDisplay = pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
     gameClockDelta = 0
     
-    if coreProp.ENGINE_FORCE_USE_ALT_TIMER:
+    if conf.ENGINE_FORCE_USE_ALT_TIMER:
         gameClock = AltClock()
-        gameClockInterval = coreProp.ENGINE_FRAME_INTERVAL / 1000
+        gameClockInterval = conf.ENGINE_FRAME_INTERVAL / 1000
         tick = gameClock.tick
     else:
         gameClock = pygame.time.Clock()
-        gameClockInterval = coreProp.ENGINE_FPS
-        if coreProp.ENGINE_FORCE_BUSY_WAIT:
+        gameClockInterval = conf.ENGINE_FPS
+        if conf.ENGINE_FORCE_BUSY_WAIT:
             tick = gameClock.tick_busy_loop
         else:
             tick = gameClock.tick
@@ -259,21 +259,21 @@ def play(rootHandler, playerState):
         rootHandler.update(gameClockDelta)
         rootHandler.draw(gameDisplay)
 
-        if coreProp.ENGINE_DEBUG_MODE:
+        if conf.ENGINE_DEBUG_MODE:
             debugFont = playerState.getFont("fontq")
             debugGameFps = round(gameClock.get_fps(), 2)
 
-            if coreProp.ENGINE_PERFORMANCE_MODE:
-                debugFps = coreAnim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=(255,0,0))
+            if conf.ENGINE_PERFORMANCE_MODE:
+                debugFps = anim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=(255,0,0))
             else:
-                if debugGameFps == coreProp.ENGINE_FPS:
+                if debugGameFps == conf.ENGINE_FPS:
                     perfColour = (0,255,0)
-                elif debugGameFps > coreProp.ENGINE_FPS:
+                elif debugGameFps > conf.ENGINE_FPS:
                     perfColour = (255,0,255)
                 else:
-                    debugGameFpsRatio = debugGameFps/coreProp.ENGINE_FPS
+                    debugGameFpsRatio = debugGameFps/conf.ENGINE_FPS
                     perfColour = (round((1-debugGameFpsRatio) * 255), round(debugGameFpsRatio * 255), 0)
-                debugFps = coreAnim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=perfColour)
+                debugFps = anim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=perfColour)
                 debugFpsShadow = pygame.Surface((debugFps.textRender.get_width(), debugFps.textRender.get_height()))
                 debugFpsShadow.set_alpha(127)
                 gameDisplay.blit(debugFpsShadow, (0,0))

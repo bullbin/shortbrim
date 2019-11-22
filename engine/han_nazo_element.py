@@ -1,4 +1,4 @@
-import pygame, coreAnim
+import pygame, anim
 from math import sqrt
 
 class TraceLocation():
@@ -12,15 +12,15 @@ class TraceLocation():
             return True
         return False
 
-class IndependentTile(coreAnim.StaticImage):
+class IndependentTile(anim.StaticImage):
     def __init__(self, sourceAnim, sourceAnimName, x=0, y=0):
         if sourceAnim.setAnimationFromName(sourceAnimName):
-            coreAnim.StaticImage.__init__(self, sourceAnim.frames[sourceAnim.animMap[sourceAnim.animActive].indices[0]], x=x, y=y, imageIsSurface=True)
+            anim.StaticImage.__init__(self, sourceAnim.frames[sourceAnim.animMap[sourceAnim.animActive].indices[0]], x=x, y=y, imageIsSurface=True)
         else:
             if len(sourceAnim.frames) >= sourceAnimName:
-                coreAnim.StaticImage.__init__(self, sourceAnim.frames[sourceAnimName - 1], x=x, y=y, imageIsSurface=True)
+                anim.StaticImage.__init__(self, sourceAnim.frames[sourceAnimName - 1], x=x, y=y, imageIsSurface=True)
             else:
-                coreAnim.StaticImage.__init__(self, pygame.Surface((24,24)), x=x, y=y, imageIsSurface=True)
+                anim.StaticImage.__init__(self, pygame.Surface((24,24)), x=x, y=y, imageIsSurface=True)
         self.sourcePos = (x,y)
     
     def reset(self):

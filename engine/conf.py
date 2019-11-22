@@ -12,7 +12,7 @@ ENGINE_PERFORMANCE_MODE         = False     # Reduces graphical accuracy in favo
 ENGINE_DEBUG_MODE               = True
 
 PATH_SAVE = None
-PATH_ASSET_ROOT     = path.dirname(path.dirname(path.dirname(path.dirname(path.realpath(__file__))))) + "\\assets\\"
+PATH_ASSET_ROOT     = path.dirname(path.dirname(path.realpath(__file__))) + "\\assets\\"
 PATH_ASSET_ANI      = PATH_ASSET_ROOT + "ani\\"
 PATH_ASSET_BG       = PATH_ASSET_ROOT + "bg\\"
 PATH_ASSET_ETEXT    = PATH_ASSET_ROOT + "etext\\"

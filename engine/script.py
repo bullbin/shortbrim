@@ -2,10 +2,10 @@
 
 from struct import unpack
 from os import path
-import coreProp
+import conf
 
 def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
-    if coreProp.ENGINE_DEBUG_MODE:
+    if conf.ENGINE_DEBUG_MODE:
         print(line)
 
 def seekToNextOperation(reader):
