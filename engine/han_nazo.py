@@ -19,6 +19,8 @@ class LaytonContextPuzzlet(state.LaytonContext):
     def setLoss(self):
         self.registerVictory = False
         self.registerLoss = True
+    def getScript(self):
+        pass
 
 class LaytonTouchOverlay(state.LaytonContext):
 

@@ -10,8 +10,10 @@ ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive, but ensures
 ENGINE_FORCE_USE_ALT_TIMER      = True      # Enforces alternate timer with lower overhead and support for arbitrary framerates
 ENGINE_PERFORMANCE_MODE         = False     # Reduces graphical accuracy in favour of performance
 ENGINE_DEBUG_MODE               = True
+ENGINE_LOAD_FROM_ROM            = True
 
-PATH_SAVE = None
+PATH_SAVE           = None
+PATH_ROM            = path.dirname(path.dirname(path.realpath(__file__))) + "\\rom.nds"
 PATH_ASSET_ROOT     = path.dirname(path.dirname(path.realpath(__file__))) + "\\assets\\"
 PATH_ASSET_ANI      = PATH_ASSET_ROOT + "ani\\"
 PATH_ASSET_BG       = PATH_ASSET_ROOT + "bg\\"
@@ -36,3 +38,6 @@ LAYTON_SCREEN_HEIGHT        = 192
 LAYTON_SCREEN_WIDTH         = 256
 
 LAYTON_STRING_BOOLEAN = {"true":True, "false":False}
+
+def getSetting(name):
+    return True

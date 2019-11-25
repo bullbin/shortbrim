@@ -12,8 +12,8 @@ class LaytonCharacterController():
         self.animBody = None
         self.animMouth = None
     
-    def setAnimBody(self, anim, animName=None):
-        self.animBody = anim
+    def setAnimBody(self, animObject, animName=None):
+        self.animBody = animObject
         if animName != None:
             self.nameSurface = anim.AnimatedImage(conf.PATH_ASSET_ANI + conf.LAYTON_ASSET_LANG, animName + "_n")
             self.nameSurface = self.nameSurface.setAnimationFromNameAndReturnInitialFrame("gfx")
