@@ -1,7 +1,59 @@
 import binary, ndspy
 from os import remove, rename, makedirs
 
+class _HuffmanCompressionNode():
+    def __init__(self, parent=None, left=None, right=None, weight=0, data=None):
+        self.parent = parent
+        self.left = left
+        self.right = right
+        self.weight = weight
+        self.data = data
+    
+    def getBoolCode(self):
+        tempNode = self
+        outCode = []
+        while tempNode.parent != None:
+            tempParentNode = tempNode.parent
+            outCode.insert(0, tempNode == tempParentNode.right)
+            tempNode = tempParentNode
+        return outCode
+        
+class _HuffmanTree():
+    def __init__(self, root):
+        self.root = root
+    
+    def encode(self):
+        writer = binary.BinaryWriter()
+        writer.write(b'\x00')
+        breadthQueue = [self.root]      # Ported from DsDecmp
+        while len(breadthQueue) > 0:
+            node = breadthQueue[0]
+            breadthQueue = breadthQueue[1:]
+            if node.data != None:
+                writer.write(node.data)
+            else:
+                tempData = (len(breadthQueue) // 2) & 0x3F
+                if node.left.data != None:
+                    tempData = tempData | 0x80
+                if node.right.data != None:
+                    tempData = tempData | 0x40
+                breadthQueue.extend((node.left, node.right))
+                writer.writeInt(tempData, 1)
+        writer.insert(((writer.getLength() // 2) - 1).to_bytes(1, byteorder = 'little'), 0)
+        return writer.data
+
 class File():
+
+    COMP_HUFFMAN_8_BIT      = 0x28
+    COMP_HUFFMAN_4_BIT      = 0x24
+    COMP_RLE                = 0x30
+    COMP_LZ10               = 0x10
+
+    LAYTON_1_COMPRESSION    = {COMP_RLE:1,
+                               COMP_LZ10:2,
+
+                               COMP_HUFFMAN_8_BIT:4}
+
     def __init__(self, name, data = b'', extension = ''):
         self.name = name
         self.data = bytearray(data)
@@ -10,11 +62,90 @@ class File():
     def __str__(self):
         return str(len(self.data)) + "\t" + self.name
     
-    def decompress(self):
-        pass
+    def detectDecompressionMethod(self, byteMagic, bytesLen, offsetIn=0):
+        if int.from_bytes(bytesLen, byteorder = 'little') >= len(self.data) - offsetIn:
+            # Pass the sanitisation check
+            if byteMagic == File.COMP_HUFFMAN_8_BIT or byteMagic == File.COMP_HUFFMAN_4_BIT:
+                return self.decompressHuffman
+            elif byteMagic == File.COMP_RLE:
+                return self.decompressRle
+            elif byteMagic == File.COMP_LZ10:
+                return self.decompressLz10
+        return None
 
-    def compressHuffman(self):
-        pass
+    def decompress(self, detectTypeHeader=True, forceTypeHeader=False):
+        if len(self.data) > 4:
+            decompressMethod = self.detectDecompressionMethod(self.data[0], self.data[1:4])
+            offsetIn = 0
+            if (forceTypeHeader or (detectTypeHeader and decompressMethod == None and len(self.data) >= 8)):
+                decompressMethod = self.detectDecompressionMethod(self.data[4], self.data[5:8], offsetIn=4)
+                offsetIn = 4
+            if decompressMethod != None:
+                decompressMethod(offsetIn = offsetIn)
+                return True
+        return False
+
+    def compressHuffman(self, useHalfByteBlocks = False):
+        reader = binary.BinaryReader(data = self.data)
+        freqDict = {}
+        while reader.hasDataRemaining():    # Build frequency table
+            tempByte = [bytes(reader.read(1))]
+            if useHalfByteBlocks:
+                tempByte[0] = int.from_bytes(tempByte[0], byteorder = 'little')
+                tempByte = [(tempByte[0] >> 4).to_bytes(1, byteorder = 'little'), (tempByte[0] & 0x0F).to_bytes(1, byteorder = 'little')]
+            for block in tempByte:
+                if block not in freqDict.keys():
+                    freqDict[block] = _HuffmanCompressionNode(data = block)
+                freqDict[block].weight += 1
+
+        nodes = freqDict.values()
+        if len(nodes) > 2**9:
+            raise Exception("Huffman encode: Tree too long to be encoded!")
+
+        while len(nodes) > 1:   # Build Huffman tree by grouping nodes
+            nodes = sorted(nodes, key=lambda huffNode : huffNode.weight)
+            newNode = _HuffmanCompressionNode(left = nodes[0], right = nodes[1], weight = nodes[0].weight + nodes[1].weight)
+            newNode.left.parent = newNode
+            newNode.right.parent = newNode
+            nodes = nodes[2:]
+            nodes.append(newNode)
+
+        tree = _HuffmanTree(nodes[0])
+        
+        writer = binary.BinaryWriter()
+        if useHalfByteBlocks:
+            writer.writeInt(File.COMP_HUFFMAN_4_BIT, 1)
+        else:
+            writer.writeInt(File.COMP_HUFFMAN_8_BIT, 1)
+        writer.writeInt(len(self.data), 3)
+        writer.write(tree.encode())
+        
+        keyDict = {}
+        for key in freqDict.keys():
+            keyDict[freqDict[key].data] = freqDict[key].getBoolCode()
+        
+        reader.seek(0)
+        compressionBlock = 0
+        compressionBlockBitsRemaining = 32
+        while reader.hasDataRemaining():    # Ported from DsDecmp
+            tempByte = [reader.read(1)]
+            if useHalfByteBlocks:
+                tempByte[0] = int.from_bytes(tempByte[0], byteorder = 'little')
+                tempByte = [(tempByte[0] >> 4).to_bytes(1, byteorder = 'little'), (tempByte[0] & 0x0F).to_bytes(1, byteorder = 'little')]
+            for data in tempByte:
+                for bit in keyDict[bytes(data)]:
+                    if compressionBlockBitsRemaining == 0:
+                        writer.writeU4(compressionBlock)
+                        compressionBlock = 0
+                        compressionBlockBitsRemaining = 32
+                    compressionBlockBitsRemaining -= 1
+                    if bit:
+                        compressionBlock = compressionBlock | (1 << compressionBlockBitsRemaining)
+        if compressionBlockBitsRemaining != 32:
+            writer.writeU4(compressionBlock)
+        writer.dsAlign(4, 4)
+
+        self.data = writer.data
 
     def decompressHuffman(self, offsetIn=0):
         pass
@@ -30,7 +161,7 @@ class File():
 
         def getRleFlagByte(isCompressed, length):
             if isCompressed:
-                return (0x80 | (length - 3)).to_bytes(1, byteorder = 'little')
+                return (0x80 | (length - 3)).to_bytes(1, byteorder = 'little')          # Enable MSB compression flag
             return (length - 1).to_bytes(1, byteorder = 'little')
         
         def writeData():
@@ -256,7 +387,13 @@ class LaytonPack2(Archive):
 
         self.data = writer.data
 
-debug = File("akira", data = binary.BinaryReader(filename='akira_e_face.arc').data)
-debug.decompressRle(offsetIn=4)
-debug.compressRle()
-debug.decompressRle()
+if __name__ == "__main__":
+    debug = File("akira", data = binary.BinaryReader(filename='akira_e_face.arc').data)
+    if debug.decompress():
+        print("Decompression successful!")
+        debug.compressRle()
+        debug.decompressRle()
+        debug.compressHuffman()
+        debug.export("testHuffman")
+    else:
+        print("Decompression failed!")
