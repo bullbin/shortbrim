@@ -13,15 +13,62 @@ class File():
     def decompress(self):
         pass
 
-    def compressHuffman(self, addHeader=False):
+    def compressHuffman(self):
         pass
 
     def decompressHuffman(self, offsetIn=0):
         pass
 
-    def compressRle(self, addHeader=False):
-        pass
-    
+    def compressRle(self):
+        writer = binary.BinaryWriter()
+        reader = binary.BinaryReader(data = self.data)
+
+        tempCompressedByte = b''
+        tempCompressedByteLength = 0
+        tempUncompressedSection = bytearray(b'')
+        compressRepetition = False
+
+        def getRleFlagByte(isCompressed, length):
+            if isCompressed:
+                return (0x80 | (length - 3)).to_bytes(1, byteorder = 'little')
+            return (length - 1).to_bytes(1, byteorder = 'little')
+        
+        def writeData():
+            if len(tempUncompressedSection) > 0:
+                writer.write(getRleFlagByte(False, len(tempUncompressedSection)) + tempUncompressedSection)
+            if tempCompressedByteLength > 0:
+                writer.write(getRleFlagByte(True, tempCompressedByteLength) + tempCompressedByte)
+        
+        while reader.hasDataRemaining():
+            tempByte = reader.read(1)
+            if compressRepetition:
+                if tempByte == tempCompressedByte:
+                    tempCompressedByteLength += 1
+                if tempCompressedByteLength == 130 or tempByte != tempCompressedByte:   # If max size has been reached or there's no more repetition
+                    compressRepetition = False
+                    if tempCompressedByteLength < 3:                                    # Free data if compression won't do much
+                        tempUncompressedSection.extend((tempCompressedByte * tempCompressedByteLength) + tempByte)
+                    else:                                                               # Else, write uncompressed section, then compressed data
+                        writeData()
+                        if tempByte == tempCompressedByte:                              # If the compression ended because the max block size was met,
+                            tempUncompressedSection = bytearray(b'')                    #     reinitiate the uncompressed section.
+                        else:
+                            tempUncompressedSection = bytearray(tempByte)               # Else, continue the uncompressed section as normal.
+                    tempCompressedByteLength = 0
+            else:
+                tempUncompressedSection.extend(tempByte)
+                if len(tempUncompressedSection) == 128:                                 # Reinitiate block if max size met
+                    writeData()
+                    tempUncompressedSection = bytearray(b'')
+                elif len(tempUncompressedSection) > 1 and tempUncompressedSection[-2] == tempUncompressedSection[-1]:
+                    tempCompressedByte = tempByte
+                    tempCompressedByteLength = 2
+                    compressRepetition = True
+                    tempUncompressedSection = tempUncompressedSection[0:-2]
+        # Write anything left, as there may be blocks remaining after the reader ran out of data
+        writeData()
+        self.data = bytearray(b'\x30' + len(self.data).to_bytes(3, byteorder = 'little') + writer.data)
+            
     def decompressRle(self, offsetIn=0):
         reader = binary.BinaryReader(data = self.data)
         reader.seek(offsetIn + 1)
@@ -208,3 +255,8 @@ class LaytonPack2(Archive):
         writer.insert(writer.getLength().to_bytes(4, byteorder = 'little'), 12)
 
         self.data = writer.data
+
+debug = File("akira", data = binary.BinaryReader(filename='akira_e_face.arc').data)
+debug.decompressRle(offsetIn=4)
+debug.compressRle()
+debug.decompressRle()

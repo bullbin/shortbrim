@@ -24,7 +24,12 @@ class BinaryReader():
         elif mode == 1:
             self.pos += newPos
         else:
-            self.pos = len(self.data) - newPos
+            self.pos = len(self.data) - newPos - 1
+
+    def hasDataRemaining(self):
+        if self.tell() <= len(self.data) - 1:
+            return True
+        return False
 
     def tell(self):
         return self.pos
