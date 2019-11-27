@@ -1,4 +1,5 @@
 import binary, ndspy, ndspy.lz10
+from functools import partial
 from os import remove, rename, makedirs
 
 class _HuffmanCompressionNode():
@@ -87,7 +88,20 @@ class File():
     
     def __str__(self):
         return str(len(self.data)) + "\t" + self.name
-    
+
+    def compress(self): # Get optimal compression
+        def copyCompress(compressionMethod):
+            uncompressed = self.data
+            compressionMethod()
+            compressed = self.data
+            self.data = uncompressed
+            return compressed
+
+        compList = [copyCompress(self.compressHuffman), copyCompress(partial(self.compressHuffman, True)),
+                    copyCompress(self.compressLz10),    self.data]
+        compList.sort(key=len)
+        self.data = compList[0]
+
     def detectDecompressionMethod(self, byteMagic, bytesLen, offsetIn=0):
         if int.from_bytes(bytesLen, byteorder = 'little') >= len(self.data) - offsetIn:
             # Pass the sanitisation check
@@ -107,12 +121,8 @@ class File():
                 decompressMethod = self.detectDecompressionMethod(self.data[4], self.data[5:8], offsetIn=4)
                 offsetIn = 4
             if decompressMethod != None:
-                decompressMethod(offsetIn = offsetIn)
-                return True
+                return decompressMethod(offsetIn = offsetIn)
         return False
-
-    def compress(self):
-        copyData = self.data
 
     def compressHuffman(self, useHalfByteBlocks = False):
         reader = binary.BinaryReader(data = self.data)
@@ -221,7 +231,7 @@ class File():
 
         if useHalfByteBlocks and not(isMsbNibble):
             writer.writeInt(tempIntData, 1)
-        self.data = writer.data
+        self.data = writer.data[:tempFilesize]
         return True
 
     def compressRle(self):
@@ -473,9 +483,10 @@ if __name__ == "__main__":
     if debug.decompress():
         print("Decompression successful!")
         debug.compressRle()
-        debug.decompressRle()
+        print(debug.decompress())
         debug.compressHuffman(useHalfByteBlocks = True)
-        debug.decompressHuffman()
+        print(debug.decompress())
         debug.export("testHuffman4bit")
+        debug.compress()
     else:
         print("Decompression failed!")
