@@ -1,4 +1,4 @@
-import binary, ndspy
+import binary, ndspy, ndspy.lz10
 from os import remove, rename, makedirs
 
 class _HuffmanCompressionNode():
@@ -17,10 +17,36 @@ class _HuffmanCompressionNode():
             outCode.insert(0, tempNode == tempParentNode.right)
             tempNode = tempParentNode
         return outCode
-        
+
+class _HuffmanDecompressionNode(_HuffmanCompressionNode):
+    def __init__(self, reader, relativeOffset, maxTreeLen, isData=False, parent=None, left=None, right=None, weight=0, data=None):
+        _HuffmanCompressionNode.__init__(self, parent=parent, left=left, right=right, weight=weight, data=data)
+        self.isFilled = False
+        if reader.tell() < maxTreeLen:
+            self.isFilled = True
+            if isData:
+                self.data = reader.read(1)
+            else:
+                tempByte = reader.readUInt(1)
+                tempOffset = tempByte & 0x3F
+                tempAbsOffset = reader.tell()
+                zeroRelOffset = (relativeOffset ^ (relativeOffset & 1)) + tempOffset * 2 + 2
+                reader.seek(zeroRelOffset - relativeOffset - 1, 1)
+                isLeftData = tempByte & (2 ** 7)
+                isRightData = tempByte & (2 ** 6)
+                self.left = _HuffmanDecompressionNode(reader, zeroRelOffset, maxTreeLen, isData=isLeftData, parent=self)
+                self.right = _HuffmanDecompressionNode(reader, zeroRelOffset + 1, maxTreeLen, isData=isRightData, parent=self)
+                reader.seek(tempAbsOffset)
+
 class _HuffmanTree():
     def __init__(self, root):
         self.root = root
+    
+    @staticmethod
+    def decode(reader, offsetIn, maxTreeLen):
+        output = _HuffmanTree(None)
+        output.root = _HuffmanDecompressionNode(reader, offsetIn + 5, maxTreeLen)
+        return output
     
     def encode(self):
         writer = binary.BinaryWriter()
@@ -85,6 +111,9 @@ class File():
                 return True
         return False
 
+    def compress(self):
+        copyData = self.data
+
     def compressHuffman(self, useHalfByteBlocks = False):
         reader = binary.BinaryReader(data = self.data)
         freqDict = {}
@@ -148,7 +177,52 @@ class File():
         self.data = writer.data
 
     def decompressHuffman(self, offsetIn=0):
-        pass
+        reader = binary.BinaryReader(data = self.data)
+        reader.seek(offsetIn)
+        magic = reader.readUInt(1)
+        if magic & 0xF0 != 0x20:
+            return False
+        elif magic & 0x0F == 0x04:
+            useHalfByteBlocks = True
+        else:
+            useHalfByteBlocks = False
+
+        tempFilesize = reader.readUInt(3)
+        tempTreeLength = (reader.readUInt(1) * 2) + 1
+        tree = _HuffmanTree.decode(reader, offsetIn, offsetIn + tempTreeLength + 5)
+        reader.seek(offsetIn + tempTreeLength + 5)
+
+        writer = binary.BinaryWriter()
+        bitsLeft = 0
+        currentNode = tree.root
+        isMsbNibble = True
+        while writer.getLength() < tempFilesize:    # Ported from DsDecmp
+            while currentNode.data == None:
+                if bitsLeft == 0:
+                    data = reader.readU4()
+                    bitsLeft = 32
+                bitsLeft-=1
+                nextIsRight = (data & (1 << bitsLeft)) != 0
+                if nextIsRight:
+                    currentNode = currentNode.right
+                else:
+                    currentNode = currentNode.left
+            
+            if useHalfByteBlocks:
+                if isMsbNibble:
+                    tempIntData = int.from_bytes(currentNode.data, byteorder = 'little') << 4
+                else:
+                    tempIntData |= int.from_bytes(currentNode.data, byteorder = 'little')        
+                    writer.writeInt(tempIntData, 1)
+                isMsbNibble = not(isMsbNibble)
+            else:
+                writer.write(currentNode.data)
+            currentNode = tree.root
+
+        if useHalfByteBlocks and not(isMsbNibble):
+            writer.writeInt(tempIntData, 1)
+        self.data = writer.data
+        return True
 
     def compressRle(self):
         writer = binary.BinaryWriter()
@@ -202,8 +276,10 @@ class File():
             
     def decompressRle(self, offsetIn=0):
         reader = binary.BinaryReader(data = self.data)
-        reader.seek(offsetIn + 1)
-        tempFilesize = int.from_bytes(reader.read(3), byteorder = 'little')
+        reader.seek(offsetIn)
+        if reader.readUInt(1) != File.COMP_RLE:
+            return False
+        tempFilesize = reader.readUInt(3)
         writer = binary.BinaryWriter()
         while writer.getLength() < tempFilesize:
             flag = int.from_bytes(reader.read(1), byteorder = 'little')
@@ -217,12 +293,17 @@ class File():
                 decompressedLength = (flag & 0x7f) + 1
                 writer.write(reader.read(decompressedLength))
         self.data = writer.data
+        return True
     
     def compressLz10(self, addHeader=False):
         self.data = ndspy.lz10.compress(self.data)
 
     def decompressLz10(self, offsetIn=0):
-        self.data = ndspy.lz10.decompress(self.data[offsetIn:])
+        try:
+            self.data = ndspy.lz10.decompress(self.data[offsetIn:])
+            return True
+        except TypeError:
+            return False
 
     def export(self, filepath):
         # Add a method to BinaryWriter to do this
@@ -393,7 +474,8 @@ if __name__ == "__main__":
         print("Decompression successful!")
         debug.compressRle()
         debug.decompressRle()
-        debug.compressHuffman()
-        debug.export("testHuffman")
+        debug.compressHuffman(useHalfByteBlocks = True)
+        debug.decompressHuffman()
+        debug.export("testHuffman4bit")
     else:
         print("Decompression failed!")
