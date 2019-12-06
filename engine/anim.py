@@ -10,6 +10,10 @@ def debugPrint(line):   # Function needs to be moved from coreState to avoid cyc
     if conf.ENGINE_DEBUG_MODE:
         print(line)
 
+def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
+    return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
+                                            round(surface.get_height() * scaleFactorY)))
+
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
         if imagePath == None or imageIsNull:
@@ -174,6 +178,9 @@ class AnimatedImage():
             debugPrint("AnimatedImage: Cannot import " + animText + " as it does not exist!")
             return False
     
+    def fromAsset(self, animObject):
+        pass
+
     def reset(self):
         if self.animActive != None:
             self.animMap[self.animActive].reset()
@@ -564,16 +571,20 @@ class TextScroller():
                             if self.textInput[self.textPos] != "\n":    # Register colour change between rects
                                 self.textNewline = self.textPos
                                 self.textRects[-1].append(AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+
                 elif self.textInput[self.textPos] == '@':       # Only bug remaining is that clearing under low framerates can wipe far too early
                     if self.textInput[self.textPos + 1] == "c":
+                        print("Clear!")
                         self.textRects = []
                         self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
                         self.textPos += 1
                     else:
                         if self.textInput[self.textPos + 1] == "w":         # Wait
+                            print("Wait!")
                             self.isPaused = True
                             self.durationPause = 500
                         elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
+                            print("Pause!")
                             self.isWaitingForTap = True
                         else:
                             debugPrint("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
@@ -670,7 +681,3 @@ class TextScroller():
                 lineText.draw(gameDisplay, location=(x,y))
                 x += lineText.textRender.get_width()
             y += self.font.get_height()
-
-def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
-    return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
-                                            round(surface.get_height() * scaleFactorY)))

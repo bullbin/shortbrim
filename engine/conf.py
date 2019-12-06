@@ -4,17 +4,26 @@ from os import path
 pygame.init()
 pygame.display.set_caption("LAYTON1")
 
-ENGINE_FPS = 60
-ENGINE_FRAME_INTERVAL = 1000 / ENGINE_FPS
+LAYTON_1 = 0
+LAYTON_2 = 1
+
+ENGINE_FPS                      = 60
+ENGINE_FRAME_INTERVAL           = 1000 / ENGINE_FPS
 ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive, but ensures stable frametimes; best with original timer
 ENGINE_FORCE_USE_ALT_TIMER      = True      # Enforces alternate timer with lower overhead and support for arbitrary framerates
 ENGINE_PERFORMANCE_MODE         = False     # Reduces graphical accuracy in favour of performance
-ENGINE_DEBUG_MODE               = True
+ENGINE_DEBUG_MODE               = False
 ENGINE_LOAD_FROM_ROM            = True
+ENGINE_LOAD_FROM_DECOMPRESSED   = True
+ENGINE_GAME_VARIANT             = LAYTON_1
 
 PATH_SAVE           = None
-PATH_ROM            = path.dirname(path.dirname(path.realpath(__file__))) + "\\rom.nds"
+PATH_ROM            = path.dirname(path.dirname(path.realpath(__file__))) + "\\rom1.nds"
 PATH_ASSET_ROOT     = path.dirname(path.dirname(path.realpath(__file__))) + "\\assets\\"
+
+FILE_DECOMPRESSED_EXTENSION_IMAGE = ".png"
+
+
 PATH_ASSET_ANI      = PATH_ASSET_ROOT + "ani\\"
 PATH_ASSET_BG       = PATH_ASSET_ROOT + "bg\\"
 PATH_ASSET_ETEXT    = PATH_ASSET_ROOT + "etext\\"

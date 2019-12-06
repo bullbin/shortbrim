@@ -224,8 +224,9 @@ class AltClock():
 
     def tickAltTimerPerformance(self, gameClockInterval):
         lastPrevFrame = self.prevFrame
-        if (time.perf_counter() - lastPrevFrame) < gameClockInterval:
-            time.sleep((gameClockInterval) - (time.perf_counter() - lastPrevFrame))
+        timeSleep = gameClockInterval - (time.perf_counter() - lastPrevFrame)
+        if timeSleep > 0:
+            time.sleep(timeSleep)
         self.prevFrame = time.perf_counter()
         return (time.perf_counter() - lastPrevFrame) * 1000
 

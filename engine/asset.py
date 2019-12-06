@@ -1,4 +1,4 @@
-import binary, ndspy, ndspy.lz10
+import binary, ndspy.lz10
 from functools import partial
 from os import remove, rename, makedirs
 
@@ -81,7 +81,7 @@ class File():
 
                                COMP_HUFFMAN_8_BIT:4}
 
-    def __init__(self, name, data = b'', extension = ''):
+    def __init__(self, name="", data = b'', extension = ''):
         self.name = name
         self.data = bytearray(data)
         self.extension = extension
@@ -336,11 +336,11 @@ class File():
         if tempName == "":
             print("Warning: Invalid filename!")
             tempName = "NULL"
-        return File(tempName, reader.data)
+        return File(reader.data, name=tempName)
 
 class Archive(File):
-    def __init__(self, name):
-        File.__init__(self, name)
+    def __init__(self, name=""):
+        File.__init__(self, name=name)
         self.files = []
     
     def load(self, data):
@@ -360,6 +360,12 @@ class Archive(File):
         self.save()
         super().export(filepath)
     
+    def getFile(self, name):
+        for file in self.files:
+            if file.name == name:
+                return file.data
+        return None
+    
     @staticmethod
     def create(filepath):
         pass
@@ -369,19 +375,20 @@ class LaytonPack(Archive):
     METADATA_BLOCK_SIZE = 16
     MAGIC               = [b'LPCK', b'PCK2']
 
-    def __init__(self, name, version = 0):
-        Archive.__init__(self, name)
+    def __init__(self, name="", version = 0):
+        Archive.__init__(self, name=name)
         self._version = version
 
     def load(self, data):
         reader = binary.BinaryReader(data = data)
         offsetHeader = reader.readU4()
         lengthArchive = reader.readU4()
+        countFile = reader.readU4()
         magic = reader.read(4)
         try:
             self._version = LaytonPack.MAGIC.index(magic)
             reader.seek(offsetHeader)
-            while reader.tell() != lengthArchive:
+            for _indexFile in range(countFile):
                 metadata = reader.readU4List(4)
                 self.files.append(File(name = reader.readPaddedString(metadata[0] - LaytonPack.METADATA_BLOCK_SIZE, encoding = 'shift-jis'),
                                        data = reader.read(metadata[3])))
@@ -394,8 +401,8 @@ class LaytonPack(Archive):
         writer = binary.BinaryWriter()
         writer.writeU4(16)
         writer.writeU4(0)
+        writer.writeU4(len(self.files))
         writer.write(LaytonPack.MAGIC[self._version])
-        writer.writeU4(0)
         for fileChunk in self.files:
             header = binary.BinaryWriter()
             data = binary.BinaryWriter()
@@ -416,8 +423,8 @@ class LaytonPack2(Archive):
 
     HEADER_BLOCK_SIZE = 32
 
-    def __init__(self, name):
-        Archive.__init__(self, name)
+    def __init__(self, name=""):
+        Archive.__init__(self, name=name)
     
     def load(self, data):
         reader = binary.BinaryReader(data = data)

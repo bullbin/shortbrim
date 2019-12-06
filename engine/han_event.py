@@ -1,4 +1,8 @@
 import pygame, han_nazo, conf, state, script, anim, const
+
+import file
+from file import FileInterface
+
 from os import path
 
 import ctypes; ctypes.windll.user32.SetProcessDPIAware()
@@ -76,11 +80,8 @@ class LaytonEventTextController():
             textPathFolder = "100"
         else:
             textPathFolder = "200"
-        try:
-            with open(conf.PATH_ASSET_ETEXT + conf.LAYTON_ASSET_LANG + "\\e" + textPathFolder + "\\e" + str(indexEvent) + "_t" + str(self.indexText) + ".txt", 'r') as eventDialogue:
-                return eventDialogue.read()
-        except FileNotFoundError:
-            return ""
+        eventDialogue = FileInterface.getPackedData(FileInterface.PATH_ASSET_ETEXT + conf.LAYTON_ASSET_LANG + "\\e" + textPathFolder + ".pcm", "e" + str(indexEvent) + "_t" + str(self.indexText) + ".txt")
+        return eventDialogue.decode('ascii')
 
 class LaytonEventBackground(state.LaytonContext):
 
@@ -94,14 +95,14 @@ class LaytonEventBackground(state.LaytonContext):
     
     def executeCommand(self, command):
         if command.opcode == b'\x0c':       # Draw image, TS
-            if path.exists(conf.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
+            if FileInterface.doesFileExist(FileInterface.PATH_ASSET_BG + command.operands[0][0:-4] + ".arc"):
                 self.backgroundTs = pygame.image.load(conf.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
         elif command.opcode == b'\x0b':     # Draw image, BS. Note that the game does not use this image - it uses the darker version
-            if path.exists(conf.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
-                if "room" in command.operands[0][0:-4] and path.exists(conf.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png"):
-                    self.backgroundBs = pygame.image.load(conf.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png")   # Darkened image
+            if FileInterface.doesFileExist(FileInterface.PATH_ASSET_BG + command.operands[0][0:-4] + ".arc"):
+                if "room" in command.operands[0][0:-4] and path.exists(file.resolveFilepath(conf.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png")):
+                    self.backgroundBs = pygame.image.load(file.resolveFilepath(conf.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png"))   # Darkened image
                 else:
-                    self.backgroundBs = pygame.image.load(conf.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
+                    self.backgroundBs = pygame.image.load(file.resolveFilepath(conf.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"))
         else:
             state.debugPrint("ErrUnkCommand: " + str(command.opcode))
 
@@ -356,4 +357,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    state.play(LaytonEventHandler(9, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
+    state.play(LaytonEventHandler(56, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
