@@ -314,9 +314,13 @@ class File():
             return True
         except TypeError:
             return False
+    
+    def save(self):
+        pass
 
     def export(self, filepath):
         # Add a method to BinaryWriter to do this
+        self.save()
         try:
             if self.extension != '':
                 extension = '.' + self.extension
@@ -330,7 +334,7 @@ class File():
             return False
     
     @staticmethod
-    def create(filepath):
+    def load(filepath):
         reader = binary.BinaryReader(filename = filepath)
         tempName = filepath.split("//")[-1]
         if tempName == "":
@@ -342,12 +346,6 @@ class Archive(File):
     def __init__(self, name=""):
         File.__init__(self, name=name)
         self.files = []
-    
-    def load(self, data):
-        pass
-
-    def save(self):
-        pass
 
     def extract(self, filepath):
         outputFilepath = "\\".join(filepath.split("\\")) + "\\" + self.name.split("\\")[-1]
@@ -355,20 +353,12 @@ class Archive(File):
         for fileChunk in self.files:
             with open(outputFilepath + "\\" + fileChunk.name, 'wb') as dataOut:
                 dataOut.write(fileChunk.data)
-
-    def export(self, filepath):
-        self.save()
-        super().export(filepath)
     
     def getFile(self, name):
         for file in self.files:
             if file.name == name:
                 return file.data
         return None
-    
-    @staticmethod
-    def create(filepath):
-        pass
 
 class LaytonPack(Archive):
 
