@@ -80,7 +80,9 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
     
     def getNullUpdatedFrame(self, gameClockDelta):
-        return (True, self.indices[self.currentIndex])
+        if len(self.indices) > 0:
+            return (True, self.indices[self.currentIndex])
+        return (False, None)
 
     def getAccurateUpdatedFrame(self, gameClockDelta):
         if self.isActive:
@@ -304,6 +306,10 @@ class AnimatedImage():
             return False
         return True
     
+    def loopingDisable(self):
+        for anim in self.animMap.keys():
+            self.animMap[anim].loop = False
+
     def wasClicked(self, mousePos):
         if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
             if self.pos[1] + self.dimensions[1] >= mousePos[1] and mousePos[1] >= self.pos[1]:
