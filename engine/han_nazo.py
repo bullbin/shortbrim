@@ -116,6 +116,7 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
                 if self.buttonHintWaitTime < LaytonPuzzleUi.buttonHintFlashDelay:
                     self.buttonHintWaitTime += gameClockDelta
                 else:
+                    # TODO - Force actual anim names here and remove flash delay (anim dependent)
                     LaytonPuzzleUi.buttonHint.setAnimationFromIndex(self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel)
                     self.buttonHintWaitTime = 0
 
@@ -153,16 +154,15 @@ class LaytonPuzzleBackground(state.LaytonContext):
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
 
-        try:
-            try:
-                self.backgroundIsLoaded = True
-                self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "\\q" + str(puzzleIndex) + "_bg.arc")
-            except:
-                self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "q" + str(puzzleIndex) + "_bg.arc")
-        except:
-            self.backgroundIsLoaded = False
-            self.backgroundBs = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
-            self.backgroundBs.fill(conf.GRAPHICS_FONT_COLOR_MAP['g'])
+        self.backgroundIsLoaded = True
+
+        self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "/q" + str(puzzleIndex) + "_bg.arc")
+        if self.backgroundBs.get_width() == 0:
+            self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "q" + str(puzzleIndex) + "_bg.arc")
+            if self.backgroundBs.get_width() == 0:
+                self.backgroundIsLoaded = False
+                self.backgroundBs = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+                self.backgroundBs.fill(conf.GRAPHICS_FONT_COLOR_MAP['g'])
 
     def draw(self, gameDisplay):
         gameDisplay.blit(LaytonPuzzleBackground.backgroundTs, (0,0))
@@ -450,6 +450,7 @@ class PuzzletInteractableOnOffContext(PuzzletInteractableFreeButtonContext):
 
     def __init__(self):
         PuzzletInteractableFreeButtonContext.__init__(self)
+        # TODO - Return type here - is this safe?
         self.buttonSubmit = anim.StaticImage(self.imageButtons.setAnimationFromNameAndReturnInitialFrame("kettei"), x=186, y=158+conf.LAYTON_SCREEN_HEIGHT, imageIsSurface=True)
         self.drawFlagsInteractableElementsActiveCount = 0
     
@@ -701,7 +702,8 @@ class PuzzletInteractableTraceButtonContext(LaytonContextPuzzlet):
     promptRetry = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + conf.LAYTON_ASSET_LANG, "retry_trace")
     promptRetry = anim.StaticImage(promptRetry.setAnimationFromNameAndReturnInitialFrame("gfx"), imageIsSurface=True)
     promptRetry.pos = ((conf.LAYTON_SCREEN_WIDTH - promptRetry.image.get_width()) // 2, ((conf.LAYTON_SCREEN_HEIGHT - promptRetry.image.get_height()) // 2) + conf.LAYTON_SCREEN_HEIGHT)
-    promptPoint = anim.fetchBgSurface(FileInterface.PATH_ASSET_ANI + "point_trace_0.arc")
+    promptPoint = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "point_trace")
+    promptPoint.setActiveFrame(0)
 
     def __init__(self):
         LaytonContextPuzzlet.__init__(self)
@@ -764,8 +766,7 @@ class PuzzletInteractableTraceButtonContext(LaytonContextPuzzlet):
                 if self.cursorEnableSoftlockRetryScreen and self.cursorTotalPointsLength > 0:
                     PuzzletInteractableTraceContext.promptRetry.draw(gameDisplay)
             else:
-                gameDisplay.blit(PuzzletInteractableTraceContext.promptPoint,
-                                 (self.traceLocations[self.cursorSelectedItem].pos[0], self.traceLocations[self.cursorSelectedItem].pos[1] - PuzzletInteractableTraceContext.promptPoint.get_height()))
+                PuzzletInteractableTraceContext.promptPoint.draw(gameDisplay)
 
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN  and event.pos[1] >= conf.LAYTON_SCREEN_HEIGHT:
@@ -788,6 +789,9 @@ class PuzzletInteractableTraceButtonContext(LaytonContextPuzzlet):
         elif event.type == pygame.MOUSEBUTTONUP:
             if self.cursorIsDrawing:
                 self.cursorSelectedItem = self.findSelectedItem()
+                if self.cursorSelectedItem != None:
+                    PuzzletInteractableTraceContext.promptPoint.pos = (self.traceLocations[self.cursorSelectedItem].pos[0],
+                                                                       self.traceLocations[self.cursorSelectedItem].pos[1] - PuzzletInteractableTraceContext.promptPoint.dimensions[1])
                 self.cursorIsDrawing = False
                 self.cursorPoints = []
         return False
@@ -991,24 +995,28 @@ class LaytonPuzzletTutorialOverlay(state.LaytonContext):
             and LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)] not in playerState.puzzletTutorialsCompleted):
             self.puzzletFrames = []
             indexPuzzletFrame = 0
-            while path.isfile(FileInterface.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "\\puzzlet"
-                  + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame) + ".png"):
-                self.puzzletFrames.append(pygame.image.load(FileInterface.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "\\puzzlet"
-                                                            + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame) + ".png").convert())
+            tempFrame = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "\\puzzlet"
+                                            + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame))
+            
+            while tempFrame.get_width() > 0:
+                self.puzzletFrames.append(tempFrame)
+                tempFrame = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "\\puzzlet"
+                                                + str(LaytonPuzzletTutorialOverlay.puzzletTutorialMap[type(puzzletHandlerClass)]) + "_" + str(indexPuzzletFrame))
                 indexPuzzletFrame += 1
                 self.buttons = [anim.StaticButton(None, x=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[0][0],
-                                                            y=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[0][1],
-                                                            imageIsNull=True, imageNullDimensions=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[1]),
+                                                        y=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[0][1],
+                                                        imageIsNull=True, imageNullDimensions=LaytonPuzzletTutorialOverlay.buttonPreviousDimensions[1]),
                                 anim.StaticButton(None, x=LaytonPuzzletTutorialOverlay.buttonQuitDimensions[0][0],
-                                                            y=LaytonPuzzletTutorialOverlay.buttonQuitDimensions[0][1],
-                                                            imageIsNull=True, imageNullDimensions=LaytonPuzzletTutorialOverlay.buttonQuitDimensions[1]),
+                                                        y=LaytonPuzzletTutorialOverlay.buttonQuitDimensions[0][1],
+                                                        imageIsNull=True, imageNullDimensions=LaytonPuzzletTutorialOverlay.buttonQuitDimensions[1]),
                                 anim.StaticButton(None, x=LaytonPuzzletTutorialOverlay.buttonNextDimensions[0][0],
-                                                            y=LaytonPuzzletTutorialOverlay.buttonNextDimensions[0][1],
-                                                            imageIsNull=True, imageNullDimensions=LaytonPuzzletTutorialOverlay.buttonNextDimensions[1])]
-                self.indexPuzzletCurrentFrame = 0
-                if len(self.puzzletFrames) == 0:
-                    state.debugPrint("ErrNazoTutorial: No tutorial images were imported.")
-                    self.isContextFinished = True
+                                                        y=LaytonPuzzletTutorialOverlay.buttonNextDimensions[0][1],
+                                                        imageIsNull=True, imageNullDimensions=LaytonPuzzletTutorialOverlay.buttonNextDimensions[1])]
+
+            self.indexPuzzletCurrentFrame = 0
+            if len(self.puzzletFrames) == 0:
+                state.debugPrint("ErrNazoTutorial: No tutorial images were imported.")
+                self.isContextFinished = True
         else:
             self.isContextFinished = True
 
@@ -1039,7 +1047,7 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
                        "Trace Button":PuzzletInteractableTraceButtonContext, "Trace":PuzzletInteractableTraceContext,
                        "Cut Puzzle":PuzzletInteractableCutPuzzleContext, "Place Target":PuzzletInteractablePlaceTargetContext,
                        "River Cross":PuzzletInteractableRiverCrossContext, "Cup":PuzzletInteractableCupContext}
-    defaultBackgrounds = {"Match":"match_bg.png", "Coin":"coin_bg.png"}
+    defaultBackgrounds = {"Match":"match_bg", "Coin":"coin_bg"}
 
     def __init__(self, puzzleIndex, playerState):
         state.LaytonSubscreen.__init__(self)
@@ -1072,8 +1080,7 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 
                     if not(self.stack[0].backgroundIsLoaded):
                         if command.operands[0] in LaytonPuzzleHandler.defaultBackgrounds.keys(): # Attempt to load an alternative background
-                            # TODO - This will fail!!
-                            self.stack[0].backgroundBs = pygame.image.load(FileInterface.PATH_ASSET_BG + LaytonPuzzleHandler.defaultBackgrounds[command.operands[0]]).convert()
+                            self.stack[0].backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + LaytonPuzzleHandler.defaultBackgrounds[command.operands[0]])
                         else:
                             state.debugPrint("BG: No default background found!")
                 else:
@@ -1102,4 +1109,4 @@ if __name__ == '__main__':
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    state.play(LaytonPuzzleHandler(9, playerState), playerState) #4:Trace Button, 9:Coin, 10:Connect, 11:Scale, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut
+    state.play(LaytonPuzzleHandler(4, playerState), playerState) #4:Trace Button, 9:Coin, 10:Connect, 11:Scale, 12:River Cross, 13:Slide Puzzle 2, 14:Cup, 16:Queen, 21:Trace, 25:Match, 26:OnOff, 27:Place Target, 34:Tile, 48:FreeButton, 80:Slide, 143:Slide, 101:Cut

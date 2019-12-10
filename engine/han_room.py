@@ -4,7 +4,7 @@ from os import path
 pygame.init()
 
 class AnimatedImageEvent(anim.AnimatedImage):
-    def __init__(self, indexEvent, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=True):
+    def __init__(self, indexEvent, frameRootPath, frameName, frameRootExtension=conf.FILE_DECOMPRESSED_EXTENSION_IMAGE, x=0,y=0, importAnimPair=True, usesAlpha=True):
         anim.AnimatedImage.__init__(self, frameRootPath, frameName, frameRootExtension=frameRootExtension, x=x, y=y, importAnimPair=importAnimPair, usesAlpha=usesAlpha)
         self.indexEvent = indexEvent
         self.bounding = [0,0]

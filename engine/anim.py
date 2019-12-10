@@ -7,6 +7,9 @@ from math import ceil, sin, cos, pi
 
 pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
 
+# TODO - Log better
+# TODO - Autostart gfx anim
+
 def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
     if conf.ENGINE_DEBUG_MODE:
         print(line)
@@ -28,7 +31,7 @@ def fetchBgSurface(filepath):
         try:
             return pygame.image.load(filepath + conf.FILE_DECOMPRESSED_EXTENSION_IMAGE)
         except pygame.error:
-            print("Failed to load surface")
+            print("AnimLibBgSurface: Failed to load", filepath + conf.FILE_DECOMPRESSED_EXTENSION_IMAGE)
     return pygame.Surface((0,0))
 
 class StaticImage():
@@ -37,7 +40,7 @@ class StaticImage():
             if imageNullDimensions != None:
                 self.image = pygame.Surface(imageNullDimensions)
             else:
-                self.image = pygame.Surface((1,1))
+                self.image = pygame.Surface((0,0))
         elif imageIsSurface:
             self.image = imagePath
         else:
@@ -138,6 +141,12 @@ class AnimatedImage():
         else:
             self.draw = self.drawNormal
         
+        frameRootPath = frameRootPath.replace("\\", "/")
+        if frameRootPath[-1] != "/":
+            frameRootPath += "/"
+        if len(frameRootExtension) > 0 and frameRootExtension[0] != ".":    # Bad extension
+            frameRootExtension = "." + frameRootExtension
+
         if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
             self.loadFromAsset(frameName, frameRootPath)
         else:
@@ -150,35 +159,32 @@ class AnimatedImage():
 
     def loadFromUncompressed(self, frameRootPath, frameName, frameRootExtension, importAnimPair):
         if path.exists(frameRootPath):
-            if path.exists(frameRootPath + "\\" + frameName + "_0" + frameRootExtension):
+            if path.exists(frameRootPath + frameName + "_0" + frameRootExtension):
                 imageIndex = 0
                 while True:
-                    if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + frameRootExtension):
+                    if path.exists(frameRootPath + frameName + "_" + str(imageIndex) + frameRootExtension):
                         try:
-                            self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + frameRootExtension).convert())
+                            self.frames.append(pygame.image.load(frameRootPath + frameName + "_" + str(imageIndex) + frameRootExtension).convert())
                         except:
-                            debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + frameRootExtension)
+                            debugPrint("Error loading frame: " + frameRootPath + frameName + "_" + str(imageIndex) + frameRootExtension)
                         imageIndex += 1
                     else:
                         break
                 self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
-            elif path.exists(frameRootPath + "\\" + frameName + frameRootExtension):
+            elif path.exists(frameRootPath + frameName + frameRootExtension):
                 try:
-                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + frameRootExtension).convert_alpha())
+                    self.frames.append(pygame.image.load(frameRootPath + frameName + frameRootExtension).convert_alpha())
                 except:
-                    debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + frameRootExtension)
+                    debugPrint("Error loading frame: " + frameRootPath + frameName + frameRootExtension)
             else:
                 debugPrint("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
         else:
             debugPrint("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
         
         if importAnimPair and len(self.frames) > 0:
-            self.fromImages(frameRootPath + "\\" + frameName + ".txt")
+            self.fromImages(frameRootPath + frameName + ".txt")
 
     def loadFromAsset(self, frameName, frameRootPath):
-        frameRootPath = frameRootPath.replace("\\", "/")
-        if frameRootPath[-1] != "/":
-            frameRootPath += "/"
         assetData = asset.File(data=FileInterface.getData(frameRootPath + frameName + ".arc"))
         if len(assetData.data) > 0:
             assetData.decompress()
