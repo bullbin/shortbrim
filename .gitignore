@@ -5,3 +5,6 @@ documentation/
 tester.py
 engine/pygame/core/.vscode/settings.json
 tools/.vscode/settings.json
+*.nds
+*.arc
+*.arj

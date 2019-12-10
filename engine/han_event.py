@@ -1,4 +1,8 @@
-import pygame, nazoHandler, coreProp, coreState, coreLib, coreAnim, constUserEvent
+import pygame, han_nazo, conf, state, script, anim, const
+
+import file
+from file import FileInterface
+
 from os import path
 
 import ctypes; ctypes.windll.user32.SetProcessDPIAware()
@@ -12,10 +16,10 @@ class LaytonCharacterController():
         self.animBody = None
         self.animMouth = None
     
-    def setAnimBody(self, anim, animName=None):
-        self.animBody = anim
+    def setAnimBody(self, animObject, animName=None):
+        self.animBody = animObject
         if animName != None:
-            self.nameSurface = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI + coreProp.LAYTON_ASSET_LANG, animName + "_n")
+            self.nameSurface = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + conf.LAYTON_ASSET_LANG, animName + "_n")
             self.nameSurface = self.nameSurface.setAnimationFromNameAndReturnInitialFrame("gfx")
     
     def setAnimMouth(self, anim):
@@ -76,16 +80,13 @@ class LaytonEventTextController():
             textPathFolder = "100"
         else:
             textPathFolder = "200"
-        try:
-            with open(coreProp.PATH_ASSET_ETEXT + coreProp.LAYTON_ASSET_LANG + "\\e" + textPathFolder + "\\e" + str(indexEvent) + "_t" + str(self.indexText) + ".txt", 'r') as eventDialogue:
-                return eventDialogue.read()
-        except FileNotFoundError:
-            return ""
+        eventDialogue = FileInterface.getPackedData(FileInterface.PATH_ASSET_ETEXT + conf.LAYTON_ASSET_LANG + "\\e" + textPathFolder + ".pcm", "e" + str(indexEvent) + "_t" + str(self.indexText) + ".txt")
+        return eventDialogue.decode('ascii')
 
-class LaytonEventBackground(coreState.LaytonContext):
+class LaytonEventBackground(state.LaytonContext):
 
     def __init__(self, playerState):
-        coreState.LaytonContext.__init__(self)
+        state.LaytonContext.__init__(self)
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
@@ -94,29 +95,27 @@ class LaytonEventBackground(coreState.LaytonContext):
     
     def executeCommand(self, command):
         if command.opcode == b'\x0c':       # Draw image, TS
-            if path.exists(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
-                self.backgroundTs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
+            self.backgroundTs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
         elif command.opcode == b'\x0b':     # Draw image, BS. Note that the game does not use this image - it uses the darker version
-            if path.exists(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png"):
-                if "room" in command.operands[0][0:-4] and path.exists(coreProp.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png"):
-                    self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + "ebg_" + command.operands[0][0:-4].split("_")[1] + ".png")   # Darkened image
-                else:
-                    self.backgroundBs = pygame.image.load(coreProp.PATH_ASSET_BG + command.operands[0][0:-4] + ".png")
+            if "room" in command.operands[0]:
+                self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0][:-4] + ".arc")
+            elif "room" not in command.operands[0] or self.backgroundBs.get_width() == 0:
+                self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
         else:
-            coreState.debugPrint("ErrUnkCommand: " + str(command.opcode))
+            state.debugPrint("ErrUnkCommand: " + str(command.opcode))
 
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundTs, (0, 0))
-        gameDisplay.blit(self.backgroundBs, (0, coreProp.LAYTON_SCREEN_HEIGHT))
+        gameDisplay.blit(self.backgroundBs, (0, conf.LAYTON_SCREEN_HEIGHT))
 
-class LaytonEventGraphics(coreState.LaytonContext):
+class LaytonEventGraphics(state.LaytonContext):
 
     DURATION_TAP_FADE_IN = 500
     DURATION_TEXT_TRANSITION = 500
     DURATION_FADE_IN = 500
     
     def __init__(self, eventIndex, playerState):
-        coreState.LaytonContext.__init__(self)
+        state.LaytonContext.__init__(self)
         self.screenIsOverlay = True
 
         self.playerState = playerState
@@ -124,29 +123,30 @@ class LaytonEventGraphics(coreState.LaytonContext):
         self.eventText              = []
         self.eventTextIndex         = 0
         self.eventTextLoadedIndex   = -1
-        self.eventTextImageWindow   = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "event_window_1")
-        self.eventTextScroller      = coreAnim.TextScroller(playerState.getFont("fontevent"), "", targetFramerate=45)
+        self.eventTextImageWindow   = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "event_window_1")
+        self.eventTextScroller      = anim.TextScroller(playerState.getFont("fontevent"), "", targetFramerate=45)
         self.eventIndex             = eventIndex
         self.eventCharacters        = []
         self.eventCharactersBodyMouthLoadIndices    = [0,0]
         self.eventCharactersLeftRightActive         = [-1,-1]
         self.eventPuzzleHandler = None
 
-        self.eventTextImageWindow.pos = ((coreProp.LAYTON_SCREEN_WIDTH - self.eventTextImageWindow.dimensions[0]) // 2,
-                                         (coreProp.LAYTON_SCREEN_HEIGHT * 2) - self.eventTextImageWindow.dimensions[1] - 1)
+        self.eventTextImageWindow.pos = ((conf.LAYTON_SCREEN_WIDTH - self.eventTextImageWindow.dimensions[0]) // 2,
+                                         (conf.LAYTON_SCREEN_HEIGHT * 2) - self.eventTextImageWindow.dimensions[1] - 1)
+        
         self.eventTextScroller.textPosOffset = (self.eventTextImageWindow.pos[0] + 12,
                                                 self.eventTextImageWindow.pos[1] + 14)
         self.eventTextImageNamePos = (self.eventTextImageWindow.pos[0] + 2,
                                       self.eventTextImageWindow.pos[1] - 3)
-        self.eventTextCursorTapAnim         = coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, "cursor_wait", usesAlpha=True)
-        self.eventTextCursorTapAnim.pos     = (coreProp.LAYTON_SCREEN_WIDTH - round(self.eventTextCursorTapAnim.dimensions[0] * 1.5),
-                                               coreProp.LAYTON_SCREEN_HEIGHT * 2 - round(self.eventTextCursorTapAnim.dimensions[1] * 1.25))
+        self.eventTextCursorTapAnim         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "cursor_wait", usesAlpha=True)
+        self.eventTextCursorTapAnim.pos     = (conf.LAYTON_SCREEN_WIDTH - round(self.eventTextCursorTapAnim.dimensions[0] * 1.5),
+                                               conf.LAYTON_SCREEN_HEIGHT * 2 - round(self.eventTextCursorTapAnim.dimensions[1] * 1.25))
         self.eventTextCursorTapAnim.setAnimationFromName("touch")
-        self.eventTextCursorTapAnimFader    = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
-        self.eventTextImageWindowFader = self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, coreAnim.AnimatedFader.MODE_TRIANGLE, False, cycle=False)
-        self.eventTextSurface = coreAnim.AlphaSurface(0)
+        self.eventTextCursorTapAnimFader    = anim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, anim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
+        self.eventTextImageWindowFader = self.eventTextImageWindowFader = anim.AnimatedFader(LaytonEventGraphics.DURATION_TAP_FADE_IN, anim.AnimatedFader.MODE_TRIANGLE, False, cycle=False)
+        self.eventTextSurface = anim.AlphaSurface(0)
 
-        self.backgroundFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_FADE_IN, coreAnim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
+        self.backgroundFader = anim.AnimatedFader(LaytonEventGraphics.DURATION_FADE_IN, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
         self.workaroundDisableAdditionalEntries = False
         self.workaroundIntensiveInit = True
 
@@ -159,31 +159,31 @@ class LaytonEventGraphics(coreState.LaytonContext):
     def executeCommand(self, command):
         if command.opcode == b'\x48':           # Select puzzle
             if self.eventPuzzleHandler != None:
-                coreState.debugPrint("WarnPuzzleOverridden: Cached puzzle " + str(self.eventPuzzleHandler.puzzleIndex) + " overriden with " + str(command.operands[0]))
+                state.debugPrint("WarnPuzzleOverridden: Cached puzzle " + str(self.eventPuzzleHandler.puzzleIndex) + " overriden with " + str(command.operands[0]))
             else:
-                coreState.debugPrint("LogEventLoadedPuzzle: Cached puzzle" + str(command.operands[0]))
-            self.eventPuzzleHandler = nazoHandler.LaytonPuzzleHandler(command.operands[0], self.playerState)
+                state.debugPrint("LogEventLoadedPuzzle: Cached puzzle" + str(command.operands[0]))
+            self.eventPuzzleHandler = han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState)
         elif command.opcode == b'\x6c':           # Draw static image - usually a character
             if len(self.eventCharacters) > self.eventCharactersBodyMouthLoadIndices[0]: # If mouth has already been loaded
-                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].setAnimBody(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4],
+                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].setAnimBody(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
                                                                                                                      x=command.operands[0],
-                                                                                                                     y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
+                                                                                                                     y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
             else:
                 self.eventCharacters.append(LaytonCharacterController())
-                self.eventCharacters[-1].setAnimBody(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0],
-                                                                            y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
+                self.eventCharacters[-1].setAnimBody(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0],
+                                                                            y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
             if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].animBody.setAnimationFromName(command.operands[3])):
                 self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].animBody.setActiveFrame(0)
             self.eventCharactersBodyMouthLoadIndices[0] += 1
         elif command.opcode == b'\x6d':           # Draw animated image - usually the character mouth
             if len(self.eventCharacters) > self.eventCharactersBodyMouthLoadIndices[1]: # If mouth has already been loaded
-                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].setAnimMouth(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4],
+                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].setAnimMouth(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
                                                                                                                       x=command.operands[0],
-                                                                                                                      y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT))
+                                                                                                                      y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT))
             else:
                 self.eventCharacters.append(LaytonCharacterController())
-                self.eventCharacters[-1].setAnimMouth(coreAnim.AnimatedImage(coreProp.PATH_ASSET_ANI, command.operands[2][0:-4],
-                                                                             x=command.operands[0], y=command.operands[1]+coreProp.LAYTON_SCREEN_HEIGHT))
+                self.eventCharacters[-1].setAnimMouth(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
+                                                                             x=command.operands[0], y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT))
             if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setAnimationFromName(command.operands[3])):
                 self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setActiveFrame(0)
             self.eventCharactersBodyMouthLoadIndices[1] += 1
@@ -202,7 +202,7 @@ class LaytonEventGraphics(coreState.LaytonContext):
             self.clearTemps()
             if len(command.operands) > 2:
                 self.workaroundDisableAdditionalEntries = True
-                coreState.debugPrint("WarnEventGraphics: Text workaround triggered!")
+                state.debugPrint("WarnEventGraphics: Text workaround triggered!")
         elif command.opcode == b'\x9d' and not(self.workaroundDisableAdditionalEntries):
             self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_LEFT, command.operands[0], command.operands[1]))
             if len(self.eventTempAnimControllersBody) > 0:
@@ -212,15 +212,15 @@ class LaytonEventGraphics(coreState.LaytonContext):
             self.clearTemps()
             if len(command.operands) > 2:
                 self.workaroundDisableAdditionalEntries = True
-                coreState.debugPrint("WarnEventGraphics: Text workaround triggered!")
+                state.debugPrint("WarnEventGraphics: Text workaround triggered!")
 
         elif command.opcode == b'\xb4':
             if command.operands[0] >= len(self.eventCharacters):
-                self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
+                self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = conf.LAYTON_STRING_BOOLEAN[command.operands[1]]
             else:
-                self.eventCharacters[command.operands[0]].isFlipped = coreProp.LAYTON_STRING_BOOLEAN[command.operands[1]]
+                self.eventCharacters[command.operands[0]].isFlipped = conf.LAYTON_STRING_BOOLEAN[command.operands[1]]
         else:
-            coreState.debugPrint("ErrEventUnkCommand: " + str(command.opcode))
+            state.debugPrint("ErrEventUnkCommand: " + str(command.opcode))
     
     def incrementEventText(self):
         if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):
@@ -230,9 +230,11 @@ class LaytonEventGraphics(coreState.LaytonContext):
             for mouthController in self.eventText[self.eventTextIndex].getAnimMouth():
                 self.eventCharacters[mouthController.indexChar].changeMouthAnim(mouthController.animName)
             self.eventTextScroller.reset()
+            self.eventTextCursorTapAnim.reset()
+            self.eventTextCursorTapAnimFader.reset()
 
     def update(self, gameClockDelta):
-        if not(self.workaroundIntensiveInit) or self.workaroundIntensiveInit and gameClockDelta <= round(1000 / coreProp.ENGINE_FPS):   # Skip first init cycle if the engine just loaded a file, it will be huge
+        if not(self.workaroundIntensiveInit) or self.workaroundIntensiveInit and gameClockDelta <= round(1000 / conf.ENGINE_FPS):   # Skip first init cycle if the engine just loaded a file, it will be huge
             if self.backgroundFader.isActive:
                 self.backgroundFader.update(gameClockDelta)
             else:
@@ -256,18 +258,15 @@ class LaytonEventGraphics(coreState.LaytonContext):
                         self.eventTextCursorTapAnimFader.update(gameClockDelta)
                         self.eventTextCursorTapAnim.setAlpha(self.eventTextCursorTapAnimFader.getStrength() * 255)
                         self.eventTextCursorTapAnim.update(gameClockDelta)
-                    else:
-                        self.eventTextCursorTapAnim.reset()
-                        self.eventTextCursorTapAnimFader.reset()
 
                     while self.eventTextLoadedIndex < self.eventTextIndex:
                         self.incrementEventText()
                         self.eventTextLoadedIndex += 1
                         if self.eventTextLoadedIndex > 0:
                             if self.eventTextLoadedIndex == len(self.eventText) - 1:
-                                self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION // 2, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False, inverted=True)
+                                self.eventTextImageWindowFader = anim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION // 2, anim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False, inverted=True)
                             else:
-                                self.eventTextImageWindowFader = coreAnim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION, coreAnim.AnimatedFader.MODE_SINE_SHARP, False, inverted=True)
+                                self.eventTextImageWindowFader = anim.AnimatedFader(LaytonEventGraphics.DURATION_TEXT_TRANSITION, anim.AnimatedFader.MODE_SINE_SHARP, False, inverted=True)
                             self.eventTextImageWindowFader.reset()
 
                     if (self.eventTextImageWindowFader.getStrength() == 1):
@@ -304,7 +303,7 @@ class LaytonEventGraphics(coreState.LaytonContext):
             self.eventTextCursorTapAnim.draw(gameDisplay)
         
         if self.backgroundFader.isActive:
-            tempFaderSurface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+            tempFaderSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
             tempFaderSurface.fill((0,0,0,round(self.backgroundFader.getStrength() * 255)))
             gameDisplay.blit(tempFaderSurface, (0,0))
     
@@ -322,17 +321,17 @@ class LaytonEventGraphics(coreState.LaytonContext):
                         if self.eventTextIndex == len(self.eventText) - 1 and self.eventPuzzleHandler != None:
                             self.screenNextObject = self.eventPuzzleHandler
 
-        if event.type == constUserEvent.ANIM_SET_ANIM:
+        if event.type == const.ANIM_SET_ANIM:
             event.command = event.data.split(" ")
-            coreState.debugPrint("LogEventCommand: Animation switched!")
+            state.debugPrint("LogEventCommand: Animation switched!")
             if self.eventCharacters[int(event.command[1])].animBody != None:
                 self.eventCharacters[int(event.command[1])].animBody.setAnimationFromName(event.command[2])
             if self.eventCharacters[int(event.command[1])].animMouth != None:
                 self.eventCharacters[int(event.command[1])].animMouth.setAnimationFromName(event.command[2])
 
-class LaytonEventHandler(coreState.LaytonSubscreen):
+class LaytonEventHandler(state.LaytonSubscreen):
     def __init__(self, eventIndex, playerState):
-        coreState.LaytonSubscreen.__init__(self)
+        state.LaytonSubscreen.__init__(self)
         self.transitionsEnableIn = False
         self.transitionsEnableOut = False
         self.screenBlockInput = True
@@ -340,7 +339,8 @@ class LaytonEventHandler(coreState.LaytonSubscreen):
         self.addToStack(LaytonEventBackground(playerState))
         self.addToStack(LaytonEventGraphics(eventIndex, playerState))
         self.commandFocus = self.stack[-1]
-        self.executeGdScript(coreLib.gdScript(coreProp.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds", playerState, enableBranching=True))
+        self.executeGdScript(script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds"),
+                                             playerState, enableBranching=True))
 
     def executeGdScript(self, puzzleScript):
         for command in puzzleScript.commands:
@@ -352,8 +352,9 @@ class LaytonEventHandler(coreState.LaytonSubscreen):
                 self.commandFocus.executeCommand(command)
 
 if __name__ == '__main__':
-    playerState = coreState.LaytonPlayerState()
+    playerState = state.LaytonPlayerState()
     playerState.puzzleLoadData()
     playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    coreState.play(LaytonEventHandler(9, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
+    state.play(LaytonEventHandler(1, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
+    # 17 good for anims

@@ -1,14 +1,38 @@
 # Animation Components of LAYTON1
 
-import coreProp, constUserEvent, pygame
+import conf, const, pygame, asset_image, asset, file
+from file import FileInterface
 from os import path
 from math import ceil, sin, cos, pi
 
-pygame.display.set_mode((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2))
+pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
+
+# TODO - Log better
+# TODO - Autostart gfx anim
 
 def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
-    if coreProp.ENGINE_DEBUG_MODE:
+    if conf.ENGINE_DEBUG_MODE:
         print(line)
+
+def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
+    return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
+                                            round(surface.get_height() * scaleFactorY)))
+
+def fetchBgSurface(filepath):
+    filepath = path.splitext(file.resolveFilepath(filepath))[0]
+    if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
+        assetData = asset.File(data=FileInterface.getData(filepath + ".arc"))
+        if len(assetData.data) > 0:
+            assetData.decompress()
+            assetImage = asset_image.LaytonBackgroundImage()
+            assetImage.load(assetData.data)
+            return pygame.image.fromstring(assetImage.image.tobytes("raw", "RGB"), assetImage.image.size, assetImage.image.mode).convert()
+    else:
+        try:
+            return pygame.image.load(filepath + conf.FILE_DECOMPRESSED_EXTENSION_IMAGE)
+        except pygame.error:
+            print("AnimLibBgSurface: Failed to load", filepath + conf.FILE_DECOMPRESSED_EXTENSION_IMAGE)
+    return pygame.Surface((0,0))
 
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
@@ -16,11 +40,12 @@ class StaticImage():
             if imageNullDimensions != None:
                 self.image = pygame.Surface(imageNullDimensions)
             else:
-                self.image = pygame.Surface((1,1))
+                self.image = pygame.Surface((0,0))
         elif imageIsSurface:
             self.image = imagePath
         else:
-            self.image = pygame.image.load(imagePath).convert_alpha()
+            self.image = pygame.Surface((20,20))
+            #self.image = pygame.image.load(imagePath).convert_alpha()
         self.pos = (x,y)
 
     def getImage(self):
@@ -45,7 +70,7 @@ class AnimatedFrameCollection():
         if framerate == 0:
             self.getUpdatedFrame = self.getNullUpdatedFrame
         else:
-            if coreProp.ENGINE_PERFORMANCE_MODE:
+            if conf.ENGINE_PERFORMANCE_MODE:
                 self.frameInterval = 1000/self.framerate
                 self.getUpdatedFrame = self.getAccurateUpdatedFrame
             else:
@@ -58,7 +83,9 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
     
     def getNullUpdatedFrame(self, gameClockDelta):
-        return (True, self.indices[self.currentIndex])
+        if len(self.indices) > 0:
+            return (True, self.indices[self.currentIndex])
+        return (False, None)
 
     def getAccurateUpdatedFrame(self, gameClockDelta):
         if self.isActive:
@@ -100,10 +127,9 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=False):
+    def __init__(self, frameRootPath, frameName, x=0,y=0, importAnimPair=True, usesAlpha=False, frameRootExtension= conf.FILE_DECOMPRESSED_EXTENSION_IMAGE):
         self.pos = (x,y)
         self.frames = []
-        self.dimensions = (0,0)
         self.animMap = {}
         self.animActive = None
         self.animActiveFrame = None
@@ -115,32 +141,68 @@ class AnimatedImage():
         else:
             self.draw = self.drawNormal
         
+        frameRootPath = frameRootPath.replace("\\", "/")
+        if frameRootPath[-1] != "/":
+            frameRootPath += "/"
+        if len(frameRootExtension) > 0 and frameRootExtension[0] != ".":    # Bad extension
+            frameRootExtension = "." + frameRootExtension
+
+        if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
+            self.loadFromAsset(frameName, frameRootPath)
+        else:
+            self.loadFromUncompressed(frameRootPath, frameName, frameRootExtension, importAnimPair)
+
+        if len(self.frames) > 0:
+            self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+        else:
+            self.dimensions = (0,0)
+
+    def loadFromUncompressed(self, frameRootPath, frameName, frameRootExtension, importAnimPair):
         if path.exists(frameRootPath):
-            if path.exists(frameRootPath + "\\" + frameName + "_0." + frameRootExtension):
+            if path.exists(frameRootPath + frameName + "_0" + frameRootExtension):
                 imageIndex = 0
                 while True:
-                    if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
+                    if path.exists(frameRootPath + frameName + "_" + str(imageIndex) + frameRootExtension):
                         try:
-                            self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
+                            self.frames.append(pygame.image.load(frameRootPath + frameName + "_" + str(imageIndex) + frameRootExtension).convert())
                         except:
-                            debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
+                            debugPrint("Error loading frame: " + frameRootPath + frameName + "_" + str(imageIndex) + frameRootExtension)
                         imageIndex += 1
                     else:
                         break
                 self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
-            elif path.exists(frameRootPath + "\\" + frameName + "." + frameRootExtension):
+            elif path.exists(frameRootPath + frameName + frameRootExtension):
                 try:
-                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
-                    self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+                    self.frames.append(pygame.image.load(frameRootPath + frameName + frameRootExtension).convert_alpha())
                 except:
-                    debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
+                    debugPrint("Error loading frame: " + frameRootPath + frameName + frameRootExtension)
             else:
                 debugPrint("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
         else:
             debugPrint("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
         
-        if importAnimPair:
-            self.fromImages(frameRootPath + "\\" + frameName + ".txt")
+        if importAnimPair and len(self.frames) > 0:
+            self.fromImages(frameRootPath + frameName + ".txt")
+
+    def loadFromAsset(self, frameName, frameRootPath):
+        assetData = asset.File(data=FileInterface.getData(frameRootPath + frameName + ".arc"))
+        if len(assetData.data) > 0:
+            assetData.decompress()
+            assetImage = asset_image.LaytonAnimatedImage()
+            assetImage.load(assetData.data)
+            for indexImage, image in enumerate(assetImage.images):
+                self.frames.append(pygame.image.fromstring(image.tobytes("raw", "RGB"), image.size, image.mode).convert())
+                if assetImage.alphaMask != None:
+                    self.frames[indexImage].set_colorkey(assetImage.alphaMask)
+            for anim in assetImage.anims:
+                totalFrame = 0
+                for frameLength in anim.frameDuration:
+                    totalFrame += frameLength
+                if len(anim.indexImages) > 0:
+                    totalFrame = totalFrame // len(anim.indexImages)
+                self.animMap[anim.name] = AnimatedFrameCollection(totalFrame, indices=anim.indexImages)
+        else:
+            print("Failed to fetch image!!")
 
     def fromImages(self, animText):
         if path.exists(animText):
@@ -250,6 +312,10 @@ class AnimatedImage():
             return False
         return True
     
+    def loopingDisable(self):
+        for anim in self.animMap.keys():
+            self.animMap[anim].loop = False
+
     def wasClicked(self, mousePos):
         if self.pos[0] + self.dimensions[0] >= mousePos[0] and mousePos[0] >= self.pos[0]:
             if self.pos[1] + self.dimensions[1] >= mousePos[1] and mousePos[1] >= self.pos[1]:
@@ -395,7 +461,7 @@ class AnimatedText():
         self.font = font
         if type(self.font) == FontMap:
             self.textRender = pygame.Surface((len(self.text) * self.font.fontWidth, self.font.fontHeight))
-            if coreProp.ENGINE_PERFORMANCE_MODE:
+            if conf.ENGINE_PERFORMANCE_MODE:
                 self.update = self.updateBitmapFontFast
             else:
                 self.update = self.updateBitmapFont
@@ -460,7 +526,7 @@ class AnimatedFader():
         self.initialInverted = inverted
 
         self.reset()
-        if coreProp.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
+        if conf.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
             self.getStrength = self.getStrengthTriangle
         elif mode == AnimatedFader.MODE_SINE_SHARP:
             self.getStrength = self.getStrengthSineSingleEase
@@ -518,7 +584,7 @@ class AnimatedFader():
 class AlphaSurface():
     def __init__(self, alpha):
         self.alpha = alpha
-        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
 
     def setAlpha(self, alpha):
         self.alpha = alpha
@@ -533,7 +599,7 @@ class AlphaSurface():
                 gameDisplay.blit(tempAlphaSurface, (0,0))
     
     def clear(self):
-        self.surface = pygame.Surface((coreProp.LAYTON_SCREEN_WIDTH, coreProp.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
         self.surface.fill((0,0,0,0))
 
 class TextScroller():
@@ -543,7 +609,7 @@ class TextScroller():
 
     LAYTON_CONTROL_CHAR = ['#', '@', '&']
 
-    def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = coreProp.ENGINE_FPS):
+    def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
         self.textInput = textInput
         self.frameStep = 1000/targetFramerate
         self.textPosOffset = textPosOffset
@@ -563,7 +629,8 @@ class TextScroller():
                         if self.textPos < len(self.textInput) and self.textPos > 2:
                             if self.textInput[self.textPos] != "\n":    # Register colour change between rects
                                 self.textNewline = self.textPos
-                                self.textRects[-1].append(AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+                                self.textRects[-1].append(AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
+
                 elif self.textInput[self.textPos] == '@':       # Only bug remaining is that clearing under low framerates can wipe far too early
                     if self.textInput[self.textPos + 1] == "c":
                         self.textRects = []
@@ -591,7 +658,7 @@ class TextScroller():
                             debugPrint("TextScrollerControlGrabError: Fetched " + tempStringControl)
                             break
                     self.textInput = self.textInput[0:self.textPos] + self.textInput[tempTextPos + 2:]
-                    pygame.event.post(pygame.event.Event(constUserEvent.ANIM_SET_ANIM, {constUserEvent.PARAM:tempStringControl}))
+                    pygame.event.post(pygame.event.Event(const.ANIM_SET_ANIM, {const.PARAM:tempStringControl}))
                     if self.textPos != self.textNewline:
                         self.textPos -= 1
 
@@ -601,7 +668,7 @@ class TextScroller():
                         self.textNewline = self.textPos
                     else:
                         self.textNewline = self.textPos + 1
-                    self.textRects.append([AnimatedText(self.font, colour=coreProp.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
+                    self.textRects.append([AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
                 else:
                     self.textRects[-1][-1].text = self.textInput[self.textNewline:self.textPos + 1]
                     self.textRects[-1][-1].update(None)
@@ -616,7 +683,7 @@ class TextScroller():
             while self.textInput[indexReplacementCharEnd] != ">":
                 indexReplacementCharEnd += 1
             try:
-                self.textInput = self.textInput[:indexReplacementCharStart] + coreProp.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
+                self.textInput = self.textInput[:indexReplacementCharStart] + conf.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
             except KeyError:
                 debugPrint("TextScroller: Character '" + self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd] + "' has no substitution!")
                 self.textInput = self.textInput[:indexReplacementCharStart] + self.textInput[indexReplacementCharEnd + 1:]
@@ -670,7 +737,3 @@ class TextScroller():
                 lineText.draw(gameDisplay, location=(x,y))
                 x += lineText.textRender.get_width()
             y += self.font.get_height()
-
-def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
-    return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
-                                            round(surface.get_height() * scaleFactorY)))

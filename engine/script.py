@@ -2,10 +2,10 @@
 
 from struct import unpack
 from os import path
-import coreProp
+import conf, asset, binary
 
 def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
-    if coreProp.ENGINE_DEBUG_MODE:
+    if conf.ENGINE_DEBUG_MODE:
         print(line)
 
 def seekToNextOperation(reader):
@@ -24,26 +24,25 @@ class gdOperation():
         self.opcode = opcode
         self.operands = operands
 
-class gdScript():
-    def __init__(self, filename, playerState, enableBranching=False, useBranchingHack=True):
+class gdScript(asset.File):
+    def __init__(self, data, playerState, enableBranching=False, useBranchingHack=True):
         self.commands = []
         self.commandLoc = []
         self.length = 0
         self.contextPuzzle = None
         self.playerState = playerState
-        self.load(filename, enableBranching, useBranchingHack)
-    def load(self, filename, enableBranching, useBranchingHack):
+        self.load(binary.BinaryReader(data = data), enableBranching, useBranchingHack)
+    def load(self, data, enableBranching, useBranchingHack):
         try:
-            self.length = path.getsize(filename)
+            self.length = len(data.data)
             if enableBranching:
                 self.lastJump = 0
-            with open(filename, 'rb') as laytonScript:
-                self.offsetEofc = int.from_bytes(laytonScript.read(4), 'little')
-                laytonScript.seek(2,1)
-                while laytonScript.tell() != self.offsetEofc + 4:
-                    tempCommand = self.parseCommand(laytonScript, enableBranching, useBranchingHack)
-                    if not(tempCommand[0]):
-                        self.commands.append(tempCommand[1])
+            self.offsetEofc = data.readU4()
+            data.seek(2,1)
+            while data.tell() != self.offsetEofc + 4:
+                tempCommand = self.parseCommand(data, enableBranching, useBranchingHack)
+                if not(tempCommand[0]):
+                    self.commands.append(tempCommand[1])
             debugPrint("LogGdsLoad: Reading complete!")
         except FileNotFoundError:
             debugPrint("ErrGdsLoad: GDS does not exist!")
@@ -51,7 +50,7 @@ class gdScript():
     def parseCommand(self, reader, enableBranching, useBranchingHack):
         self.commandLoc.append(reader.tell())
         invalidateCommand = False
-        opcode = reader.read(1)
+        opcode = bytes(reader.read(1))
         reader.seek(1,1)
         tempOperands = []
         while True:
