@@ -3,6 +3,14 @@
 import ndspy.rom, conf, const, binary, asset
 from os import path
 
+def debugPrint(*args, **kwargs):
+    if conf.ENGINE_DEBUG_FILESYSTEM_MODE and conf.ENGINE_DEBUG_ENABLE_LOG:
+        print(*args, **kwargs)
+
+def debugSeverePrint(*args, **kwargs):
+    if conf.ENGINE_DEBUG_FILESYSTEM_MODE and conf.ENGINE_DEBUG_ENABLE_SEVERE:
+        print(*args, **kwargs)
+
 def _isValidLayton(romFile):
     if conf.ENGINE_GAME_VARIANT == conf.LAYTON_1:
         return True
@@ -22,7 +30,7 @@ class FileInterface():
     if conf.ENGINE_LOAD_FROM_ROM:
         rom = ndspy.rom.NintendoDSRom()
         if path.exists(conf.PATH_ROM):
-            print("Mode: Accessing ROM")
+            debugPrint("Mode: Accessing ROM")
 
             rom = ndspy.rom.NintendoDSRom.fromFile(conf.PATH_ROM)
 
@@ -49,7 +57,7 @@ class FileInterface():
         else:
             raise Exception("ROM path incorrect!")
     else:
-        print("Mode: Not using ROM")
+        debugPrint("Mode: Not using ROM")
 
         PATH_ASSET_ROOT     = path.dirname(path.dirname(path.realpath(__file__))) + "\\assets\\"
         PATH_ASSET_ANI      = PATH_ASSET_ROOT + "ani\\"
@@ -62,7 +70,7 @@ class FileInterface():
 
     @staticmethod
     def _isPathAvailableRom(filepath):
-        print("RomCheck", resolveFilepath(filepath))
+        debugSeverePrint("RomCheck", resolveFilepath(filepath))
         if FileInterface.rom.filenames.idOf(resolveFilepath(filepath)) != None:
             return True
         return False
@@ -79,16 +87,16 @@ class FileInterface():
         filepath = resolveFilepath(filepath)
         if conf.ENGINE_LOAD_FROM_DECOMPRESSED:
             filepath = path.splitext(filepath)[0] + deriveExtension(filepath)
-        print(filepath)
+        debugPrint(filepath)
         return path.exists(filepath)
 
     @staticmethod
     def _dataFromRom(filepath):
         if FileInterface._isPathAvailableRom(filepath):
             testFile = FileInterface.rom.getFileByName(resolveFilepath(filepath))
-            print("RomGrab", resolveFilepath(filepath))
+            debugPrint("RomGrab", resolveFilepath(filepath))
             return testFile
-        print("RomGrabFailed", resolveFilepath(filepath))
+        debugPrint("RomGrabFailed", resolveFilepath(filepath))
         return b''
     
     @staticmethod
@@ -100,7 +108,7 @@ class FileInterface():
             FileInterface.romCache[filepathArchive] = asset.LaytonPack()
             FileInterface.romCache[filepathArchive].load(tempFile.data)
         else:
-            print("CacheRomGrab", filename)
+            debugPrint("CacheRomGrab", filename)
         return FileInterface.romCache[filepathArchive].getFile(filename)
 
     @staticmethod
@@ -115,6 +123,16 @@ class FileInterface():
             filepathArchive = path.splitext(filepathArchive)[0]
         return FileInterface._dataFromFile(filepathArchive + "//" + filename)
     
+    @staticmethod   # Null methods
+    def doesFileExist(filepath):
+        pass
+    @staticmethod
+    def getData(filepath):
+        pass
+    @staticmethod
+    def getPackedData(filepathArchive, filepath):
+        pass
+
     if conf.ENGINE_LOAD_FROM_ROM:
         doesFileExist = _isPathAvailableRom
         getData = _dataFromRom

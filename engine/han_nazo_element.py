@@ -17,7 +17,7 @@ class IndependentTile(anim.StaticImage):
         if sourceAnim.setAnimationFromName(sourceAnimName):
             anim.StaticImage.__init__(self, sourceAnim.frames[sourceAnim.animMap[sourceAnim.animActive].indices[0]], x=x, y=y, imageIsSurface=True)
         else:
-            if len(sourceAnim.frames) >= sourceAnimName:
+            if sourceAnimName.isdigit() and len(sourceAnim.frames) >= int(sourceAnimName):
                 anim.StaticImage.__init__(self, sourceAnim.frames[sourceAnimName - 1], x=x, y=y, imageIsSurface=True)
             else:
                 anim.StaticImage.__init__(self, pygame.Surface((24,24)), x=x, y=y, imageIsSurface=True)

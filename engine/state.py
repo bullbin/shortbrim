@@ -3,6 +3,7 @@
 import conf, pygame, anim, script
 from os import path
 import ctypes; ctypes.windll.user32.SetProcessDPIAware() # Scale window to ensure perfect pixels
+from file import FileInterface
 
 if conf.ENGINE_FORCE_USE_ALT_TIMER:
     import time
@@ -53,7 +54,7 @@ class LaytonPlayerState():
     def puzzleLoadNames(self):
         if len(self.puzzleData.keys()) == 0:
             self.puzzleLoadData()
-        qscript = script.gdScript(conf.PATH_ASSET_SCRIPT + "qinfo\\" + conf.LAYTON_ASSET_LANG + "\\qscript.gds", None)
+        qscript = script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "qinfo\\" + conf.LAYTON_ASSET_LANG + "\\qscript.gds"), None)
         for instruction in qscript.commands:
             if instruction.opcode == b'\xdc':
                 try:
@@ -65,7 +66,7 @@ class LaytonPlayerState():
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
 
     def puzzleLoadData(self):
-        pscript = script.gdScript(conf.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds", None)
+        pscript = script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds"), None)
         for instruction in pscript.commands:
             if instruction.opcode == b'\xc3': # Set picarot decay
                 self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry(instruction.operands[1:])

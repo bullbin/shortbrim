@@ -1,4 +1,5 @@
 import pygame, conf, anim, state
+from file import FileInterface
 
 pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
 
@@ -26,7 +27,7 @@ class HintTab():
 
 class Screen(state.LaytonContext):
 
-    buttonYesNo = anim.AnimatedImage(conf.PATH_ASSET_ANI + conf.LAYTON_ASSET_LANG, "yesnobuttons")
+    buttonYesNo = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + conf.LAYTON_ASSET_LANG, "yesnobuttons")
 
     def __init__(self, puzzleIndex, playerState, puzzleHintCount, puzzleAnimFont, imageButtons):
         state.LaytonContext.__init__(self)

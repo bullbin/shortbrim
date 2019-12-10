@@ -1,6 +1,7 @@
 # Animation Components of LAYTON1
 
-import conf, const, pygame
+import conf, const, pygame, asset_image, asset, file
+from file import FileInterface
 from os import path
 from math import ceil, sin, cos, pi
 
@@ -14,6 +15,22 @@ def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
     return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
                                             round(surface.get_height() * scaleFactorY)))
 
+def fetchBgSurface(filepath):
+    filepath = path.splitext(file.resolveFilepath(filepath))[0]
+    if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
+        assetData = asset.File(data=FileInterface.getData(filepath + ".arc"))
+        if len(assetData.data) > 0:
+            assetData.decompress()
+            assetImage = asset_image.LaytonBackgroundImage()
+            assetImage.load(assetData.data)
+            return pygame.image.fromstring(assetImage.image.tobytes("raw", "RGB"), assetImage.image.size, assetImage.image.mode).convert()
+    else:
+        try:
+            return pygame.image.load(filepath + conf.FILE_DECOMPRESSED_EXTENSION_IMAGE)
+        except pygame.error:
+            print("Failed to load surface")
+    return pygame.Surface((0,0))
+
 class StaticImage():
     def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
         if imagePath == None or imageIsNull:
@@ -24,7 +41,8 @@ class StaticImage():
         elif imageIsSurface:
             self.image = imagePath
         else:
-            self.image = pygame.image.load(imagePath).convert_alpha()
+            self.image = pygame.Surface((20,20))
+            #self.image = pygame.image.load(imagePath).convert_alpha()
         self.pos = (x,y)
 
     def getImage(self):
@@ -104,10 +122,9 @@ class AnimatedFrameCollection():
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, frameRootExtension="png", x=0,y=0, importAnimPair=True, usesAlpha=False):
+    def __init__(self, frameRootPath, frameName, x=0,y=0, importAnimPair=True, usesAlpha=False, frameRootExtension= conf.FILE_DECOMPRESSED_EXTENSION_IMAGE):
         self.pos = (x,y)
         self.frames = []
-        self.dimensions = (0,0)
         self.animMap = {}
         self.animActive = None
         self.animActiveFrame = None
@@ -119,32 +136,65 @@ class AnimatedImage():
         else:
             self.draw = self.drawNormal
         
+        if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
+            self.loadFromAsset(frameName, frameRootPath)
+        else:
+            self.loadFromUncompressed(frameRootPath, frameName, frameRootExtension, importAnimPair)
+
+        if len(self.frames) > 0:
+            self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+        else:
+            self.dimensions = (0,0)
+
+    def loadFromUncompressed(self, frameRootPath, frameName, frameRootExtension, importAnimPair):
         if path.exists(frameRootPath):
-            if path.exists(frameRootPath + "\\" + frameName + "_0." + frameRootExtension):
+            if path.exists(frameRootPath + "\\" + frameName + "_0" + frameRootExtension):
                 imageIndex = 0
                 while True:
-                    if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension):
+                    if path.exists(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + frameRootExtension):
                         try:
-                            self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension).convert())
+                            self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "_" + str(imageIndex) + frameRootExtension).convert())
                         except:
-                            debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + "." + frameRootExtension)
+                            debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "_" + str(imageIndex) + frameRootExtension)
                         imageIndex += 1
                     else:
                         break
                 self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
-            elif path.exists(frameRootPath + "\\" + frameName + "." + frameRootExtension):
+            elif path.exists(frameRootPath + "\\" + frameName + frameRootExtension):
                 try:
-                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + "." + frameRootExtension).convert_alpha())
-                    self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+                    self.frames.append(pygame.image.load(frameRootPath + "\\" + frameName + frameRootExtension).convert_alpha())
                 except:
-                    debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + "." + frameRootExtension)
+                    debugPrint("Error loading frame: " + frameRootPath + "\\" + frameName + frameRootExtension)
             else:
                 debugPrint("AnimatedImage: No images with '" + frameName + "' found in path '" + str(frameRootPath) + "'")
         else:
             debugPrint("AnimatedImage: Path '" + str(frameRootPath) + "' does not exist!")
         
-        if importAnimPair:
+        if importAnimPair and len(self.frames) > 0:
             self.fromImages(frameRootPath + "\\" + frameName + ".txt")
+
+    def loadFromAsset(self, frameName, frameRootPath):
+        frameRootPath = frameRootPath.replace("\\", "/")
+        if frameRootPath[-1] != "/":
+            frameRootPath += "/"
+        assetData = asset.File(data=FileInterface.getData(frameRootPath + frameName + ".arc"))
+        if len(assetData.data) > 0:
+            assetData.decompress()
+            assetImage = asset_image.LaytonAnimatedImage()
+            assetImage.load(assetData.data)
+            for indexImage, image in enumerate(assetImage.images):
+                self.frames.append(pygame.image.fromstring(image.tobytes("raw", "RGB"), image.size, image.mode).convert())
+                if assetImage.alphaMask != None:
+                    self.frames[indexImage].set_colorkey(assetImage.alphaMask)
+            for anim in assetImage.anims:
+                totalFrame = 0
+                for frameLength in anim.frameDuration:
+                    totalFrame += frameLength
+                if len(anim.indexImages) > 0:
+                    totalFrame = totalFrame // len(anim.indexImages)
+                self.animMap[anim.name] = AnimatedFrameCollection(totalFrame, indices=anim.indexImages)
+        else:
+            print("Failed to fetch image!!")
 
     def fromImages(self, animText):
         if path.exists(animText):
@@ -178,9 +228,6 @@ class AnimatedImage():
             debugPrint("AnimatedImage: Cannot import " + animText + " as it does not exist!")
             return False
     
-    def fromAsset(self, animObject):
-        pass
-
     def reset(self):
         if self.animActive != None:
             self.animMap[self.animActive].reset()
@@ -574,17 +621,14 @@ class TextScroller():
 
                 elif self.textInput[self.textPos] == '@':       # Only bug remaining is that clearing under low framerates can wipe far too early
                     if self.textInput[self.textPos + 1] == "c":
-                        print("Clear!")
                         self.textRects = []
                         self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
                         self.textPos += 1
                     else:
                         if self.textInput[self.textPos + 1] == "w":         # Wait
-                            print("Wait!")
                             self.isPaused = True
                             self.durationPause = 500
                         elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
-                            print("Pause!")
                             self.isWaitingForTap = True
                         else:
                             debugPrint("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")

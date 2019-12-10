@@ -340,7 +340,7 @@ class File():
         if tempName == "":
             print("Warning: Invalid filename!")
             tempName = "NULL"
-        return File(reader.data, name=tempName)
+        return File(name=tempName, data=reader.data)
 
 class Archive(File):
     def __init__(self, name=""):
@@ -372,7 +372,7 @@ class LaytonPack(Archive):
     def load(self, data):
         reader = binary.BinaryReader(data = data)
         offsetHeader = reader.readU4()
-        lengthArchive = reader.readU4()
+        reader.seek(4,1)    # Skip lengthArchive
         countFile = reader.readU4()
         magic = reader.read(4)
         try:

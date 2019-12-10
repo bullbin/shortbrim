@@ -99,6 +99,7 @@ class LaytonAnimatedImage(File):
         File.__init__(self)
         self.images = []
         self.anims = []
+        self.alphaMask = None
     
     def load(self, data, isArj=False):
         reader = binary.BinaryReader(data = data)
@@ -122,10 +123,14 @@ class LaytonAnimatedImage(File):
 
         palette = self.getPaletteAndAnimations(reader, countColours)
         for indexImage, image in enumerate(self.images):
-            self.images[indexImage] = image.getPilConstructedImage(palette, bpp, isArj)
+            self.images[indexImage] = image.getPilConstructedImage(palette, bpp, isArj).convert("RGB")
             
     def getPaletteAndAnimations(self, reader, countColours):
         palette = []
+        if countColours > 1:
+            self.alphaMask = Colour.fromInt(reader.readU2()).toList()
+            countColours -= 1
+            palette.extend(self.alphaMask)
         for _indexColour in range(countColours):
             palette.extend(Colour.fromInt(reader.readU2()).toList())
         
@@ -199,7 +204,6 @@ class LaytonBackgroundImage(File):
     def load(self, data):
         reader = binary.BinaryReader(data = data)
         lengthPalette = reader.readU4()
-        bpp = int(math.ceil(math.ceil(math.log(lengthPalette, 2)) / 4) * 4)
         palette = []
         for _indexColour in range(lengthPalette):
             palette.extend(Colour.fromInt(reader.readU2()).toList())
@@ -207,7 +211,7 @@ class LaytonBackgroundImage(File):
         tilePilMap = {}
         countTile = reader.readU4()
         for index in range(countTile):
-            tilePilMap[index] = Tile(data=reader.read(int((bpp * 64) / 8))).decodeToPil(palette, bpp)
+            tilePilMap[index] = Tile(data=reader.read(64)).decodeToPil(palette, 8)
         
         resTile = [reader.readU2(), reader.readU2()]
         self.image = Image.new("P", (int(resTile[0] * 8), int(resTile[1] * 8)))
@@ -228,14 +232,17 @@ class LaytonBackgroundImage(File):
                     if tileSelectedFlipY:
                         tileFocus = tileFocus.transpose(method=Image.FLIP_TOP_BOTTOM)
                     self.image.paste(tileFocus, (x*8, y*8))
+        
+        self.image = self.image.convert("RGB")
 
     def export(self, filename):
         self.image.save(path.splitext(filename)[0] + "." + EXPORT_EXTENSION)
 
 if __name__ == "__main__":
-    #debug = LaytonAnimatedImage()
+    debug = LaytonAnimatedImage()
     debug = LaytonBackgroundImage()
-    debug.load(binary.BinaryReader(filename="chapter1.arc").data)
+    debug.load(binary.BinaryReader(filename="q_bg.arc").data)
+    debug.load(binary.BinaryReader(filename="ai_logo_top.arc").data)
     #debug.load(binary.BinaryReader(filename="anna.arj").data, isArj=True)
     #debug.load(binary.BinaryReader(filename="aroma.arc").data)
     debug.export("image")
