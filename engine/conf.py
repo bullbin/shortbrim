@@ -24,12 +24,12 @@ ENGINE_DEBUG_FILESYSTEM_MODE    = True
 ENGINE_DEBUG_ENABLE_SEVERE      = False
 ENGINE_DEBUG_ENABLE_LOG         = True
 
-ENGINE_LOAD_FROM_ROM                = False      # Useful for development, but slow for playback
+ENGINE_LOAD_FROM_ROM                = True      # Useful for development, but slow for playback
 
 # TODO - Use these variables properly
 ENGINE_LOAD_FROM_PATCH              = True
 ENGINE_DECOMPRESS_WITH_ROM          = True
-ENGINE_LOAD_FROM_DECOMPRESSED       = True
+ENGINE_LOAD_FROM_DECOMPRESSED       = False
 
 PATH_SAVE           = None
 PATH_ROM            = path.dirname(path.dirname(path.realpath(__file__))) + "\\rom1.nds"

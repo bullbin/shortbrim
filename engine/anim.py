@@ -1,9 +1,12 @@
 # Animation Components of LAYTON1
 
-import conf, const, pygame, asset_image, asset, file
-from file import FileInterface
+import conf, const, pygame
 from os import path
 from math import ceil, sin, cos, pi
+
+import file
+from file import FileInterface
+from hat_io import asset, asset_image
 
 pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
 

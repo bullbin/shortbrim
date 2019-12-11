@@ -1,6 +1,7 @@
 # File components of LAYTON1
 
-import ndspy.rom, conf, const, binary, asset
+import ndspy.rom, conf, const
+from hat_io import binary, asset
 from os import path
 
 def debugPrint(*args, **kwargs):

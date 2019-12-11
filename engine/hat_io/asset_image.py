@@ -1,6 +1,7 @@
-import math, binary
+import math
 from PIL import Image
-from asset import File
+from . import binary
+from .asset import File
 from os import path
 
 USE_LIMITED_GAME_COLOUR = True
@@ -202,7 +203,7 @@ class LaytonBackgroundImage(File):
         self.image = None
 
     def load(self, data):
-        reader = binary.BinaryReader(data = data)
+        reader = binary.BinaryReader(data=data)
         lengthPalette = reader.readU4()
         palette = []
         for _indexColour in range(lengthPalette):
@@ -236,7 +237,8 @@ class LaytonBackgroundImage(File):
         self.image = self.image.convert("RGB")
 
     def export(self, filename):
-        self.image.save(path.splitext(filename)[0] + "." + EXPORT_EXTENSION)
+        if self.image != None:
+            self.image.save(path.splitext(filename)[0] + "." + EXPORT_EXTENSION)
 
 if __name__ == "__main__":
     debug = LaytonAnimatedImage()

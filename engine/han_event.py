@@ -1,11 +1,8 @@
 import pygame, han_nazo, conf, state, script, anim, const
 
-import file
 from file import FileInterface
-
 from os import path
 
-import ctypes; ctypes.windll.user32.SetProcessDPIAware()
 pygame.init()
 
 class LaytonCharacterController():

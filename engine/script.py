@@ -2,7 +2,8 @@
 
 from struct import unpack
 from os import path
-import conf, asset, binary
+from hat_io import binary, asset
+import conf
 
 def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
     if conf.ENGINE_DEBUG_MODE:

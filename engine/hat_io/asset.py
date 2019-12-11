@@ -1,4 +1,5 @@
-import binary, ndspy.lz10
+import ndspy.lz10
+from . import binary
 from functools import partial
 from os import remove, rename, makedirs
 

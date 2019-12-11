@@ -1,4 +1,4 @@
-import pygame, state, conf, anim, script, han_event, file
+import pygame, state, conf, anim, script, han_event
 from file import FileInterface
 from os import path
 pygame.init()
