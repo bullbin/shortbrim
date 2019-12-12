@@ -22,6 +22,7 @@ def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
                                             round(surface.get_height() * scaleFactorY)))
 
 def fetchBgSurface(filepath):
+    filepath = filepath.replace("\\", "/")
     filepath = path.splitext(file.resolveFilepath(filepath))[0]
     if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
         assetData = asset.File(data=FileInterface.getData(filepath + ".arc"))
@@ -327,7 +328,7 @@ class AnimatedImage():
 
 class StaticButton(StaticImage):
     def __init__(self, imagePath, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
-        StaticImage.__init__(self, imagePath, x, y, imageIsSurface, imageIsNull, imageNullDimensions)
+        StaticImage.__init__(self, imagePath, x=x, y=y, imageIsSurface=imageIsSurface, imageIsNull=imageIsNull, imageNullDimensions=imageNullDimensions)
         self.reset()
     
     def reset(self):
@@ -342,7 +343,8 @@ class StaticButton(StaticImage):
             self.reset()
     
     def registerButtonUp(self, event):
-        if self.wasClickedIn and self.wasClicked(event.pos):
+        if self.wasClickedIn:
+            self.wasClickedIn = False
             self.wasClickedOut = True
         else:
             self.reset()
@@ -350,7 +352,7 @@ class StaticButton(StaticImage):
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.registerButtonDown(event)   
-        if event.type == pygame.MOUSEBUTTONUP:
+        elif event.type == pygame.MOUSEBUTTONUP:
             self.registerButtonUp(event)
 
     def getPressedStatus(self):
@@ -360,12 +362,16 @@ class StaticButton(StaticImage):
         return False
 
 class AnimatedButton(StaticButton):
-    def __init__(self, imagePathInitial, imagePathPressed, x, y, imageIsSurface):
-        StaticButton.__init__(self, imagePathInitial, x, y, imageIsSurface)
-        self.imageButtonPressed = StaticImage(imagePathPressed, x, y, imageIsSurface)
+    def __init__(self, imagePathInitial, imagePathPressed, imageIsSurface=False, x=0, y=0):
+        StaticButton.__init__(self, imagePathInitial, x=x, y=y, imageIsSurface=imageIsSurface)
+        self.imageButtonPressed = StaticImage(imagePathPressed, x=x, y=y, imageIsSurface=imageIsSurface)
+    
+    def setPos(self, pos):
+        self.pos = pos
+        self.imageButtonPressed.pos = pos
     
     def draw(self, gameDisplay):
-        if self.wasClickedIn and self.wasClicked(pygame.mouse.get_pos()): 
+        if self.wasClickedIn:
             self.imageButtonPressed.draw(gameDisplay)
         else:
             super().draw(gameDisplay)

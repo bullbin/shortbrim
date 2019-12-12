@@ -13,7 +13,7 @@ def debugPrint(line):
         print(line)
 
 class LaytonPuzzleDataEntry():
-    def __init__(self, decayValues):
+    def __init__(self):
         self.name = ""
         self.unlocked = True
         self.unlockedHintLevel = 0
@@ -21,7 +21,7 @@ class LaytonPuzzleDataEntry():
         self.wasQuit = False
         self.category = None
         self.decayState = 0
-        self.decayValues = decayValues
+        self.decayValues = []
         self.countAttempts = 0
     def getValue(self):
         if self.decayState > len(self.decayValues) - 1:
@@ -45,6 +45,11 @@ class LaytonPlayerState():
                     self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
             else:
                 self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
+
+    def getPuzzleEntry(self, index):
+        if index not in self.puzzleData.keys():
+            self.puzzleData[index] = LaytonPuzzleDataEntry()
+        return self.puzzleData[index]
 
     def getFont(self, fontName):
         if fontName in self.fonts.keys():

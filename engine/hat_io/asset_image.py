@@ -1,8 +1,13 @@
 import math
 from PIL import Image
-from . import binary
-from .asset import File
 from os import path
+
+try:
+    from . import binary
+    from .asset import File
+except ImportError:
+    import binary
+    from asset import File
 
 USE_LIMITED_GAME_COLOUR = True
 EXPORT_EXTENSION = "png"

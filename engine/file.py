@@ -101,12 +101,12 @@ class FileInterface():
         return b''
     
     @staticmethod
-    def _packedDataFromRom(filepathArchive, filename):
+    def _packedDataFromRom(filepathArchive, filename, version = 0):
         filepathArchive = resolveFilepath(filepathArchive)
         if filepathArchive not in FileInterface.romCache.keys():
             tempFile = asset.File(data=FileInterface._dataFromRom(filepathArchive))
             tempFile.decompress()
-            FileInterface.romCache[filepathArchive] = asset.LaytonPack()
+            FileInterface.romCache[filepathArchive] = asset.LaytonPack(version = version)
             FileInterface.romCache[filepathArchive].load(tempFile.data)
         else:
             debugPrint("CacheRomGrab", filename)
@@ -118,7 +118,7 @@ class FileInterface():
         return reader.data
     
     @staticmethod
-    def _packedDataFromFile(filepathArchive, filename):
+    def _packedDataFromFile(filepathArchive, filename, version = 0):
         filepathArchive = resolveFilepath(filepathArchive)
         if conf.ENGINE_LOAD_FROM_DECOMPRESSED:
             filepathArchive = path.splitext(filepathArchive)[0]
@@ -131,7 +131,7 @@ class FileInterface():
     def getData(filepath):
         pass
     @staticmethod
-    def getPackedData(filepathArchive, filepath):
+    def getPackedData(filepathArchive, filepath, version = 0):
         pass
 
     if conf.ENGINE_LOAD_FROM_ROM:

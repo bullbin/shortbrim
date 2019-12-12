@@ -1,7 +1,11 @@
 import ndspy.lz10
-from . import binary
 from functools import partial
 from os import remove, rename, makedirs
+
+try:
+    from . import binary
+except ImportError:
+    import binary
 
 class _HuffmanCompressionNode():
     def __init__(self, parent=None, left=None, right=None, weight=0, data=None):
@@ -373,13 +377,14 @@ class LaytonPack(Archive):
     def load(self, data):
         reader = binary.BinaryReader(data = data)
         offsetHeader = reader.readU4()
-        reader.seek(4,1)    # Skip lengthArchive
-        countFile = reader.readU4()
+        lengthArchive = reader.readU4()
+        if self._version == 0:
+            reader.seek(4,1)    # Skip countFile (v0)
         magic = reader.read(4)
         try:
-            self._version = LaytonPack.MAGIC.index(magic)
+            # self._version = LaytonPack.MAGIC.index(magic)
             reader.seek(offsetHeader)
-            for _indexFile in range(countFile):
+            while reader.tell() != lengthArchive:
                 metadata = reader.readU4List(4)
                 self.files.append(File(name = reader.readPaddedString(metadata[0] - LaytonPack.METADATA_BLOCK_SIZE, encoding = 'shift-jis'),
                                        data = reader.read(metadata[3])))
@@ -389,6 +394,7 @@ class LaytonPack(Archive):
             return False
     
     def save(self):
+        # TODO - Support writing LT2 PCK files, which differ only in that they specify the start offset of the file.
         writer = binary.BinaryWriter()
         writer.writeU4(16)
         writer.writeU4(0)

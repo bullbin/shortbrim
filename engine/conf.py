@@ -3,9 +3,6 @@ from os import path
 
 pygame.init()
 
-# TODO - Set title text and icon from ROM, or assign dynamically
-pygame.display.set_caption("LAYTON1")
-
 LAYTON_1 = 0
 LAYTON_2 = 1
 
@@ -15,9 +12,9 @@ ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive, but ensures
 ENGINE_FORCE_USE_ALT_TIMER      = True     # Enforces alternate timer with lower overhead and support for arbitrary framerates
 ENGINE_PERFORMANCE_MODE         = False    # Reduces graphical accuracy in favour of performance
 
-ENGINE_GAME_VARIANT             = LAYTON_1
+ENGINE_GAME_VARIANT             = LAYTON_2
 
-ENGINE_DEBUG_MODE               = True
+ENGINE_DEBUG_MODE               = False
 ENGINE_DEBUG_FILESYSTEM_MODE    = True
 
 # TODO - Use more widely
@@ -32,7 +29,7 @@ ENGINE_DECOMPRESS_WITH_ROM          = True
 ENGINE_LOAD_FROM_DECOMPRESSED       = False
 
 PATH_SAVE           = None
-PATH_ROM            = path.dirname(path.dirname(path.realpath(__file__))) + "\\rom1.nds"
+PATH_ROM            = path.dirname(path.dirname(path.realpath(__file__))) + "\\rom2.nds"
 PATH_ASSET_ROOT     = path.dirname(path.dirname(path.realpath(__file__))) + "\\assets\\"
 
 FILE_DECOMPRESSED_EXTENSION_IMAGE = ".png"
@@ -60,3 +57,10 @@ LAYTON_SCREEN_HEIGHT        = 192
 LAYTON_SCREEN_WIDTH         = 256
 
 LAYTON_STRING_BOOLEAN = {"true":True, "false":False}
+
+if ENGINE_GAME_VARIANT == LAYTON_1:
+    pygame.display.set_caption("LAYTON1")
+elif ENGINE_GAME_VARIANT == LAYTON_2:
+    pygame.display.set_caption("LAYTON2")
+else:
+    pygame.display.set_caption("UNKNOWN GAME_VER")
