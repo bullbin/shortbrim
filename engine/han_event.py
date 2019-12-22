@@ -350,8 +350,6 @@ class LaytonEventHandler(state.LaytonSubscreen):
 
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
-    playerState.puzzleLoadData()
-    playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
     state.play(LaytonEventHandler(1, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
     # 17 good for anims

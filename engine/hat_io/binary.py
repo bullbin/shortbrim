@@ -43,9 +43,12 @@ class BinaryReader():
 
     def readF4(self):
         return self.readFloat(4)
-
+    
+    def readInt(self, length, signed=True):
+        return int.from_bytes(self.read(length), byteorder = 'little', signed=signed)
+    
     def readUInt(self, length):
-        return int.from_bytes(self.read(length), byteorder = 'little')
+        return self.readInt(length, signed=False)
 
     def readU2(self):
         return self.readUInt(2)
@@ -60,16 +63,16 @@ class BinaryReader():
         return out
 
     def readU8(self):
-        return int.from_bytes(self.read(8), byteorder = 'little')
+        return self.readUInt(8)
     
     def readS2(self):
-        return int.from_bytes(self.read(2), byteorder = 'little', signed = True)
+        return self.readInt(2)
 
     def readS4(self):
-        return int.from_bytes(self.read(4), byteorder = 'little', signed = True)
+        return self.readInt(4)
     
     def readS8(self):
-        return int.from_bytes(self.read(8), byteorder = 'little', signed = True)
+        return self.readInt(8)
     
     def readNullTerminatedString(self, encoding):
         out = bytearray(b'')
@@ -85,7 +88,7 @@ class BinaryWriter():
     def __init__(self):
         self.data = bytearray(b'')
     
-    def getLength(self):
+    def tell(self):
         return len(self.data)
 
     def pad(self, padLength, padChar = b'\x00'):
@@ -93,13 +96,13 @@ class BinaryWriter():
             self.data.extend(padChar)
 
     def align(self, alignment, padChar = b'\x00'):
-        while self.getLength() % alignment > 0:
+        while self.tell() % alignment > 0:
             self.data.extend(padChar)
 
     def dsAlign(self, alignment, extraPad, padChar = b'\x00'):
-        tempAlignmentLength = self.getLength()
+        tempAlignmentLength = self.tell()
         self.align(alignment, padChar = padChar)
-        if self.getLength() == tempAlignmentLength:
+        if self.tell() == tempAlignmentLength:
             self.pad(extraPad, padChar = padChar)
 
     def write(self, data):
@@ -110,6 +113,13 @@ class BinaryWriter():
 
     def writeString(self, data, encoding):
         self.data.extend(data.encode(encoding))
+    
+    def writePaddedString(self, data, length, encoding, padChar=b'\x00'):
+        data = data.encode(encoding)
+        if len(data) > length:
+            self.data.extend(data[:length])
+        else:
+            self.data.extend(data + (padChar * (length - len(data))))
 
     def writeInt(self, data, length, signed = False):
         self.data.extend(data.to_bytes(length, byteorder = 'little', signed = signed))

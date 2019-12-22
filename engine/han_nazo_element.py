@@ -18,11 +18,12 @@ class IndependentTile(anim.StaticImage):
             anim.StaticImage.__init__(self, sourceAnim.frames[sourceAnim.animMap[sourceAnim.animActive].indices[0]], x=x, y=y, imageIsSurface=True)
         else:
             if sourceAnimName.isdigit() and len(sourceAnim.frames) >= int(sourceAnimName):
+                # TODO - Make more resilient here
                 anim.StaticImage.__init__(self, sourceAnim.frames[sourceAnimName - 1], x=x, y=y, imageIsSurface=True)
             else:
                 anim.StaticImage.__init__(self, pygame.Surface((24,24)), x=x, y=y, imageIsSurface=True)
         self.sourcePos = (x,y)
-    
+        
     def reset(self):
         self.pos = self.sourcePos
 
@@ -31,14 +32,13 @@ class IndependentIndexedTile(IndependentTile):
         IndependentTile.__init__(self, sourceAnim, sourceAnimName, x, y)
         self.index = index
 
-class IndependentTileMatch(IndependentTile):
+class IndependentTileRotateable(IndependentTile):
 
-    MATCH_HEIGHT = 5
-    MATCH_LENGTH = 40
+    RADIUS_ROTATE = 20
+    RADIUS_MOVE = 10
 
     def __init__(self, sourceAnim, sourceAnimName, rot, x=0, y=0):
         IndependentTile.__init__(self, sourceAnim, sourceAnimName, x, y)
-        self.image.set_colorkey((0,0,0))
         self.sourceImage = self.image
         self.sourceRot = -rot
         self.rotImage = 0
@@ -54,6 +54,9 @@ class IndependentTileMatch(IndependentTile):
 
     def getRot(self):
         return - self.rot
+    
+    def setRot(self, rot):
+        self.rotPending = - rot
 
     def reset(self):
         super().reset()

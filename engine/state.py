@@ -1,6 +1,6 @@
 # State Components of LAYTON1
 
-import conf, pygame, anim, script
+import conf, pygame, anim, script, const
 from os import path
 import ctypes; ctypes.windll.user32.SetProcessDPIAware() # Scale window to ensure perfect pixels
 from file import FileInterface
@@ -8,9 +8,9 @@ from file import FileInterface
 if conf.ENGINE_FORCE_USE_ALT_TIMER:
     import time
 
-def debugPrint(line):
+def debugPrint(*args, **kwargs):
     if conf.ENGINE_DEBUG_MODE:
-        print(line)
+        print(*args, **kwargs)
 
 class LaytonPuzzleDataEntry():
     def __init__(self):
@@ -34,6 +34,7 @@ class LaytonPlayerState():
         self.puzzleData = {}
         self.puzzletTutorialsCompleted = []
         self.currentRoom = 0
+        self.currentObjective = 10
         self.remainingHintCoins = 0
         self.hintCoinsFound = []
         self.fonts = {}
@@ -66,7 +67,7 @@ class LaytonPlayerState():
                     self.puzzleData[instruction.operands[0]].name = instruction.operands[2]
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
                 except KeyError:
-                    self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry([])
+                    self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry()
                     self.puzzleData[instruction.operands[0]].name = instruction.operands[2]
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
 
@@ -74,7 +75,8 @@ class LaytonPlayerState():
         pscript = script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds"), None)
         for instruction in pscript.commands:
             if instruction.opcode == b'\xc3': # Set picarot decay
-                self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry(instruction.operands[1:])
+                self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry()
+                self.puzzleData[instruction.opernads[0]].decayValues = instruction.operands[1:]
 
 class LaytonContext():
     def __init__(self):
@@ -288,11 +290,18 @@ def play(rootHandler, playerState):
             debugFps.draw(gameDisplay)
 
         pygame.display.update()
+        gameClockBypass = False
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 isActive = False
+            elif event.type == const.ENGINE_SKIP_CLOCK:
+                debugPrint("State: Clock bypassed on this frame!")
+                gameClockBypass = True
             else:
                 rootHandler.handleEvent(event)
         
         gameClockDelta = tick(gameClockInterval)
+
+        if gameClockBypass and gameClockDelta > conf.ENGINE_FRAME_INTERVAL:
+            gameClockDelta = conf.ENGINE_FRAME_INTERVAL

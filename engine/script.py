@@ -26,7 +26,7 @@ class gdOperation():
         self.operands = operands
 
 class gdScript(asset.File):
-    def __init__(self, data, playerState, enableBranching=False, useBranchingHack=True):
+    def __init__(self, data, playerState, enableBranching=False, useBranchingHack=False):
         self.commands = []
         self.commandLoc = []
         self.length = 0
@@ -36,15 +36,16 @@ class gdScript(asset.File):
     def load(self, data, enableBranching, useBranchingHack):
         try:
             self.length = len(data.data)
-            if enableBranching:
-                self.lastJump = 0
-            self.offsetEofc = data.readU4()
-            data.seek(2,1)
-            while data.tell() != self.offsetEofc + 4:
-                tempCommand = self.parseCommand(data, enableBranching, useBranchingHack)
-                if not(tempCommand[0]):
-                    self.commands.append(tempCommand[1])
-            debugPrint("LogGdsLoad: Reading complete!")
+            if self.length > 0: # TODO - Why is this crashing so hard on 0 lengths?
+                if enableBranching:
+                    self.lastJump = 0
+                self.offsetEofc = data.readU4()
+                data.seek(2,1)
+                while data.tell() != self.offsetEofc + 4:
+                    tempCommand = self.parseCommand(data, enableBranching, useBranchingHack)
+                    if not(tempCommand[0]):
+                        self.commands.append(tempCommand[1])
+                debugPrint("LogGdsLoad: Reading complete!")
         except FileNotFoundError:
             debugPrint("ErrGdsLoad: GDS does not exist!")
 
@@ -80,21 +81,5 @@ class gdScript(asset.File):
             
             elif paramId == 12: # End of entire file
                 break
-        
-        if enableBranching:
-            if opcode == b'\x48':  # Select puzzle
-                self.contextPuzzle = tempOperands[0]
-            
-            if self.contextPuzzle != None:
-                if opcode in [b'\x49', b'\x4a', b'\x4d']:
-                    if opcode == b'\x49' and self.playerState.puzzleData[self.contextPuzzle].countAttempts > 0: # Jump if puzzle reattempted
-                        reader.seek(tempOperands[0])
-                    elif opcode == b'\x4a' and self.playerState.puzzleData[self.contextPuzzle].wasCompleted: # Jump if puzzle finished
-                        reader.seek(tempOperands[0])
-                    elif opcode == b'\x4d' and self.playerState.puzzleData[self.contextPuzzle].wasQuit: # Jump if puzzle quit
-                        reader.seek(tempOperands[0])
-                    if useBranchingHack:                # The RE for branching is kind of shaky, so this hack allows more bad loops to be avoided
-                        seekToNextOperation(reader)
-                    invalidateCommand = True
             
         return (invalidateCommand, gdOperation(opcode, tempOperands))

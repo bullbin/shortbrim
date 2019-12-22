@@ -3,14 +3,12 @@ from file import FileInterface
 
 pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
 
+# data_lt2/bg/nazo/system/en/jitenhint_<n>.arc is the unlock screen? Strange
+
 class HintTab():
     def __init__(self, hintText, hintLevel, pos, playerState, imageLockedButton, imageUnlockedButton, isUnlocked=False):
-        self.tabLocked      = anim.AnimatedButton(imageLockedButton.setAnimationFromNameAndReturnInitialFrame("off"),
-                                                  imageLockedButton.setAnimationFromNameAndReturnInitialFrame("on"),
-                                                  imageIsSurface=True, x=pos[0], y=pos[1])
-        self.tabUnlocked    = anim.AnimatedButton(imageUnlockedButton.setAnimationFromNameAndReturnInitialFrame("off"),
-                                                  imageUnlockedButton.setAnimationFromNameAndReturnInitialFrame("on"),
-                                                  imageIsSurface=True, x=pos[0], y=pos[1])
+        self.tabLocked      = anim.AnimatedButton(imageLockedButton, None, imageIsSurface=True, useButtonFromAnim=True, x=pos[0], y=pos[1])
+        self.tabUnlocked    = anim.AnimatedButton(imageUnlockedButton, None, imageIsSurface=True, useButtonFromAnim=True, x=pos[0], y=pos[1])
 
         self.hText = anim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(20, conf.LAYTON_SCREEN_HEIGHT + 43))
         self.hText.skip()
@@ -39,9 +37,7 @@ class Screen(state.LaytonContext):
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
 
-        self.buttonQuit = anim.AnimatedButton(imageBackButton.setAnimationFromNameAndReturnInitialFrame("off"),
-                                              imageBackButton.setAnimationFromNameAndReturnInitialFrame("on"), imageIsSurface=True)
-        
+        self.buttonQuit = anim.AnimatedButton(imageBackButton, None, imageIsSurface=True, useButtonFromAnim=True)
         self.buttonQuit.setPos((conf.LAYTON_SCREEN_WIDTH - self.buttonQuit.image.get_width(), conf.LAYTON_SCREEN_HEIGHT))
 
         self.puzzleIndex = puzzleIndex
@@ -67,10 +63,8 @@ class Screen(state.LaytonContext):
             tempTabX += self.hintTabs[hintTabIndex].tabLocked.image.get_width() + 1
         
         self.puzzleAnimFont = puzzleAnimFont
-        self.buttonYes = anim.AnimatedButton(imageYesButton.setAnimationFromNameAndReturnInitialFrame("off"),
-                                             imageYesButton.setAnimationFromNameAndReturnInitialFrame("on"), imageIsSurface=True, x=57, y=conf.LAYTON_SCREEN_HEIGHT + 138)
-        self.buttonNo = anim.AnimatedButton(imageNoButton.setAnimationFromNameAndReturnInitialFrame("off"),
-                                            imageNoButton.setAnimationFromNameAndReturnInitialFrame("on"), imageIsSurface=True, x=137, y=conf.LAYTON_SCREEN_HEIGHT + 138)
+        self.buttonYes = anim.AnimatedButton(imageYesButton, None, imageIsSurface=True, useButtonFromAnim=True, x=57, y=conf.LAYTON_SCREEN_HEIGHT + 138)
+        self.buttonNo = anim.AnimatedButton(imageNoButton, None, imageIsSurface=True, useButtonFromAnim=True, x=137, y=conf.LAYTON_SCREEN_HEIGHT + 138)
 
     def refresh(self):
         self.isContextFinished = False
@@ -135,5 +129,4 @@ class Screen(state.LaytonContext):
                         self.hintLevelActive = indexTab
                         self.hintStateChanged = True
                         break
-            return True
-        return False
+        return True

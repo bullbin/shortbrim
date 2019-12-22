@@ -8,6 +8,10 @@ def debugPrint(*args, **kwargs):
     if conf.ENGINE_DEBUG_FILESYSTEM_MODE and conf.ENGINE_DEBUG_ENABLE_LOG:
         print(*args, **kwargs)
 
+def debugErrorPrint(*args, **kwargs):
+    if conf.ENGINE_DEBUG_FILESYSTEM_MODE and conf.ENGINE_DEBUG_ENABLE_ERROR:
+        print(*args, **kwargs)
+
 def debugSeverePrint(*args, **kwargs):
     if conf.ENGINE_DEBUG_FILESYSTEM_MODE and conf.ENGINE_DEBUG_ENABLE_SEVERE:
         print(*args, **kwargs)
@@ -97,7 +101,7 @@ class FileInterface():
             testFile = FileInterface.rom.getFileByName(resolveFilepath(filepath))
             debugPrint("RomGrab", resolveFilepath(filepath))
             return testFile
-        debugPrint("RomGrabFailed", resolveFilepath(filepath))
+        debugErrorPrint("RomGrabFailed", resolveFilepath(filepath))
         return b''
     
     @staticmethod

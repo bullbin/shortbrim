@@ -2,7 +2,7 @@
 assets/
 documentation/
 *.pyc
-tester.py
+nopush_*
 engine/pygame/core/.vscode/settings.json
 tools/.vscode/settings.json
 *.nds

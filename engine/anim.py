@@ -50,6 +50,7 @@ class StaticImage():
         else:
             self.image = pygame.Surface((20,20))
             #self.image = pygame.image.load(imagePath).convert_alpha()
+        self.dimensions = (self.image.get_width(), self.image.get_height())
         self.pos = (x,y)
 
     def getImage(self):
@@ -68,26 +69,65 @@ class StaticImage():
         return False
 
 class AnimatedFrameCollection():
-    def __init__(self, framerate, indices=[], loop=True):
+
+    ROM_FRAMETIME_MULTIPLIER = (1000 / 60) * 1 #(5 / 3)
+
+    def __init__(self, framerate, indices=[], loop=True, isFramerateTimeArray=False):
         self.framerate = framerate
         self.isActive = True
-        if framerate == 0:
-            self.getUpdatedFrame = self.getNullUpdatedFrame
-        else:
-            if conf.ENGINE_PERFORMANCE_MODE:
-                self.frameInterval = 1000/self.framerate
-                self.getUpdatedFrame = self.getAccurateUpdatedFrame
-            else:
-                self.frameInterval = 1000 // self.framerate
-                self.getUpdatedFrame = self.getFastUpdatedFrame
-            self.frameClosestInterval = 1000 // self.framerate
         self.loop = loop
         self.indices = indices
         self.currentIndex = 0
         self.timeSinceLastUpdate = 0
+
+        if isFramerateTimeArray:
+            if type(framerate) != list or len(framerate) == 0:
+                self.getUpdatedFrame = self.getNullUpdatedFrame
+            else:
+                self.frameInterval = (AnimatedFrameCollection.ROM_FRAMETIME_MULTIPLIER) * self.framerate[self.currentIndex]
+                self.getUpdatedFrame = self.getArrAccurateUpdatedFrame
+        else:
+            if type(framerate) != int or framerate <= 0:
+                self.getUpdatedFrame = self.getNullUpdatedFrame
+            else:
+                if conf.ENGINE_PERFORMANCE_MODE:
+                    self.frameInterval = 1000/self.framerate
+                    self.getUpdatedFrame = self.getAccurateUpdatedFrame
+                else:
+                    self.frameInterval = 1000 // self.framerate
+                    self.getUpdatedFrame = self.getFastUpdatedFrame
+                self.frameClosestInterval = 1000 // self.framerate
+    
+    def getAnimLength(self):
+        if len(self.indices) == 0:
+            return 0
+        else:
+            if type(self.framerate) == list:
+                totalAnimLength = 0
+                for duration in self.framerate:
+                    totalAnimLength += duration * AnimatedFrameCollection.ROM_FRAMETIME_MULTIPLIER
+                return totalAnimLength
+            else:
+                return (1000 / self.framerate) * len(self.indices)
     
     def getNullUpdatedFrame(self, gameClockDelta):
         if len(self.indices) > 0:
+            return (True, self.indices[self.currentIndex])
+        return (False, None)
+
+    def getArrAccurateUpdatedFrame(self, gameClockDelta):
+        if self.isActive:
+            self.timeSinceLastUpdate += gameClockDelta
+            while self.timeSinceLastUpdate >= self.frameInterval:
+                self.timeSinceLastUpdate -= self.frameInterval
+                self.currentIndex += 1
+                if self.currentIndex >= len(self.indices):
+                    if self.loop:
+                        self.currentIndex = 0
+                    else:
+                        self.isActive = False
+                        return (False, None)
+                self.frameInterval = (AnimatedFrameCollection.ROM_FRAMETIME_MULTIPLIER) * (self.framerate[self.currentIndex])
             return (True, self.indices[self.currentIndex])
         return (False, None)
 
@@ -128,10 +168,12 @@ class AnimatedFrameCollection():
     def reset(self):
         self.isActive = True
         self.currentIndex = 0
+        if type(self.framerate) == list and len(self.framerate) > 0:
+            self.frameInterval = (AnimatedFrameCollection.ROM_FRAMETIME_MULTIPLIER) * self.framerate[self.currentIndex]
         self.timeSinceLastUpdate = 0
 
 class AnimatedImage():
-    def __init__(self, frameRootPath, frameName, x=0,y=0, importAnimPair=True, usesAlpha=False, frameRootExtension= conf.FILE_DECOMPRESSED_EXTENSION_IMAGE):
+    def __init__(self, frameRootPath, frameName, x=0,y=0, fromImport=True, importAnimPair=True, usesAlpha=False, frameRootExtension= conf.FILE_DECOMPRESSED_EXTENSION_IMAGE):
         self.pos = (x,y)
         self.frames = []
         self.animMap = {}
@@ -145,21 +187,22 @@ class AnimatedImage():
         else:
             self.draw = self.drawNormal
         
-        frameRootPath = frameRootPath.replace("\\", "/")
-        if frameRootPath[-1] != "/":
-            frameRootPath += "/"
-        if len(frameRootExtension) > 0 and frameRootExtension[0] != ".":    # Bad extension
-            frameRootExtension = "." + frameRootExtension
+        if fromImport:
+            frameRootPath = frameRootPath.replace("\\", "/")
+            if frameRootPath[-1] != "/":
+                frameRootPath += "/"
+            if len(frameRootExtension) > 0 and frameRootExtension[0] != ".":    # Bad extension
+                frameRootExtension = "." + frameRootExtension
 
-        if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
-            self.loadFromAsset(frameName, frameRootPath)
-        else:
-            self.loadFromUncompressed(frameRootPath, frameName, frameRootExtension, importAnimPair)
+            if not(conf.ENGINE_LOAD_FROM_DECOMPRESSED) or conf.ENGINE_LOAD_FROM_ROM:
+                self.loadFromAsset(frameName, frameRootPath)
+            else:
+                self.loadFromUncompressed(frameRootPath, frameName, frameRootExtension, importAnimPair)
 
-        if len(self.frames) > 0:
-            self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
-        else:
-            self.dimensions = (0,0)
+            if len(self.frames) > 0:
+                self.dimensions = (self.frames[0].get_width(), self.frames[0].get_height())
+            else:
+                self.dimensions = (0,0)
 
     def loadFromUncompressed(self, frameRootPath, frameName, frameRootExtension, importAnimPair):
         if path.exists(frameRootPath):
@@ -190,21 +233,21 @@ class AnimatedImage():
 
     def loadFromAsset(self, frameName, frameRootPath):
         assetData = asset.File(data=FileInterface.getData(frameRootPath + frameName + ".arc"))
+        isArj = False
+        if len(assetData.data) == 0:
+            assetData = asset.File(data=FileInterface.getData(frameRootPath + frameName + ".arj"))
+            if len(assetData.data) > 0:
+                isArj = True
         if len(assetData.data) > 0:
             assetData.decompress()
             assetImage = asset_image.LaytonAnimatedImage()
-            assetImage.load(assetData.data)
+            assetImage.load(assetData.data, isArj=isArj)
             for indexImage, image in enumerate(assetImage.images):
                 self.frames.append(pygame.image.fromstring(image.tobytes("raw", "RGB"), image.size, image.mode).convert())
                 if assetImage.alphaMask != None:
                     self.frames[indexImage].set_colorkey(assetImage.alphaMask)
             for anim in assetImage.anims:
-                totalFrame = 0
-                for frameLength in anim.frameDuration:
-                    totalFrame += frameLength
-                if len(anim.indexImages) > 0:
-                    totalFrame = totalFrame // len(anim.indexImages)
-                self.animMap[anim.name] = AnimatedFrameCollection(totalFrame, indices=anim.indexImages)
+                self.animMap[anim.name] = AnimatedFrameCollection(anim.frameDuration, indices=anim.indexImages, isFramerateTimeArray=True)
         else:
             print("Failed to fetch image!!")
 
@@ -360,12 +403,19 @@ class StaticButton(StaticImage):
             self.reset()
             return True
         return False
+    
+    def peekPressedStatus(self):
+        return self.wasClickedIn or self.wasClickedOut
 
 class AnimatedButton(StaticButton):
-    def __init__(self, imagePathInitial, imagePathPressed, imageIsSurface=False, x=0, y=0):
-        StaticButton.__init__(self, imagePathInitial, x=x, y=y, imageIsSurface=imageIsSurface)
-        self.imageButtonPressed = StaticImage(imagePathPressed, x=x, y=y, imageIsSurface=imageIsSurface)
-    
+    def __init__(self, imagePathInitial, imagePathPressed, imageIsSurface=False, useButtonFromAnim=False, x=0, y=0):
+        if useButtonFromAnim:
+            StaticButton.__init__(self, imagePathInitial.setAnimationFromNameAndReturnInitialFrame("off"), x=x, y=y, imageIsSurface=imageIsSurface)
+            self.imageButtonPressed = StaticImage(imagePathInitial.setAnimationFromNameAndReturnInitialFrame("on"), x=x, y=y, imageIsSurface=imageIsSurface)
+        else:
+            StaticButton.__init__(self, imagePathInitial, x=x, y=y, imageIsSurface=imageIsSurface)
+            self.imageButtonPressed = StaticImage(imagePathPressed, x=x, y=y, imageIsSurface=imageIsSurface)
+
     def setPos(self, pos):
         self.pos = pos
         self.imageButtonPressed.pos = pos
@@ -589,6 +639,55 @@ class AnimatedFader():
                 return self.durationElapsed / self.durationCycle
         else:
             return self.inverted
+
+class AnimatedImageWithFadeInOutPerAnim(AnimatedImage):
+    def __init__(self, frameRootPath, frameName, durationCycle, inverted, mode, x=0,y=0, fromImport=True, importAnimPair=True, usesAlpha=False, frameRootExtension= conf.FILE_DECOMPRESSED_EXTENSION_IMAGE):
+        AnimatedImage.__init__(self, frameRootPath, frameName, x=x,y=y, fromImport=fromImport, importAnimPair=importAnimPair, usesAlpha=usesAlpha, frameRootExtension=frameRootExtension)
+        self.durationCycle = durationCycle
+        self.inverted = inverted
+        self.mode = mode
+        self._faderReset()
+        self.draw = self.drawAlpha
+    
+    def update(self, gameClockDelta):
+        if self.timeTotalElapsed >= self.fadeOutTime and not(self.hasSecondFaderBeenActivated):
+            self.hasSecondFaderBeenActivated = True
+            self.fader = AnimatedFader(self.durationCycle, self.mode, False, cycle=False, inverted=not(self.inverted))
+        else:
+            self.timeTotalElapsed += gameClockDelta
+        self.fader.update(gameClockDelta)
+        self.alpha = (round(self.fader.getStrength() * 255))
+        return super().update(gameClockDelta)
+    
+    def _faderReset(self):
+        self.fader = AnimatedFader(self.durationCycle, self.mode, False, cycle=False, inverted=self.inverted)
+        self.hasSecondFaderBeenActivated = False
+        self.timeTotalElapsed = 0
+        self.fadeOutTime = 0
+
+    def getActiveState(self):
+        return self.animActive != None or self.fader.isActive
+
+    def reset(self):
+        self._faderReset()
+        return super().reset()
+
+    def setAnimationFromName(self, anim):
+        self._faderReset()
+        out = super().setAnimationFromName(anim)
+        if out:
+            self.fadeOutTime = self.animMap[self.animActive].getAnimLength() - self.durationCycle
+        return out
+    
+    def setAnimationFromIndex(self, index):
+        self._faderReset()
+        out = super().setAnimationFromIndex(index)
+        if out:
+            totalDuration = 0
+            for duration in self.animMap[self.animActive].framerate:
+                totalDuration += duration * (1000/60)
+            self.fadeOutTime = totalDuration - self.durationCycle
+        return out
 
 class AlphaSurface():
     def __init__(self, alpha):

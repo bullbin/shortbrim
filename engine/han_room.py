@@ -1,4 +1,5 @@
 import pygame, state, conf, anim, script, han_event
+from hat_io import asset_dat
 from file import FileInterface
 from os import path
 pygame.init()
@@ -21,7 +22,7 @@ class LaytonHelperEventHandlerSpawner(state.LaytonContext):
     DURATION_EVENT_ICON_JUMP = 333
     DURATION_EVENT_ICON_JUMP_PAUSE = 333
     HEIGHT_EVENT_ICON_JUMP = 20
-    ICON_BUTTONS = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "icon_buttons") 
+    ICON_BUTTONS = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "map", "icon_buttons") 
     ICON_BUTTONS.setAnimationFromName("found")
 
     def __init__(self, indexEvent, pos, playerState):
@@ -64,17 +65,48 @@ class LaytonHelperEventHandlerSpawner(state.LaytonContext):
 
 class LaytonRoomBackground(state.LaytonContext):
 
-    def __init__(self, roomIndex, playerState):
+    POS_ROOM_TEXT = (170,13)
+    POS_GOAL_TEXT = (128,178)
+
+    def __init__(self, placeData, roomIndex, playerState):
         state.LaytonContext.__init__(self)
         
         # Set screen variables
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "room_" + str(roomIndex) + "_bg")
+        self.backgroundTs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "map/map" + str(placeData.mapTsId))
+        self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "map/main" + str(placeData.mapBgId))
+
+        roomIndexFillText = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "nazo/" + conf.LAYTON_ASSET_LANG + "/jiten.plz", "p_" + str(roomIndex) + ".txt")
+        if roomIndexFillText != None:
+            roomIndexFillText = roomIndexFillText.decode('shift-jis')
+        else:
+            roomIndexFillText = ""
+
+        goalFillText = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt2.plz", "goal_" + str(playerState.currentObjective) + ".txt")
+        if goalFillText != None:
+            goalFillText = goalFillText.decode('shift-jis')
+        else:
+            goalFillText = ""
+
+        self.mapIcon = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "map", "mapicon", x=placeData.mapPos[0], y=placeData.mapPos[1])
+        self.mapIcon.setAnimationFromName("gfx")
+        self.mapIcon.setInitialFrameFromAnimation()
+        self.mapText = anim.AnimatedText(playerState.getFont("fontevent"), initString=roomIndexFillText)
+        self.mapTextPos = (LaytonRoomBackground.POS_ROOM_TEXT[0] - (self.mapText.textRender.get_width() // 2),
+                           LaytonRoomBackground.POS_ROOM_TEXT[1] - (self.mapText.textRender.get_height() // 2))
+
+        self.goalText = anim.AnimatedText(playerState.getFont("fontevent"), initString=goalFillText)
+        self.goalTextPos = (LaytonRoomBackground.POS_GOAL_TEXT[0] - (self.goalText.textRender.get_width() // 2),
+                           LaytonRoomBackground.POS_GOAL_TEXT[1] - (self.goalText.textRender.get_height() // 2))
 
     def draw(self, gameDisplay):
+        gameDisplay.blit(self.backgroundTs, (0,0))
         gameDisplay.blit(self.backgroundBs, (0,conf.LAYTON_SCREEN_HEIGHT))
+        self.mapIcon.draw(gameDisplay)
+        self.mapText.draw(gameDisplay, location=(self.mapTextPos))
+        self.goalText.draw(gameDisplay, location=(self.goalTextPos))
 
 class LaytonRoomUi(state.LaytonContext):
     def __init__(self, playerState):
@@ -83,11 +115,11 @@ class LaytonRoomUi(state.LaytonContext):
 
 class LaytonRoomTapObject(state.LaytonContext):
     
-    DURATION_BACKGROUND_TRANS_BS = 500
-    BACKGROUND_BS = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "room_tobj", usesAlpha=True)
+    DURATION_BACKGROUND_TRANS_BS = 666
+    BACKGROUND_BS = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "tobj", "window", usesAlpha=True)
     BACKGROUND_BS.pos = ((conf.LAYTON_SCREEN_WIDTH - BACKGROUND_BS.dimensions[0]) // 2, ((conf.LAYTON_SCREEN_HEIGHT - BACKGROUND_BS.dimensions[1]) // 2) + conf.LAYTON_SCREEN_HEIGHT)
     BACKGROUND_BS.setAnimationFromName("gfx")
-    BACKGROUND_PORTRAIT = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "room_tobjp", x=BACKGROUND_BS.pos[0] + 6, y=BACKGROUND_BS.pos[1] + ((BACKGROUND_BS.dimensions[1] - 24) // 2))
+    BACKGROUND_PORTRAIT = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "tobj", "icon", x=BACKGROUND_BS.pos[0] + 6, y=BACKGROUND_BS.pos[1] + ((BACKGROUND_BS.dimensions[1] - 24) // 2))
     CURSOR_BS = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "cursor_wait")
     CURSOR_BS.pos = ((BACKGROUND_BS.pos[0] + BACKGROUND_BS.dimensions[0]) - (CURSOR_BS.dimensions[0] + 4), (BACKGROUND_BS.pos[1] + BACKGROUND_BS.dimensions[1]) - (CURSOR_BS.dimensions[1] + 4))
 
@@ -97,22 +129,31 @@ class LaytonRoomTapObject(state.LaytonContext):
         self.transitionsEnableIn    = False         # The background actually fades in but the context switcher only supports fading to black
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
-        self.backgroundPortrait     = LaytonRoomTapObject.BACKGROUND_PORTRAIT.setAnimationFromNameAndReturnInitialFrame(str(indexCharacter))
-        self.backgroundTransFader   = anim.AnimatedFader(LaytonRoomTapObject.DURATION_BACKGROUND_TRANS_BS, anim.AnimatedFader.MODE_SINE_SHARP, False, cycle=False)
+        self.backgroundPortrait     = LaytonRoomTapObject.BACKGROUND_PORTRAIT.setAnimationFromNameAndReturnInitialFrame(str(indexCharacter + 1))
+        self.backgroundTransFader   = anim.AnimatedFader(LaytonRoomTapObject.DURATION_BACKGROUND_TRANS_BS, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False)
         
-        tobjFillText = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOM + "tobj/" + conf.LAYTON_ASSET_LANG + "/tobj.pcm", "t_" + str(indexTobj) + ".txt")
-        tobjFillText = tobjFillText.decode('shift-jis')
-
-        if type(font) == anim.FontMap:
-            tobjTextPos = (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] - LaytonRoomTapObject.BACKGROUND_BS.pos[0]),
-                           LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] + font.getSpacing()[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+        if type(indexTobj) == int:
+            tobjFillText = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "place/" + conf.LAYTON_ASSET_LANG + "/tobj.plz", "tobj" + str(indexTobj) + ".txt")
         else:
-            tobjTextPos = (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] - LaytonRoomTapObject.BACKGROUND_BS.pos[0]),
-                           LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+            tobjFillText = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "place/" + conf.LAYTON_ASSET_LANG + "/tobj.plz", str(indexTobj) + ".txt")
+        if tobjFillText != None:
+            tobjFillText = tobjFillText.decode('shift-jis')
+        else:
+            tobjFillText = ""
+
+        if self.backgroundPortrait != None:
+            if type(font) == anim.FontMap:
+                tobjTextPos = (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] - LaytonRoomTapObject.BACKGROUND_BS.pos[0]),
+                            LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] + font.getSpacing()[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+            else:
+                tobjTextPos = (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] + self.backgroundPortrait.get_width() + (LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos[0] - LaytonRoomTapObject.BACKGROUND_BS.pos[0]),
+                            LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
+        else:
+            tobjTextPos =  LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos
         self.tobjText               = anim.TextScroller(font, tobjFillText, textPosOffset=tobjTextPos)
         self.tobjText.skip()
 
-        LaytonRoomTapObject.CURSOR_BS.setAnimationFromIndex(0)
+        LaytonRoomTapObject.CURSOR_BS.setAnimationFromName("touch")
 
     def update(self, gameClockDelta):
         LaytonRoomTapObject.BACKGROUND_BS.update(gameClockDelta)
@@ -126,7 +167,8 @@ class LaytonRoomTapObject(state.LaytonContext):
     def draw(self, gameDisplay):
         LaytonRoomTapObject.BACKGROUND_BS.draw(gameDisplay)
         if not(self.backgroundTransFader.isActive):
-            gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos)
+            if self.backgroundPortrait != None:
+                gameDisplay.blit(self.backgroundPortrait, LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos)
             LaytonRoomTapObject.CURSOR_BS.draw(gameDisplay)
             self.tobjText.draw(gameDisplay)
 
@@ -153,10 +195,20 @@ class LaytonRoomTapRegion():
 
 class LaytonRoomGraphics(state.LaytonContext):
 
-    animTap = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "touch_icon")
+    animTap = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "map", "touch_icon")
     animTap.loopingDisable()
+    
+    HINT_FLIP_FALLBACK_TIME = 500
 
-    def __init__(self, playerState):
+    HINT_FLIP_BS = anim.AnimatedImageWithFadeInOutPerAnim(FileInterface.PATH_ASSET_ANI + "map", "hintcoin", HINT_FLIP_FALLBACK_TIME, False, anim.AnimatedFader.MODE_SINE_SMOOTH)
+    if HINT_FLIP_BS.setAnimationFromName("gfx"):
+        HINT_FLIP_TIME = HINT_FLIP_BS.animMap[HINT_FLIP_BS.animActive].getAnimLength()
+    else:
+        HINT_FLIP_TIME = 500
+    HINT_FLIP_BS.durationCycle = HINT_FLIP_TIME // 10
+    HINT_FLIP_DISTANCE = 25
+
+    def __init__(self, placeData, roomIndex, playerState):
         state.LaytonContext.__init__(self)
         self.screenBlockInput       = True
         self.screenIsBasicOverlay   = True
@@ -172,6 +224,24 @@ class LaytonRoomGraphics(state.LaytonContext):
         self.eventHintId = []
 
         self.animTapDraw = False
+        self.isHintCoinLocked = False
+        self.hintCoinLockedIndex = None
+        self.hintCoinSpawnLoc = None
+        
+        for animPos, animName in placeData.objAnim:
+            self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "bgani", animName[0:-4],
+                                                       x = animPos[0], y = animPos[1] + conf.LAYTON_SCREEN_HEIGHT))
+            self.animObjects[-1].setAnimationFromName("gfx")
+        
+        for hintIndex, hintZone in enumerate(placeData.hints):
+            self.eventHint.append(LaytonRoomTapRegion(2, (hintZone.posCorner[0], hintZone.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT),
+                                                      hintZone.sizeBounding, "hintcoin"))
+            self.eventHintId.append(hintIndex)
+        
+        for tObj in placeData.tObj:
+            self.eventTap.append(LaytonRoomTapRegion(tObj.idChar, (tObj.bounding.posCorner[0], tObj.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT),
+                                                        tObj.bounding.sizeBounding, tObj.idTObj))
+            self.drawnTobj.append(tObj.bounding.posCorner)
     
     def draw(self, gameDisplay):
         for sprite in self.animObjects:
@@ -180,8 +250,14 @@ class LaytonRoomGraphics(state.LaytonContext):
             sprite.draw(gameDisplay)
         if self.animTapDraw:
             LaytonRoomGraphics.animTap.draw(gameDisplay)
+        
+        if self.isHintCoinLocked:
+            LaytonRoomGraphics.HINT_FLIP_BS.draw(gameDisplay)
 
     def update(self, gameClockDelta):
+
+        # TODO - Potential game-speed issues if framerate is running too slow, as tObj anim starts without considering leftover fader time
+
         for sprite in self.animObjects:
             sprite.update(gameClockDelta)
         for sprite in self.eventObjects:
@@ -189,41 +265,21 @@ class LaytonRoomGraphics(state.LaytonContext):
         if self.animTapDraw:
             LaytonRoomGraphics.animTap.update(gameClockDelta)
 
-    def executeCommand(self, command):
-        if command.opcode == b'\x43':                         # Add tobj
-            if ((command.operands[1], command.operands[2])) not in self.drawnTobj:
-                self.eventTap.append(LaytonRoomTapRegion(command.operands[0], (command.operands[1], command.operands[2] + conf.LAYTON_SCREEN_HEIGHT),
-                                                        (command.operands[3], command.operands[4]), command.operands[5]))
-                self.drawnTobj.append((command.operands[1], command.operands[2]))
-            else:
-                state.debugPrint("ErrGraphicsTobjFatal: Tobj overshoot, number " + str(command.operands[5]))
-        elif command.opcode == b'\x5c':                       # Add animated image
-            if command.operands[2][-4:] == ".spr":
-                command.operands[2] = command.operands[2][0:-4]
-            
-            self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2],
-                                                           x = command.operands[0], y = command.operands[1] + conf.LAYTON_SCREEN_HEIGHT))
-            if not(self.animObjects[-1].setAnimationFromName("gfx")):
-                self.animObjects[-1].setActiveFrame(0)
+        if self.isHintCoinLocked:
+            LaytonRoomGraphics.HINT_FLIP_BS.update(gameClockDelta)
+            self.hintAnimFader.update(gameClockDelta)
 
-        elif command.opcode == b'\x50':                     # Add interactable sprite
-            if command.operands[4] not in self.drawnEvents:
-                self.eventObjects.append(AnimatedImageEvent(command.operands[5], FileInterface.PATH_ASSET_ANI, "obj_" + str(command.operands[4]),
-                                                           x = command.operands[0], y = command.operands[1] + conf.LAYTON_SCREEN_HEIGHT))
-                self.eventObjects[-1].bounding = [command.operands[2], command.operands[3]]
-                if not(self.eventObjects[-1].setAnimationFromName("gfx")):
-                    self.eventObjects[-1].setActiveFrame(0)
-                self.drawnEvents.append(command.operands[4])
+            LaytonRoomGraphics.HINT_FLIP_BS.pos = (self.hintCoinSpawnLoc[0],
+                                                   round(self.hintCoinSpawnLoc[1] - (LaytonRoomGraphics.HINT_FLIP_DISTANCE * self.hintAnimFader.getStrength())))
 
-        elif command.opcode == b'\x68' and command.operands[0] not in self.playerState.hintCoinsFound:
-            self.eventHint.append(LaytonRoomTapRegion(3, (command.operands[1], command.operands[2] + conf.LAYTON_SCREEN_HEIGHT),
-                                                      (command.operands[3], command.operands[4]), command.operands[5]))
-            self.eventHintId.append(command.operands[0])
-        else:
-            state.debugPrint("ErrGraphicsUnkCommand: " + str(command.opcode))
+            if not(LaytonRoomGraphics.HINT_FLIP_BS.getActiveState()) and not(self.hintAnimFader.isActive):
+                self.screenNextObject = self.eventHint.pop(self.hintCoinLockedIndex).getContext(self.playerState)
+                self.hintCoinLockedIndex = None
+                self.hintCoinSpawnLoc = None
+                self.isHintCoinLocked = False
     
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        if event.type == pygame.MOUSEBUTTONDOWN and not(self.isHintCoinLocked):
             self.animTapDraw = True
             for animObject in self.eventObjects:
                 if animObject.wasClicked(event.pos):
@@ -243,7 +299,15 @@ class LaytonRoomGraphics(state.LaytonContext):
                 if self.eventHint[hintCoinIndex].wasClicked(event.pos):
                     self.playerState.hintCoinsFound.append(self.eventHintId.pop(hintCoinIndex))
                     self.playerState.remainingHintCoins += 1
-                    self.screenNextObject = self.eventHint.pop(hintCoinIndex).getContext(self.playerState)
+                    self.hintCoinLockedIndex = hintCoinIndex
+                    self.hintCoinSpawnLoc = (self.eventHint[hintCoinIndex].pos[0] + (self.eventHint[hintCoinIndex].dimensions[0] - LaytonRoomGraphics.HINT_FLIP_BS.dimensions[0]) // 2,
+                                             self.eventHint[hintCoinIndex].pos[1] + (self.eventHint[hintCoinIndex].dimensions[1] - LaytonRoomGraphics.HINT_FLIP_BS.dimensions[1]) // 2)
+
+                    LaytonRoomGraphics.HINT_FLIP_BS.setAnimationFromName("gfx")
+                    LaytonRoomGraphics.HINT_FLIP_BS.loopingDisable()
+                    self.hintAnimFader = anim.AnimatedFader(LaytonRoomGraphics.HINT_FLIP_TIME, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=True)
+
+                    self.isHintCoinLocked = True
                     self.animTapDraw = False
                     hintCoinIndex -= 1
                     return True
@@ -255,7 +319,6 @@ class LaytonRoomGraphics(state.LaytonContext):
                 LaytonRoomGraphics.animTap.pos = (event.pos[0] - (LaytonRoomGraphics.animTap.dimensions[0] // 2),
                                                   event.pos[1] - (LaytonRoomGraphics.animTap.dimensions[1] // 2))
                 LaytonRoomGraphics.animTap.setAnimationFromName("New Animation")
-                LaytonRoomGraphics.animTap.reset()    
         return False
 
 class LaytonRoomHandler(state.LaytonSubscreen):
@@ -266,29 +329,19 @@ class LaytonRoomHandler(state.LaytonSubscreen):
         self.transitionsEnableOut = False
         self.screenBlockInput = True
 
-        self.addToStack(LaytonRoomBackground(roomIndex, playerState))
-        self.addToStack(LaytonRoomGraphics(playerState))
-        self.commandFocus = self.stack[-1]
-        self.executeGdScript(script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "rooms\\room" + str(roomIndex) + "_param.gds"),
-                                             playerState))
+        placeDataIndex = (roomIndex // 40) + 1
+        if placeDataIndex > 1:
+            placeDataIndex = 2
+
+        placeData    = asset_dat.LaytonPlaceData()
+        placeData.load(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "place/plc_data" + str(placeDataIndex) + ".plz",
+                                                      "n_place" + str(roomIndex) + "_0.dat"))
+
+        self.addToStack(LaytonRoomBackground(placeData, roomIndex, playerState))
+        self.addToStack(LaytonRoomGraphics(placeData, roomIndex, playerState))
         self.addToStack(LaytonRoomUi(playerState))
-
-    def executeGdScript(self, puzzleScript):
-
-        for command in puzzleScript.commands:
-            if command.opcode == b'\x0b':
-                self.stack[0].backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
-            elif self.commandFocus == None:
-                self.executeCommand(command)
-            else:
-                self.commandFocus.executeCommand(command)
-    
-    def executeCommand(self, command):
-        state.debugPrint("CommandNoTarget: " + str(command.opcode))
 
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
-    playerState.puzzleLoadData()
-    playerState.puzzleLoadNames()
     playerState.remainingHintCoins = 10
-    state.play(LaytonRoomHandler(1, playerState), playerState)
+    state.play(LaytonRoomHandler(8, playerState), playerState) # 48 hidden puzzle

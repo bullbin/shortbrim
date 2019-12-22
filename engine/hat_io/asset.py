@@ -71,7 +71,7 @@ class _HuffmanTree():
                     tempData = tempData | 0x40
                 breadthQueue.extend((node.left, node.right))
                 writer.writeInt(tempData, 1)
-        writer.insert(((writer.getLength() // 2) - 1).to_bytes(1, byteorder = 'little'), 0)
+        writer.insert(((writer.tell() // 2) - 1).to_bytes(1, byteorder = 'little'), 0)
         return writer.data
 
 class File():
@@ -211,7 +211,7 @@ class File():
         bitsLeft = 0
         currentNode = tree.root
         isMsbNibble = True
-        while writer.getLength() < tempFilesize:    # Ported from DsDecmp
+        while writer.tell() < tempFilesize:    # Ported from DsDecmp
             while currentNode.data == None:
                 if bitsLeft == 0:
                     data = reader.readU4()
@@ -296,7 +296,7 @@ class File():
             return False
         tempFilesize = reader.readUInt(3)
         writer = binary.BinaryWriter()
-        while writer.getLength() < tempFilesize:
+        while writer.tell() < tempFilesize:
             flag = int.from_bytes(reader.read(1), byteorder = 'little')
             isCompressed = (flag & 0x80) > 0
             if isCompressed:
@@ -405,15 +405,15 @@ class LaytonPack(Archive):
             data = binary.BinaryWriter()
             data.writeString(fileChunk.name, 'shift-jis')
             data.align(4)
-            header.writeU4(data.getLength() + LaytonPack.METADATA_BLOCK_SIZE)
+            header.writeU4(data.tell() + LaytonPack.METADATA_BLOCK_SIZE)
             data.write(fileChunk.data)
             data.dsAlign(4, 4)
-            header.writeU4(data.getLength() + LaytonPack.METADATA_BLOCK_SIZE)
+            header.writeU4(data.tell() + LaytonPack.METADATA_BLOCK_SIZE)
             header.writeU4(0)
             header.writeU4(len(fileChunk.data))
             writer.write(header.data)
             writer.write(data.data)
-        writer.insert(writer.getLength().to_bytes(4, byteorder = 'little'), 4)
+        writer.insert(writer.tell().to_bytes(4, byteorder = 'little'), 4)
         self.data = writer.data
 
 class LaytonPack2(Archive):
@@ -453,8 +453,8 @@ class LaytonPack2(Archive):
         sectionName = binary.BinaryWriter()
         sectionData = binary.BinaryWriter()
         for fileIndex, fileChunk in enumerate(self.files):
-            metadata.writeU4(sectionName.getLength())
-            metadata.writeU4(sectionData.getLength())
+            metadata.writeU4(sectionName.tell())
+            metadata.writeU4(sectionData.tell())
             metadata.writeU4(len(fileChunk.data))
 
             sectionName.writeString(fileChunk.name, 'shift-jis')
@@ -469,16 +469,16 @@ class LaytonPack2(Archive):
         writer = binary.BinaryWriter()
         writer.write(b'LPC2')
         writer.writeU4(len(self.files))
-        writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE + metadata.getLength() + sectionName.getLength())
+        writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE + metadata.tell() + sectionName.tell())
         writer.writeU4(0) # EOFC, not written until end
         writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE)
-        writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE + metadata.getLength())
-        writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE + metadata.getLength() + sectionName.getLength())
-        writer.pad(LaytonPack2.HEADER_BLOCK_SIZE - writer.getLength())
+        writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE + metadata.tell())
+        writer.writeU4(LaytonPack2.HEADER_BLOCK_SIZE + metadata.tell() + sectionName.tell())
+        writer.pad(LaytonPack2.HEADER_BLOCK_SIZE - writer.tell())
         writer.write(metadata.data)
         writer.write(sectionName.data)
         writer.write(sectionData.data)
-        writer.insert(writer.getLength().to_bytes(4, byteorder = 'little'), 12)
+        writer.insert(writer.tell().to_bytes(4, byteorder = 'little'), 12)
 
         self.data = writer.data
 

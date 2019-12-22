@@ -14,12 +14,13 @@ ENGINE_PERFORMANCE_MODE         = False    # Reduces graphical accuracy in favou
 
 ENGINE_GAME_VARIANT             = LAYTON_2
 
-ENGINE_DEBUG_MODE               = False
+ENGINE_DEBUG_MODE               = True
 ENGINE_DEBUG_FILESYSTEM_MODE    = True
 
 # TODO - Use more widely
 ENGINE_DEBUG_ENABLE_SEVERE      = False
-ENGINE_DEBUG_ENABLE_LOG         = True
+ENGINE_DEBUG_ENABLE_ERROR       = True
+ENGINE_DEBUG_ENABLE_LOG         = False
 
 ENGINE_LOAD_FROM_ROM                = True      # Useful for development, but slow for playback
 
@@ -45,7 +46,9 @@ PATH_ASSET_SCRIPT   = PATH_ASSET_ROOT + "script\\"
 LAYTON_ASSET_LANG           = "en"
 
 GRAPHICS_USE_GAME_FONTS = True
-GRAPHICS_FONT_CHAR_SUBSTITUTION = {"po":"£"}
+GRAPHICS_FONT_CHAR_SUBSTITUTION = {"po":"£",
+                                   "-":"-",
+                                   "''":'"'}
 GRAPHICS_FONT_COLOR_MAP = {"x":(0,0,0),
                            "r":(255,0,0),
                            "g":(0,255,0),
