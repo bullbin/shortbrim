@@ -16,6 +16,12 @@ class TObj():
         self.idChar = charId
         self.idTObj = tObjId
 
+class PlaceEvent():
+    def __init__(self, boundary, eventObjId, eventId):
+        self.bounding = boundary
+        self.idEventObj = eventObjId
+        self.idEvent = eventId
+
 class LaytonPlaceData(File):
 
     def __init__(self):
@@ -57,6 +63,14 @@ class LaytonPlaceData(File):
             tempAnimName = reader.readPaddedString(30, encoding='shift-jis')
             if tempPos != (0,0) and tempAnimName != "":
                 self.objAnim.append((tempPos, tempAnimName))
+        
+        for _indexEvent in range(16):
+            tempBoundary = Boundary((reader.readUInt(1), reader.readUInt(1)),
+                                    (reader.readUInt(1), reader.readUInt(1)))
+            tempEventObjId = reader.readUInt(2)
+            tempEventId = reader.readUInt(2)
+            if tempBoundary.posCorner != (0,0) and tempBoundary.sizeBounding != (0,0):
+                self.objEvent.append(PlaceEvent(tempBoundary, tempEventObjId, tempEventId))
 
 class LaytonPuzzleData(File):
 

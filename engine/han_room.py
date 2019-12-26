@@ -232,6 +232,12 @@ class LaytonRoomGraphics(state.LaytonContext):
             self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "bgani", animName[0:-4],
                                                        x = animPos[0], y = animPos[1] + conf.LAYTON_SCREEN_HEIGHT))
             self.animObjects[-1].setAnimationFromName("gfx")
+
+        # TODO - Fix up event loading for eventObj
+        for eventData in placeData.objEvent:
+            self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "eventobj", "obj_" + str(eventData.idEventObj),
+                                                       x = eventData.bounding.posCorner[0], y = eventData.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
+            self.animObjects[-1].setAnimationFromName("gfx")
         
         for hintIndex, hintZone in enumerate(placeData.hints):
             self.eventHint.append(LaytonRoomTapRegion(2, (hintZone.posCorner[0], hintZone.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT),
@@ -323,7 +329,7 @@ class LaytonRoomGraphics(state.LaytonContext):
 
 class LaytonRoomHandler(state.LaytonSubscreen):
 
-    def __init__(self, roomIndex, playerState):
+    def __init__(self, roomIndex, roomSubIndex, playerState):
         state.LaytonSubscreen.__init__(self)
         self.transitionsEnableIn = False
         self.transitionsEnableOut = False
@@ -335,7 +341,7 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 
         placeData    = asset_dat.LaytonPlaceData()
         placeData.load(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "place/plc_data" + str(placeDataIndex) + ".plz",
-                                                      "n_place" + str(roomIndex) + "_0.dat"))
+                                                      "n_place" + str(roomIndex) + "_" + str(roomSubIndex) + ".dat"))
 
         self.addToStack(LaytonRoomBackground(placeData, roomIndex, playerState))
         self.addToStack(LaytonRoomGraphics(placeData, roomIndex, playerState))
@@ -344,4 +350,4 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    state.play(LaytonRoomHandler(8, playerState), playerState) # 48 hidden puzzle
+    state.play(LaytonRoomHandler(59, 1, playerState), playerState) # 48 hidden puzzle

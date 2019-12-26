@@ -11,6 +11,8 @@ pygame.init()
 class LaytonContextPuzzlet(state.LaytonContext):
     def __init__(self):
         state.LaytonContext.__init__(self)
+        self.transitionsEnableIn = False
+        self.transitionsEnableOut = False
         self.registerVictory = False
         self.registerLoss = False
         self.registerQuit = False
@@ -55,8 +57,6 @@ class LaytonTouchOverlay(state.LaytonContext):
 class LaytonScrollerOverlay(state.LaytonContext):
     def __init__(self, textPrompt, playerState):
         state.LaytonContext.__init__(self)
-        self.transitionsEnableIn = False
-        self.transitionsEnableOut = False
         self.screenIsOverlay = True
         self.screenBlockInput = True
         if conf.GRAPHICS_USE_GAME_FONTS:
@@ -149,8 +149,6 @@ class LaytonPuzzleUi(LaytonContextPuzzlet):
     def __init__(self, puzzleData, puzzleIndex, playerState):
         LaytonContextPuzzlet.__init__(self)
         self.screenIsOverlay        = True
-        self.transitionsEnableIn    = False
-        self.transitionsEnableOut   = False
 
         self.puzzleData             = puzzleData
         self.puzzleIndex            = puzzleIndex
@@ -236,6 +234,107 @@ class LaytonPuzzleBackground(state.LaytonContext):
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundTs, (0,0))
         gameDisplay.blit(self.backgroundBs, (0,conf.LAYTON_SCREEN_HEIGHT))
+
+class PuzzletPushButton(LaytonContextPuzzlet):
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.interactableElements = []
+        self.drawFlagsInteractableElements = []
+        self.solutionElements = []
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x14':
+            imageName = command.operands[2]
+            if imageName[-4:] == ".spr":
+                imageName = imageName[0:-4]
+
+            if command.operands[3]:
+                self.solutionElements.append(len(self.interactableElements))
+            
+            self.interactableElements.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/freebutton", imageName,
+                                                                    x=command.operands[0], y=command.operands[1] + conf.LAYTON_SCREEN_HEIGHT))
+            self.interactableElements[-1].setActiveFrame(command.operands[4])
+            self.drawFlagsInteractableElements.append(False)
+        else:
+            state.debugPrint("ErrUnrecognised: " + str(command.opcode))
+    
+    def draw(self, gameDisplay):
+        for elementIndex in range(len(self.interactableElements)):
+            if self.drawFlagsInteractableElements[elementIndex]:
+                self.interactableElements[elementIndex].draw(gameDisplay)
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for elementIndex in range(len(self.interactableElements)):
+                if self.interactableElements[elementIndex].wasClicked(event.pos):
+                    self.drawFlagsInteractableElements[elementIndex] = True
+
+        elif event.type == pygame.MOUSEMOTION:
+            for elementIndex in range(len(self.interactableElements)):
+                if self.drawFlagsInteractableElements[elementIndex]:
+                    if not(self.interactableElements[elementIndex].wasClicked(event.pos)):
+                        self.drawFlagsInteractableElements[elementIndex] = False
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            for elementIndex in range(len(self.interactableElements)):
+                if self.drawFlagsInteractableElements[elementIndex] == 1:
+                    if elementIndex in self.solutionElements:
+                        self.setVictory()
+                    else:
+                        self.setLoss()
+                self.drawFlagsInteractableElements[elementIndex] = False
+
+class PuzzletCut(LaytonContextPuzzlet):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.colourLine = pygame.Color(255,0,0)
+        self.posCorner = (0,0)
+        self.posMultiplier = 2
+        self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
+        self.lines = []
+    
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.cursorLineSurface, (self.posCorner[0], self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x24':
+            self.colourLine = pygame.Color(command.operands[0],command.operands[1],command.operands[2])
+        elif command.opcode == b'\x28':
+            pygame.draw.circle(self.cursorLineSurface, (0,255,0), (command.operands[0] * self.posMultiplier,command.operands[1] * self.posMultiplier), radius=2)
+        elif command.opcode == b'\x29':
+            pygame.draw.line(self.cursorLineSurface, self.colourLine, (command.operands[0] * self.posMultiplier, command.operands[1] * self.posMultiplier),
+                                                                      (command.operands[2] * self.posMultiplier, command.operands[3] * self.posMultiplier), width=2)
+        elif command.opcode == b'\x10':
+            self.posCorner = (command.operands[0],command.operands[1])
+        else:
+            super().executeCommand(command)
+    
+class PuzzletSliding(LaytonContextPuzzlet):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.posCorner = (0,0)
+        self.tileBoardDimensions = (0,0)
+        self.tileSize = (0,0)
+        self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
+
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x4e':
+            self.posCorner = (command.operands[0], command.operands[1])
+            self.tileBoardDimensions = (command.operands[2], command.operands[3])
+            self.tileSize = (command.operands[4], command.operands[5])
+        elif command.opcode == b'\x4f':
+            pygame.draw.circle(self.cursorLineSurface, (0,255,0), (self.posCorner[0] + (self.tileSize[0] // 2) + (self.tileSize[0] * command.operands[0]),
+                                                                   self.posCorner[1] + (self.tileSize[1] // 2) + (self.tileSize[1] * command.operands[1])), radius=2)
+            pygame.draw.circle(self.cursorLineSurface, (255,0,0), (self.posCorner[0] + (self.tileSize[0] // 2) + (self.tileSize[0] * command.operands[2]),
+                                                                   self.posCorner[1] + (self.tileSize[1] // 2) + (self.tileSize[1] * command.operands[3])), radius=4)
+        else:
+            super().executeCommand(command)
 
 class PuzzletTileRotate(LaytonContextPuzzlet):
 
@@ -481,8 +580,8 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 
     # Taken from jiten.plz (Naming scheme for handlers; handlers are also derived from the parameter grabbing this)
     # 22 unique handlers
-    defaultHandlers = {0: 'Matchstick', 2: 'Multiple Choice', 3: 'Mark Answer',
-
+    defaultHandlers = {0: 'Matchstick', 3: 'Mark Answer',
+                       2: PuzzletPushButton,
                        5: PuzzletTraceButton,
 
                        10: 'Sort', 13: 'Move to Answer',
@@ -492,9 +591,9 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
                        12: PuzzletTileRotate, 18: PuzzletTileRotate,
 
                        16: 'Write Answer', 22: 'Write Answer', 28: 'Write Answer', 32: 'Write Answer', 
-                       1: 'Sliding', 25: 'Sliding', 
+                       1: 'Sliding', 25: PuzzletSliding, 
                        26: 'Arrange to Answer', 11: 'Arrange to Answer',
-                       6: 'Draw Line', 9: 'Draw Line'}
+                       6: 'Draw Line', 9:PuzzletCut}
 
     def __init__(self, puzzleIndex, playerState):
         state.LaytonSubscreen.__init__(self)
@@ -544,5 +643,5 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(6, tempPlayerState), tempPlayerState)    # 3 - Multiroom tracebutton, 6 - single tracebutton
+    state.play(LaytonPuzzleHandler(25, tempPlayerState), tempPlayerState)    # 3 - Multiroom tracebutton, 6 - single tracebutton, 8 - pushButton, 10, 16 - cut
     # 2, 39, 115 Rotate and arrange
