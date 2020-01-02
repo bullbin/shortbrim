@@ -81,10 +81,10 @@ class File():
     COMP_RLE                = 0x30
     COMP_LZ10               = 0x10
 
-    LAYTON_1_COMPRESSION    = {COMP_RLE:1,
-                               COMP_LZ10:2,
-
-                               COMP_HUFFMAN_8_BIT:4}
+    LAYTON_1_COMPRESSION    = {COMP_RLE:b'\x01\x00\x00\x00',
+                               COMP_LZ10:b'\x02\x00\x00\x00',
+                               COMP_HUFFMAN_4_BIT:b'\x03\x00\x00\x00',
+                               COMP_HUFFMAN_8_BIT:b'\x04\x00\x00\x00'}
 
     def __init__(self, name="", data = b'', extension = ''):
         self.name = name
@@ -94,10 +94,10 @@ class File():
     def __str__(self):
         return str(len(self.data)) + "\t" + self.name
 
-    def compress(self): # Get optimal compression
+    def compress(self, addHeader=False): # Get optimal compression
         def copyCompress(compressionMethod):
             uncompressed = self.data
-            compressionMethod()
+            compressionMethod(addHeader = addHeader)
             compressed = self.data
             self.data = uncompressed
             return compressed
@@ -129,7 +129,7 @@ class File():
                 return decompressMethod(offsetIn = offsetIn)
         return False
 
-    def compressHuffman(self, useHalfByteBlocks = False):
+    def compressHuffman(self, useHalfByteBlocks = False, addHeader=False):
         reader = binary.BinaryReader(data = self.data)
         freqDict = {}
         while reader.hasDataRemaining():    # Build frequency table
@@ -189,7 +189,13 @@ class File():
             writer.writeU4(compressionBlock)
         writer.dsAlign(4, 4)
 
-        self.data = writer.data
+        if addHeader:
+            if useHalfByteBlocks:
+                self.data = File.LAYTON_1_COMPRESSION[File.COMP_HUFFMAN_4_BIT] + writer.data
+            else:
+                self.data = File.LAYTON_1_COMPRESSION[File.COMP_HUFFMAN_8_BIT] + writer.data
+        else:
+            self.data = writer.data
 
     def decompressHuffman(self, offsetIn=0):
         reader = binary.BinaryReader(data = self.data)
@@ -239,7 +245,7 @@ class File():
         self.data = writer.data[:tempFilesize]
         return True
 
-    def compressRle(self):
+    def compressRle(self, addHeader=False):
         writer = binary.BinaryWriter()
         reader = binary.BinaryReader(data = self.data)
 
@@ -287,7 +293,10 @@ class File():
                     tempUncompressedSection = tempUncompressedSection[0:-2]
         # Write anything left, as there may be blocks remaining after the reader ran out of data
         writeData()
-        self.data = bytearray(b'\x30' + len(self.data).to_bytes(3, byteorder = 'little') + writer.data)
+        if addHeader:
+            self.data = bytearray(File.LAYTON_1_COMPRESSION[File.COMP_RLE] + File.COMP_RLE + len(self.data).to_bytes(3, byteorder = 'little') + writer.data)
+        else:
+            self.data = bytearray(File.COMP_RLE + len(self.data).to_bytes(3, byteorder = 'little') + writer.data)
             
     def decompressRle(self, offsetIn=0):
         reader = binary.BinaryReader(data = self.data)
@@ -311,7 +320,10 @@ class File():
         return True
     
     def compressLz10(self, addHeader=False):
-        self.data = ndspy.lz10.compress(self.data)
+        if addHeader:
+            self.data = File.LAYTON_1_COMPRESSION[File.COMP_LZ10] + ndspy.lz10.compress(self.data)
+        else:
+            self.data = ndspy.lz10.compress(self.data)
 
     def decompressLz10(self, offsetIn=0):
         try:
@@ -325,7 +337,6 @@ class File():
 
     def export(self, filepath):
         # Add a method to BinaryWriter to do this
-        self.save()
         try:
             if self.extension != '':
                 extension = '.' + self.extension

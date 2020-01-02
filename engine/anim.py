@@ -30,7 +30,7 @@ def fetchBgSurface(filepath):
             assetData.decompress()
             assetImage = asset_image.LaytonBackgroundImage()
             assetImage.load(assetData.data)
-            return pygame.image.fromstring(assetImage.image.tobytes("raw", "RGB"), assetImage.image.size, assetImage.image.mode).convert()
+            return pygame.image.fromstring(assetImage.image.convert("RGB").tobytes("raw", "RGB"), assetImage.image.size, "RGB").convert()
     else:
         try:
             return pygame.image.load(filepath + conf.FILE_DECOMPRESSED_EXTENSION_IMAGE)
@@ -243,7 +243,7 @@ class AnimatedImage():
             assetImage = asset_image.LaytonAnimatedImage()
             assetImage.load(assetData.data, isArj=isArj)
             for indexImage, image in enumerate(assetImage.images):
-                self.frames.append(pygame.image.fromstring(image.tobytes("raw", "RGB"), image.size, image.mode).convert())
+                self.frames.append(pygame.image.fromstring(image.convert("RGB").tobytes("raw", "RGB"), image.size, "RGB").convert())
                 if assetImage.alphaMask != None:
                     self.frames[indexImage].set_colorkey(assetImage.alphaMask)
             for anim in assetImage.anims:

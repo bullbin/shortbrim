@@ -9,8 +9,23 @@ except ImportError:
     import binary
     from asset import File
 
-USE_LIMITED_GAME_COLOUR = True
 EXPORT_EXTENSION = "png"
+EXPORT_WITH_ALPHA = True    # Not recommended for in-engine as masking is faster
+
+def pilPaletteToRgbTriplets(image):
+    paletteData = image.getpalette()
+    output = []
+    for rgbTriplet in range(256):
+        output.append((paletteData[rgbTriplet * 3], paletteData[rgbTriplet * 3 + 1], paletteData[rgbTriplet * 3 + 2]))
+    return output
+
+def countPilPaletteColours(image):
+    lastColour = None
+    for indexColour, colour in enumerate(pilPaletteToRgbTriplets(image)):
+        if lastColour == colour:
+            return indexColour
+        lastColour = colour
+    return 256
 
 class Colour():
     def __init__(self, r = 1, g = 1, b = 1):
@@ -25,9 +40,7 @@ class Colour():
         return colourOut
     
     def toList(self):
-        if USE_LIMITED_GAME_COLOUR:
-            return ([int(self.r * 248), int(self.g * 248), int(self.b * 248)])
-        return ([int(self.r * 255), int(self.g * 255), int(self.b * 255)])
+        return ([int(self.r * 248), int(self.g * 248), int(self.b * 248)])
 
 class Tile():
     def __init__(self, data=None):
@@ -129,7 +142,7 @@ class LaytonAnimatedImage(File):
 
         palette = self.getPaletteAndAnimations(reader, countColours)
         for indexImage, image in enumerate(self.images):
-            self.images[indexImage] = image.getPilConstructedImage(palette, bpp, isArj).convert("RGB")
+            self.images[indexImage] = image.getPilConstructedImage(palette, bpp, isArj)
             
     def getPaletteAndAnimations(self, reader, countColours):
         palette = []
@@ -203,9 +216,140 @@ class LaytonAnimatedImage(File):
             image.save(path.splitext(filename)[0] + "_" + str(i) + "." + EXPORT_EXTENSION)
 
 class LaytonBackgroundImage(File):
+
+    COLOUR_MAX = 250    # Anything above 250 causes graphical corruption
+    COLOUR_ALPHA = [224,0,120]
+
     def __init__(self):
         File.__init__(self)
         self.image = None
+    
+    @staticmethod
+    def fromPil(image):
+        """Create a new background from a PIL-based RGBA/RGB image.
+        \nAll transparency must be represented in the alpha channel of the image.
+        Any blending will be converted to alpha masking.
+        
+        Arguments:
+            image {PIL.Image} -- Image in P, RGB or RGBA mode
+        """
+
+        def addAlphaToOutputImageAndRescaleColour():
+            countColours = countPilPaletteColours(output.image)
+            if countColours > LaytonBackgroundImage.COLOUR_MAX - 1:
+                countColours = LaytonBackgroundImage.COLOUR_MAX - 1
+            output.image = Image.eval(output.image, (lambda p: p + 1))    # Shift palette to make room for alpha
+            tempPalette = LaytonBackgroundImage.COLOUR_ALPHA
+            for channel in output.image.getpalette()[0:countColours * 3]:
+                tempPalette.append(channel << 3)
+            tempPalette.extend(tempPalette[-3:] * (256 - (len(tempPalette) // 3)))
+            output.image.putpalette(tempPalette)
+
+        output = LaytonBackgroundImage()
+        
+        if image.mode in ["P", "RGB", "RGBA"]:
+            # Validate if transparency pathway required because it is slow
+            if image.mode == "P":       # Detect transparency in paletted images
+                if image.info.get("transparency", None) != None:
+                    image = image.convert("RGBA")   # TODO: Hunt in palette for whether transparent colour is used
+                else:
+                    image = image.convert("RGB")
+            if image.mode == "RGBA":    # Validate if image is actually transparent
+                if image.getextrema()[3][0] == 255:
+                    image = image.convert("RGB")
+            
+            alphaPix = []
+            # Strict, but ensures alpha is always preserved even for tiny palettes and/or small details
+            if image.mode == "RGBA":
+                # Produce a 5-bit version of the image with crushed alpha ready for mixing
+                reducedImage = Image.eval(image.convert('RGB'), (lambda p: p >> 3)).convert("RGBA")
+                reducedImage.putalpha(Image.eval(image.split()[-1], (lambda p: int((p >> 7) * 255))))
+
+                colours = {}
+                colourSurfaceX = 0
+                for x in range(image.size[0]):
+                    for y in range(image.size[1]):
+                        r,g,b,a = reducedImage.getpixel((x,y))
+                        if a > 0:
+                            if (r,g,b) not in colours.keys():
+                                colours[(r,g,b)] = 1
+                            else:
+                                colours[(r,g,b)] += 1
+                            colourSurfaceX += 1
+                        else:
+                            alphaPix.append((x,y))
+                
+                # Produce new palette from used colour strip
+                palette = Image.new('RGB', (colourSurfaceX, 1))
+                colourSurfaceX = 0
+                averageColour = [0,0,0]
+                for colour in colours.keys():
+                    for indexPixel in range(colours[colour]):
+                        palette.putpixel((colourSurfaceX + indexPixel, 0), colour)
+                    colourSurfaceX += colours[colour]
+                    averageColour[0], averageColour[1], averageColour[2] = averageColour[0] + (colour[0] * colours[colour]), averageColour[1] + (colour[1] * colours[colour]), averageColour[2] + (colour[2] * colours[colour])
+                palette = palette.quantize(colors=LaytonBackgroundImage.COLOUR_MAX - 1)
+                averageColour = (averageColour[0] // colourSurfaceX, averageColour[1] // colourSurfaceX, averageColour[2] // colourSurfaceX)
+
+                # Reduce colour bleeding on alpha edges by producing a new image with alpha given the average colour
+                alphaCoverage = Image.new("RGB", image.size, averageColour)
+                alphaCoverage.paste(reducedImage, (0,0), mask=reducedImage)
+
+                # Finally quantize image
+                output.image = alphaCoverage.convert("RGB").quantize(palette=palette)   
+            else:
+                # Quantize image if no pre-processing is required
+                output.image = Image.eval(image, (lambda p: p >> 3)).quantize(colors=LaytonBackgroundImage.COLOUR_MAX - 1)
+            
+            addAlphaToOutputImageAndRescaleColour()
+            for alphaLoc in alphaPix: # TODO - Reusing alphaCoverage mask and then overlaying it may be faster
+                output.image.putpixel(alphaLoc, 0)
+
+            if output.image.size[0] % 8 != 0 or output.image.size[1] % 8 != 0:  # Align image to block sizes by filling with transparency
+                tempOriginalImage = output.image
+                tempScaledDimensions = (math.ceil(output.image.size[0] / 8) * 8, math.ceil(output.image.size[1] / 8) * 8)
+                output.image = Image.new(tempOriginalImage.mode, tempScaledDimensions, color=0)
+                output.image.putpalette(tempOriginalImage.getpalette())
+                output.image.paste(tempOriginalImage, (0,0))
+
+        # TODO - Exception on None
+        return output
+
+    def save(self):
+        writer = binary.BinaryWriter()
+        countColours = countPilPaletteColours(self.image)
+        writer.writeU4(countColours)
+        for colour in pilPaletteToRgbTriplets(self.image)[0:countColours]:
+            r,g,b = colour
+            tempEncodedColour = (b << 7) + (g << 2) + (r >> 3)
+            writer.writeU2(tempEncodedColour)
+
+        tiles = []
+        tilemap = []
+        tileOptimisationMap = self.image.resize((self.image.size[0] // 8 , self.image.size[1] // 8), resample=Image.BILINEAR)
+        tileOptimisationMap = tileOptimisationMap.quantize(colors=256)
+        tileOptimisationDict = {}
+
+        for yTile in range(self.image.size[1] // 8):
+            # TODO - Evaluate each tile for any similar tiles
+            for xTile in range(self.image.size[0] // 8):
+                tempTile = self.image.crop((xTile * 8, yTile * 8, (xTile + 1) * 8, (yTile + 1) * 8))
+                if tempTile in tiles:
+                    tilemap.append(tiles.index(tempTile))
+                else:
+                    tilemap.append(len(tiles))
+                    tiles.append(tempTile)
+        
+        writer.writeU4(len(tiles))
+        for tile in tiles:
+            writer.write(tile.tobytes())
+        
+        writer.writeU2(self.image.size[0] // 8)
+        writer.writeU2(self.image.size[1] // 8)
+        for key in tilemap:
+            writer.writeU2(key)
+
+        self.data = writer.data
 
     def load(self, data):
         reader = binary.BinaryReader(data=data)
@@ -238,18 +382,16 @@ class LaytonBackgroundImage(File):
                     if tileSelectedFlipY:
                         tileFocus = tileFocus.transpose(method=Image.FLIP_TOP_BOTTOM)
                     self.image.paste(tileFocus, (x*8, y*8))
-        
-        self.image = self.image.convert("RGB")
-
-    def export(self, filename):
-        if self.image != None:
-            self.image.save(path.splitext(filename)[0] + "." + EXPORT_EXTENSION)
 
 if __name__ == "__main__":
-    debug = LaytonAnimatedImage()
-    debug = LaytonBackgroundImage()
-    debug.load(binary.BinaryReader(filename="q_bg.arc").data)
-    debug.load(binary.BinaryReader(filename="ai_logo_top.arc").data)
-    #debug.load(binary.BinaryReader(filename="anna.arj").data, isArj=True)
-    #debug.load(binary.BinaryReader(filename="aroma.arc").data)
-    debug.export("image")
+    # TODO - Bypass error if no data (file not found)
+    #debug = LaytonAnimatedImage()
+    #debug = LaytonBackgroundImage()
+    #debug.load(binary.BinaryReader(filename="q_bg.arc").data)
+    #debug.export("image2")
+
+    debug = LaytonBackgroundImage.fromPil(Image.open(r"redacted"))
+    debug.image.save(r"redacted")
+    debug.save()
+    debug.compress(addHeader=True)
+    debug.export(r"redacted.arc")

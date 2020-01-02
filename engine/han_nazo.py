@@ -410,6 +410,8 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
     buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
 
     TRACE_LINE_THICKNESS = 3
+    TRACE_COLOUR_DEFAULT = (240,0,0)
+    TRACE_COLOUR_TRANSPARENCY = (0,240,0)
     TRACE_X_LIMIT = conf.LAYTON_SCREEN_WIDTH - (buttonSubmit.dimensions[0] + TRACE_LINE_THICKNESS)
 
     def __init__(self, puzzleData, puzzleIndex, playerState):
@@ -418,9 +420,9 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
         
         self.cursorEnableSoftlockRetryScreen = True
         self.cursorIsDrawing = False
-        self.cursorColour = pygame.Color(255,0,0)
+        self.cursorColour = PuzzletTraceButton.TRACE_COLOUR_DEFAULT
         self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
-        self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
+        self.cursorLineSurface.set_colorkey(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
 
         self.cursorSelectedItem = None
         self.cursorPoints = []
@@ -451,7 +453,7 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
 
     def executeCommand(self, command):
         if command.opcode == b'\x0c':
-            self.cursorColour = pygame.Color(command.operands[0],command.operands[1],command.operands[2])
+            self.cursorColour = (command.operands[0],command.operands[1],command.operands[2])
         elif command.opcode == b'\x18':
             self.traceLocationsDict[self.countAdditionalTiles].append(han_nazo_element.TraceLocation(command.operands[0], command.operands[1] + conf.LAYTON_SCREEN_HEIGHT,
                                                                       command.operands[2], conf.LAYTON_STRING_BOOLEAN[command.operands[3]]))
@@ -462,6 +464,11 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
             self.traceAdditionalTiles.append(anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "nazo/q" + str(self.puzzleIndex) + "_" + str(self.countAdditionalTiles) + ".arc"))
         else:
             state.debugPrint("ErrTraceButtonUnkCommand: " + str(command.opcode))
+    
+    def getScript(self):
+        output = script.gdScript()
+        if self.cursorColour != PuzzletTraceButton.TRACE_COLOUR_DEFAULT:
+            output.commands.append(script.gdOperation(b'\x0c', [self.cursorColour[0], self.cursorColour[1], self.cursorColour[2]]))
     
     def update(self, gameClockDelta):
         if len(self.cursorPoints) >= 2:
@@ -604,8 +611,8 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
         self.commandFocus = None
         self.puzzleIndex = puzzleIndex
         puzzleDataIndex = (puzzleIndex // 60) + 1
-        puzzleScript    = script.gdScript(FileInterface.getPackedData(FileInterface.PATH_ASSET_SCRIPT + "puzzle.plz",
-                                                      "q" + str(puzzleIndex) + "_param.gds", version = 1), None)
+        puzzleScript    = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_SCRIPT + "puzzle.plz",
+                                                   "q" + str(puzzleIndex) + "_param.gds", version = 1))
         self.puzzleData = asset_dat.LaytonPuzzleData()
         self.puzzleData.load(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "nazo/" + conf.LAYTON_ASSET_LANG + "/nazo" + str(puzzleDataIndex) + ".plz",
                                                     "n" + str(puzzleIndex) + ".dat", version = 1))
@@ -643,5 +650,5 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(25, tempPlayerState), tempPlayerState)    # 3 - Multiroom tracebutton, 6 - single tracebutton, 8 - pushButton, 10, 16 - cut
+    state.play(LaytonPuzzleHandler(6, tempPlayerState), tempPlayerState)    # 3 - Multiroom tracebutton, 6 - single tracebutton, 8 - pushButton, 10, 16 - cut
     # 2, 39, 115 Rotate and arrange

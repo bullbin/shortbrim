@@ -26,15 +26,20 @@ class gdOperation():
         self.operands = operands
 
 class gdScript(asset.File):
-    def __init__(self, data, playerState, enableBranching=False, useBranchingHack=False):
+    def __init__(self):
         self.commands = []
         self.commandLoc = []
         self.length = 0
-        self.contextPuzzle = None
-        self.playerState = playerState
-        self.load(binary.BinaryReader(data = data), enableBranching, useBranchingHack)
+    
+    @staticmethod
+    def fromData(data):
+        output = gdScript()
+        output.load(data, False, False)
+        return output
+
     def load(self, data, enableBranching, useBranchingHack):
         try:
+            data = binary.BinaryReader(data=data)
             self.length = len(data.data)
             if self.length > 0: # TODO - Why is this crashing so hard on 0 lengths?
                 if enableBranching:

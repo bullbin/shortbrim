@@ -336,8 +336,7 @@ class LaytonEventHandler(state.LaytonSubscreen):
         self.addToStack(LaytonEventBackground(playerState))
         self.addToStack(LaytonEventGraphics(eventIndex, playerState))
         self.commandFocus = self.stack[-1]
-        self.executeGdScript(script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds"),
-                                             playerState, enableBranching=True))
+        self.executeGdScript(script.gdScript.fromData(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds")))
 
     def executeGdScript(self, puzzleScript):
         for command in puzzleScript.commands:
