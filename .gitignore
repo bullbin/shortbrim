@@ -3,8 +3,9 @@ assets/
 documentation/
 *.pyc
 nopush_*
-engine/pygame/core/.vscode/settings.json
+engine/.vscode/settings.json
 tools/.vscode/settings.json
 *.nds
 *.arc
 *.arj
+*.sav

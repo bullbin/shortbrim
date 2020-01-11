@@ -43,7 +43,7 @@ class Screen(state.LaytonContext):
         self.puzzleIndex = puzzleIndex
         self.playerState = playerState
 
-        self.backgroundBs = pygame.image.load(conf.PATH_ASSET_BG + conf.LAYTON_ASSET_LANG + "\\hint_1_3.png").convert()
+        self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "nazo/system/" + conf.LAYTON_ASSET_LANG + "/hint_3.arc")
         
         self.hintLevelActive = self.playerState.puzzleData[self.puzzleIndex].unlockedHintLevel
         self.hintTabs = []

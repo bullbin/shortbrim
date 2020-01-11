@@ -1,6 +1,6 @@
 import pygame, han_nazo_element, scr_hint, conf, state, anim, script, const
 from os import path
-from math import sqrt
+from math import sqrt, atan2, pi
 from file import FileInterface
 from hat_io import asset_dat
 
@@ -76,6 +76,7 @@ class LaytonScrollerOverlay(state.LaytonContext):
                 self.puzzleQText.skip()
                 self.screenBlockInput = False
                 self.setStackUpdate()
+                return True
         return False
 
 class LaytonJudgeAnimOverlay(state.LaytonContext):
@@ -243,6 +244,9 @@ class PuzzletPushButton(LaytonContextPuzzlet):
         self.drawFlagsInteractableElements = []
         self.solutionElements = []
     
+    def addPushButton(self, imageName, cornerPos):
+        self.interactableElements.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/freebutton", imageName, x=cornerPos[0], y=cornerPos[1]))
+
     def executeCommand(self, command):
         if command.opcode == b'\x14':
             imageName = command.operands[2]
@@ -252,12 +256,11 @@ class PuzzletPushButton(LaytonContextPuzzlet):
             if command.operands[3]:
                 self.solutionElements.append(len(self.interactableElements))
             
-            self.interactableElements.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/freebutton", imageName,
-                                                                    x=command.operands[0], y=command.operands[1] + conf.LAYTON_SCREEN_HEIGHT))
+            self.addPushButton(imageName, (command.operands[0], command.operands[1] + conf.LAYTON_SCREEN_HEIGHT))
             self.interactableElements[-1].setActiveFrame(command.operands[4])
             self.drawFlagsInteractableElements.append(False)
         else:
-            state.debugPrint("ErrUnrecognised: " + str(command.opcode))
+            super().executeCommand(command)
     
     def draw(self, gameDisplay):
         for elementIndex in range(len(self.interactableElements)):
@@ -285,7 +288,59 @@ class PuzzletPushButton(LaytonContextPuzzlet):
                         self.setLoss()
                 self.drawFlagsInteractableElements[elementIndex] = False
 
+class PuzzletOnOff(PuzzletPushButton):
+
+    # TODO - Change everything to use buttons for easier input code
+    # TODO - Test if animations can work on buttons (pre-applied at loading?)
+
+    buttonSubmit        = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system/btn/" + conf.LAYTON_ASSET_LANG, "hantei"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True)
+    buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        PuzzletPushButton.__init__(self, puzzleData, puzzleIndex, playerState)
+    
+    def addPushButton(self, imageName, cornerPos):
+        self.interactableElements.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/onoff", imageName, x=cornerPos[0], y=cornerPos[1]))
+    
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        PuzzletOnOff.buttonSubmit.draw(gameDisplay)
+    
+    def handleEvent(self, event):
+        PuzzletOnOff.buttonSubmit.handleEvent(event)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for elementIndex in range(len(self.interactableElements)):
+                if self.interactableElements[elementIndex].wasClicked(event.pos):
+                    self.drawFlagsInteractableElements[elementIndex] = not(self.drawFlagsInteractableElements[elementIndex])
+                    return True
+            
+        if PuzzletOnOff.buttonSubmit.peekPressedStatus():
+            if PuzzletOnOff.buttonSubmit.getPressedStatus():
+                isSolved = True
+                for elementIndex in range(len(self.drawFlagsInteractableElements)):
+                    if self.drawFlagsInteractableElements[elementIndex] and elementIndex not in self.solutionElements:
+                        isSolved = False
+                        break
+                if isSolved:
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            return True
+        return False
+
+# TODO - Unify solution button using events
 class PuzzletCut(LaytonContextPuzzlet):
+
+    # TODO - Fix functionality to make the line follow the cursor properly
+    # This makes the puzzles playable, but not in the same way as the game
+
+    RADIUS_TAP = 10
+    WIDTH_LINE = 2
+    buttonSubmit        = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system/btn/" + conf.LAYTON_ASSET_LANG, "hantei"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True)
+    buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
+
     def __init__(self, puzzleData, puzzleIndex, playerState):
         LaytonContextPuzzlet.__init__(self)
         self.colourLine = pygame.Color(255,0,0)
@@ -293,49 +348,386 @@ class PuzzletCut(LaytonContextPuzzlet):
         self.posMultiplier = 2
         self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
         self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
-        self.lines = []
+        self.nodes = []
+        self.nodesPairs = []
+        self.nodesSolutionPairs = []
+        self.nodeInitial = None
     
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.cursorLineSurface, (self.posCorner[0], self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
+        gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+        if self.nodeInitial != None:
+            tempNodeRemapPos = (self.nodes[self.nodeInitial][0], self.nodes[self.nodeInitial][1] + conf.LAYTON_SCREEN_HEIGHT)
+            pygame.draw.line(gameDisplay, self.colourLine, tempNodeRemapPos, pygame.mouse.get_pos(), width = 2)
+        PuzzletCut.buttonSubmit.draw(gameDisplay)
+
+    def getPressedNode(self, pos):
+        pos = (pos[0], pos[1] - conf.LAYTON_SCREEN_HEIGHT)
+        for indexNode, node in enumerate(self.nodes):
+            if sqrt((node[0] - pos[0]) ** 2  + (node[1] - pos[1]) ** 2) < PuzzletCut.RADIUS_TAP:
+                return indexNode
+        return None
+
+    def redrawLineSurface(self):
+        self.cursorLineSurface.fill((0,0,0))
+        for nodeStart, nodeEnd in self.nodesPairs:
+            pygame.draw.line(self.cursorLineSurface, self.colourLine, self.nodes[nodeStart], self.nodes[nodeEnd], width = 2)
+
+    def evaluateSolution(self):
+        if len(self.nodesPairs) == len(self.nodesSolutionPairs):
+            for startNode, endNode in self.nodesPairs:
+                if (startNode, endNode) not in self.nodesSolutionPairs and (endNode, startNode) not in self.nodesSolutionPairs:
+                    return False
+            return True
+        return False
+
+    def handleEvent(self, event):
+        PuzzletCut.buttonSubmit.handleEvent(event)
+        if PuzzletCut.buttonSubmit.peekPressedStatus():
+            if PuzzletCut.buttonSubmit.getPressedStatus():
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            return True
+        
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.nodeInitial = self.getPressedNode(event.pos)
+            if self.nodeInitial != None:
+                return True
+        elif event.type == pygame.MOUSEBUTTONUP and self.nodeInitial != None:
+            tempPressedNode = self.getPressedNode(event.pos)
+            if tempPressedNode != None:
+                if tempPressedNode != self.nodeInitial:
+                    pair = (self.nodeInitial, tempPressedNode)
+                    if pair not in self.nodesPairs and (pair[1], pair[0]) not in self.nodesPairs:
+                        self.nodesPairs.append((self.nodeInitial, tempPressedNode))
+                        self.redrawLineSurface()
+            self.nodeInitial = None
+            if tempPressedNode != None:
+                return True
+        return False
 
     def executeCommand(self, command):
-        if command.opcode == b'\x24':
+        if command.opcode == b'\x24':   # Set line colour
             self.colourLine = pygame.Color(command.operands[0],command.operands[1],command.operands[2])
-        elif command.opcode == b'\x28':
-            pygame.draw.circle(self.cursorLineSurface, (0,255,0), (command.operands[0] * self.posMultiplier,command.operands[1] * self.posMultiplier), radius=2)
-        elif command.opcode == b'\x29':
-            pygame.draw.line(self.cursorLineSurface, self.colourLine, (command.operands[0] * self.posMultiplier, command.operands[1] * self.posMultiplier),
-                                                                      (command.operands[2] * self.posMultiplier, command.operands[3] * self.posMultiplier), width=2)
+        elif command.opcode == b'\x28': # Add point
+            if (self.posCorner[0] + command.operands[0] * self.posMultiplier, (command.operands[1] * self.posMultiplier) + self.posCorner[1]) not in self.nodes:
+                self.nodes.append((self.posCorner[0] + command.operands[0] * self.posMultiplier, (command.operands[1] * self.posMultiplier) + self.posCorner[1]))
+        elif command.opcode == b'\x29': # Add correct line
+            # TODO - Assumes this is always after nodes to create mapping. Is this always the case? Can it be valid otherwise? Testing required.
+            try:
+                self.nodesSolutionPairs.append((self.nodes.index((self.posCorner[0] + command.operands[0] * self.posMultiplier, (command.operands[1] * self.posMultiplier) + self.posCorner[1])),
+                                                self.nodes.index((self.posCorner[0] + command.operands[2] * self.posMultiplier, (command.operands[3] * self.posMultiplier) + self.posCorner[1]))))
+            except ValueError:
+                state.debugPrint("ErrPuzzletCut: Solution connection has no valid index!")
         elif command.opcode == b'\x10':
             self.posCorner = (command.operands[0],command.operands[1])
         else:
             super().executeCommand(command)
     
 class PuzzletSliding(LaytonContextPuzzlet):
+
+    DIRECTION_UP = 0
+    DIRECTION_DOWN = 1
+    DIRECTION_LEFT = 2
+    DIRECTION_RIGHT = 3
+
+    MOVE_COUNTER_POS = (112, 11 + conf.LAYTON_SCREEN_HEIGHT)
+
     def __init__(self, puzzleData, puzzleIndex, playerState):
         LaytonContextPuzzlet.__init__(self)
         self.posCorner = (0,0)
         self.tileBoardDimensions = (0,0)
         self.tileSize = (0,0)
+        self.tileMap = None
+
+        # Debug - shows level collision
         self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
         self.cursorLineSurface.set_colorkey(pygame.Color(0,0,0))
 
+        self.countMoveFont         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/common", "counter_number")
+        self.countMoves = 0
+
+        self.shapes = []
+
+        self.tileSolution = {}   # index: (tileX, tileY)
+        self.tileInternalToMoveableIndexMap = {}    # Locked shapes can bloat the map, causing answers to stop aligning
+        self.tileMoveableIndex = 0
+
+        self.activeTile = None
+        self.activeTileMouseGrabOffset = (0,0)
+        self.activeTileLastMousePos = None
+
+        self.activeTileCurrentMouseDirection = None
+        self.directionRequiresChanging = False
+        self.directionNextDirection = None
+        
+        self.activeTileTempPlace = (0,0)
+        self.activeTileTempOffset = (0,0)
+        self.activeTileMovementPossibilities = None # L,R,U,D
+
+    def shapeSpaceToScreenSpace(self, shape):
+        return (self.posCorner[0] + shape.cornerTilePos[0] * self.tileSize[0],
+                self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT + shape.cornerTilePos[1] * self.tileSize[1])
+
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+        #gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+
+        def setAnimationFromNameReadyToDraw(name, gameDisplay):
+            if self.countMoveFont.setAnimationFromName(name):
+                self.countMoveFont.setInitialFrameFromAnimation()
+                self.countMoveFont.draw(gameDisplay)
+        
+        self.countMoveFont.pos = PuzzletSliding.MOVE_COUNTER_POS
+        for char in str('%04d' % self.countMoves):
+            setAnimationFromNameReadyToDraw(char, gameDisplay)
+            self.countMoveFont.pos = (self.countMoveFont.pos[0] + self.countMoveFont.dimensions[0] - 1, self.countMoveFont.pos[1])
+
+        if self.activeTileTempPlace != (0,0):
+            for shapeIndex, shape in enumerate(self.shapes):
+                if shape.image != None and shapeIndex != self.activeTile:
+                    gameDisplay.blit(shape.image, self.shapeSpaceToScreenSpace(shape))
+
+            if self.activeTile != None and self.shapes[self.activeTile].image != None:
+                gameDisplay.blit(self.shapes[self.activeTile].image, self.activeTileTempPlace)
+        else:
+            for shapeIndex, shape in enumerate(self.shapes):
+                if shape.image != None:
+                    gameDisplay.blit(shape.image, self.shapeSpaceToScreenSpace(shape))
+
+    def reset(self):
+        self.countMoves = 0
+        for shape in self.shapes:
+            shape.reset()
+
+    def update(self, gameClockDelta):
+
+        def snapTileWherePossible():
+            if self.activeTileCurrentMouseDirection == PuzzletSliding.DIRECTION_UP and self.activeTileMovementPossibilities[2] > 0:
+                deltaYPixels =  self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1] + self.activeTileMouseGrabOffset[1] - self.activeTileLastMousePos[1]
+                deltaYTiles = round(deltaYPixels / self.tileSize[1])
+                if deltaYPixels > 0:
+                    if deltaYPixels > self.activeTileMovementPossibilities[2] * self.tileSize[1]: # Beyond screen space
+                        deltaYTiles = self.activeTileMovementPossibilities[2]
+                        self.activeTileTempPlace = (self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0],
+                                                    self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1] - deltaYTiles * self.tileSize[1])
+                    else:
+                        self.activeTileTempPlace = (self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0],
+                                                    self.activeTileLastMousePos[1] - self.activeTileMouseGrabOffset[1])
+                    self.activeTileTempOffset = (0, - deltaYTiles)
+
+            elif self.activeTileCurrentMouseDirection == PuzzletSliding.DIRECTION_DOWN and self.activeTileMovementPossibilities[3] > 0:
+                deltaYPixels = self.activeTileLastMousePos[1] - self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1]
+                deltaYTiles = round(deltaYPixels / self.tileSize[1])
+                if deltaYPixels > 0:
+                    if deltaYPixels > self.activeTileMovementPossibilities[3] * self.tileSize[1]:
+                        deltaYTiles = self.activeTileMovementPossibilities[3]
+                        self.activeTileTempPlace = (self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0],
+                                                    self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1] + deltaYTiles * self.tileSize[1])
+                    else:
+                        self.activeTileTempPlace = (self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0],
+                                                    self.activeTileLastMousePos[1] - self.activeTileMouseGrabOffset[1])
+                    self.activeTileTempOffset = (0, deltaYTiles)
+
+            elif self.activeTileCurrentMouseDirection == PuzzletSliding.DIRECTION_LEFT and self.activeTileMovementPossibilities[0] > 0:
+                deltaXPixels = self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0] - self.activeTileLastMousePos[0] + self.activeTileMouseGrabOffset[0]
+                deltaXTiles = round(deltaXPixels / self.tileSize[0])
+                if deltaXPixels > 0:
+                    if deltaXPixels > self.activeTileMovementPossibilities[0] * self.tileSize[0]:
+                        deltaXTiles = self.activeTileMovementPossibilities[0]
+                        self.activeTileTempPlace = (self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0] - deltaXTiles * self.tileSize[0],
+                                                    self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1])
+                    else:
+                        self.activeTileTempPlace = (self.activeTileLastMousePos[0] - self.activeTileMouseGrabOffset[0],
+                                                    self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1])
+                    self.activeTileTempOffset = (- deltaXTiles, 0)
+
+            elif self.activeTileCurrentMouseDirection == PuzzletSliding.DIRECTION_RIGHT and self.activeTileMovementPossibilities[1] > 0:
+                deltaXPixels = self.activeTileLastMousePos[0] - self.activeTileMouseGrabOffset[0] - self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0]
+                deltaXTiles = round(deltaXPixels / self.tileSize[0])
+                if deltaXPixels > 0:
+                    if deltaXPixels > self.activeTileMovementPossibilities[1] * self.tileSize[0]:
+                        deltaXTiles = self.activeTileMovementPossibilities[1]
+                        self.activeTileTempPlace = (self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[0] + deltaXTiles * self.tileSize[0],
+                                                    self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1])
+                    else:
+                        self.activeTileTempPlace = (self.activeTileLastMousePos[0] - self.activeTileMouseGrabOffset[0],
+                                                    self.shapeSpaceToScreenSpace(self.shapes[self.activeTile])[1])
+                    self.activeTileTempOffset = (deltaXTiles, 0)
+                
+        if self.activeTileCurrentMouseDirection == None:
+            self.activeTileCurrentMouseDirection = self.directionNextDirection
+
+        if self.activeTile != None and self.activeTileCurrentMouseDirection != None: # Tile currently being held and has direction
+            # First, attempt to move towards new solution
+            snapTileWherePossible()
+            
+            if self.directionRequiresChanging and self.activeTileCurrentMouseDirection != self.directionNextDirection:
+                self.applyShapeOffset(self.shapes[self.activeTile])
+                self.activeTileMovementPossibilities = self.getMovementOpportunities(self.shapes[self.activeTile])
+                self.activeTileCurrentMouseDirection = self.directionNextDirection
+                self.directionRequiresChanging = False
+            
+            # Attempt to move towards new solution
+            snapTileWherePossible()
+
+    def applyShapeOffset(self, shape):
+        shape.cornerTilePos = (shape.cornerTilePos[0] + self.activeTileTempOffset[0], shape.cornerTilePos[1] + self.activeTileTempOffset[1])
+        self.activeTileTempOffset = (0,0)
+
+    def evaluateSolution(self):
+        for tileIndex in self.tileSolution.keys():
+            if self.shapes[self.tileInternalToMoveableIndexMap[tileIndex]].cornerTilePos != self.tileSolution[tileIndex]:
+                return False
+        return True
 
     def executeCommand(self, command):
         if command.opcode == b'\x4e':
             self.posCorner = (command.operands[0], command.operands[1])
             self.tileBoardDimensions = (command.operands[2], command.operands[3])
             self.tileSize = (command.operands[4], command.operands[5])
-        elif command.opcode == b'\x4f':
-            pygame.draw.circle(self.cursorLineSurface, (0,255,0), (self.posCorner[0] + (self.tileSize[0] // 2) + (self.tileSize[0] * command.operands[0]),
-                                                                   self.posCorner[1] + (self.tileSize[1] // 2) + (self.tileSize[1] * command.operands[1])), radius=2)
-            pygame.draw.circle(self.cursorLineSurface, (255,0,0), (self.posCorner[0] + (self.tileSize[0] // 2) + (self.tileSize[0] * command.operands[2]),
-                                                                   self.posCorner[1] + (self.tileSize[1] // 2) + (self.tileSize[1] * command.operands[3])), radius=4)
+            for x in range(self.tileBoardDimensions[0] + 1):
+                pygame.draw.line(self.cursorLineSurface, (255,255,255), (self.posCorner[0], self.posCorner[1] + self.tileSize[1] * x),
+                                                                        (self.posCorner[0] + self.tileBoardDimensions[0] * self.tileSize[0], self.posCorner[1] + self.tileSize[1] * x), width=1)
+            for y in range(self.tileBoardDimensions[1] + 1):
+                pygame.draw.line(self.cursorLineSurface, (255,255,255), (self.posCorner[0] + self.tileSize[0] * y, self.posCorner[1]),
+                                                                        (self.posCorner[0] + self.tileSize[0] * y, self.posCorner[1] + self.tileBoardDimensions[1] * self.tileSize[1]), width=1)
+        elif command.opcode == b'\x4f': # Add occlusion
+            rectOcclusion = pygame.Rect(self.posCorner[0] + command.operands[0] * self.tileSize[0], self.posCorner[1] + command.operands[1] * self.tileSize[1],
+                                        self.tileSize[0] * command.operands[2], self.tileSize[1] * command.operands[3])
+            pygame.draw.rect(self.cursorLineSurface, (255,0,255), rectOcclusion)
+            self.shapes.append(han_nazo_element.SlidingShape((command.operands[0], command.operands[1]), True))
+            self.shapes[-1].addCollisionRect((0,0), (command.operands[2], command.operands[3]), self.tileSize)
+        elif command.opcode == b'\x50': # Set solution
+            self.tileSolution[command.operands[0]] = (command.operands[1], command.operands[2])
+        elif command.opcode == b'\x51': # Add tilemap (usually one of the first commands):
+            # TODO - Unify spr removal
+            self.tileMap = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/slide", command.operands[0][:-4])
+        elif command.opcode == b'\x52': # Add tile
+            # Unk, (animName, animName), (tileX, tileY)
+            if command.operands[0] != 0:
+                state.debugPrint("WarnSlideUnkConstant: Operand 0 on added tile was", command.operands[0], "instead of 0!")
+            self.tileInternalToMoveableIndexMap[self.tileMoveableIndex] = len(self.shapes)
+            self.shapes.append(han_nazo_element.SlidingShape((command.operands[3], command.operands[4]), False))
+            self.shapes[-1].image = self.tileMap.setAnimationFromNameAndReturnInitialFrame(command.operands[1])
+            self.tileMoveableIndex += 1
+        elif command.opcode == b'\x53': # Add dynamic occlusion data
+            self.shapes[-1].addCollisionRect((command.operands[0], command.operands[1]), (command.operands[2], command.operands[3]), self.tileSize)
         else:
             super().executeCommand(command)
+    
+    def getMovementOpportunities(self, shape):
+        def hasIntersectedAfterMovement():
+            canStop = False
+            for checkShape in self.shapes:
+                if checkShape != shape:
+                    if shape.doesIntersect(checkShape, self.tileSize):
+                        canStop = True
+                        break
+                    if canStop:
+                        break
+            return canStop
 
+        originalShapeCorner = shape.cornerTilePos
+        possibleMovement = [0,0,0,0]
+
+        if shape.cornerTilePos[0] > 0:
+            offset = 0
+            for _xLeftIndex in range(shape.cornerTilePos[0]):
+                shape.cornerTilePos = (shape.cornerTilePos[0] - 1,
+                                    shape.cornerTilePos[1])
+                if hasIntersectedAfterMovement():
+                    offset = 1
+                    break
+            possibleMovement[0] = originalShapeCorner[0] - shape.cornerTilePos[0] - offset
+            shape.cornerTilePos = originalShapeCorner
+        
+        if shape.cornerTilePos[0] < self.tileBoardDimensions[0] - 1:
+            offset = 0
+            for _xRightIndex in range(self.tileBoardDimensions[0] - shape.bound.width - shape.cornerTilePos[0]):
+                shape.cornerTilePos = (shape.cornerTilePos[0] + 1,
+                                    shape.cornerTilePos[1])
+                if hasIntersectedAfterMovement():
+                    offset = 1
+                    break
+            possibleMovement[1] = shape.cornerTilePos[0] - originalShapeCorner[0] - offset
+            shape.cornerTilePos = originalShapeCorner
+
+        if shape.cornerTilePos[1] > 0:
+            offset = 0
+            for _yUpIndex in range(shape.cornerTilePos[1]):
+                shape.cornerTilePos = (shape.cornerTilePos[0],
+                                    shape.cornerTilePos[1] - 1)
+                if hasIntersectedAfterMovement():
+                    offset = 1
+                    break
+            possibleMovement[2] = originalShapeCorner[1] - shape.cornerTilePos[1] - offset
+            shape.cornerTilePos = originalShapeCorner
+
+        if shape.cornerTilePos[1] < self.tileBoardDimensions[1] - 1:
+            offset = 0
+            for _yDownIndex in range(self.tileBoardDimensions[1] - shape.bound.height - shape.cornerTilePos[1]):
+                shape.cornerTilePos = (shape.cornerTilePos[0],
+                                    shape.cornerTilePos[1] + 1)
+                if hasIntersectedAfterMovement():
+                    offset = 1
+                    break
+            possibleMovement[3] = shape.cornerTilePos[1] - originalShapeCorner[1] - offset
+            shape.cornerTilePos = originalShapeCorner
+        
+        return possibleMovement
+
+    def flagIfRequiresChanging(self, newDirection):
+        if self.activeTileCurrentMouseDirection != newDirection:
+            self.directionRequiresChanging = True
+            self.directionNextDirection = newDirection
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for indexShape, shape in enumerate(self.shapes):
+                if not(shape.isLocked):
+                    tempPosCorner = (self.posCorner[0], self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT)
+                    if shape.wasClicked(event.pos, tempPosCorner, self.tileSize):
+                        self.activeTileMovementPossibilities = self.getMovementOpportunities(shape)
+                        if max(self.activeTileMovementPossibilities) > 0:
+                            self.activeTile = indexShape
+                            self.activeTileLastMousePos = event.pos
+                            self.activeTileMouseGrabOffset = self.shapeSpaceToScreenSpace(shape)
+                            self.activeTileMouseGrabOffset = (event.pos[0] - self.activeTileMouseGrabOffset[0],
+                                                              event.pos[1] - self.activeTileMouseGrabOffset[1])
+                        else:
+                            self.activeTile = None
+                        break
+
+        elif event.type == pygame.MOUSEMOTION:
+            if self.activeTile != None:
+                if event.pos[1] >= conf.LAYTON_SCREEN_HEIGHT:
+                    # Recalculate direction of mouse travel
+                    tempMouseAngle = atan2(event.pos[1] - self.activeTileLastMousePos[1], event.pos[0] - self.activeTileLastMousePos[0])
+                    self.activeTileLastMousePos = event.pos
+                    if tempMouseAngle >= pi / 4 and tempMouseAngle < 3 * pi / 4:        # DOWN
+                        self.flagIfRequiresChanging(PuzzletSliding.DIRECTION_DOWN)
+                    elif tempMouseAngle >= 3 * pi / 4 or tempMouseAngle < - 3 * pi / 4: # LEFT
+                        self.flagIfRequiresChanging(PuzzletSliding.DIRECTION_LEFT)
+                    elif tempMouseAngle >= - 3 * pi / 4 and tempMouseAngle < - pi / 4:  # UP
+                        self.flagIfRequiresChanging(PuzzletSliding.DIRECTION_UP)
+                    else:                                                               # RIGHT
+                        self.flagIfRequiresChanging(PuzzletSliding.DIRECTION_RIGHT)
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if self.activeTile != None and self.activeTileTempPlace != (0,0):
+                self.countMoves += 1
+                # Apply shape place!
+                self.applyShapeOffset(self.shapes[self.activeTile])
+                self.activeTileCurrentMouseDirection = None
+                self.directionNextDirection = None
+                self.directionRequiresChanging = False
+                self.activeTileTempPlace = (0,0)
+            self.activeTile = None
+
+            if self.evaluateSolution():
+                self.setVictory()
+                            
 class PuzzletTileRotate(LaytonContextPuzzlet):
 
     DEBUG_SHOW_ANSWER = False
@@ -389,7 +781,7 @@ class PuzzletTileRotate(LaytonContextPuzzlet):
                 self.tiles[command.operands[0]].setRot(command.operands[2] * 90)
                 self.tempTileIndex += 1
         else:
-            state.debugPrint("ErrTileRotateUnkCommand:", command.opcode)
+            super().executeCommand(command)
 
 class PuzzletTraceButton(LaytonContextPuzzlet):
 
@@ -423,6 +815,7 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
         self.cursorColour = PuzzletTraceButton.TRACE_COLOUR_DEFAULT
         self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
         self.cursorLineSurface.set_colorkey(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
+        self.cursorLineSurface.fill(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
 
         self.cursorSelectedItem = None
         self.cursorPoints = []
@@ -463,7 +856,7 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
             self.traceLocationsDict[self.countAdditionalTiles] = []
             self.traceAdditionalTiles.append(anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "nazo/q" + str(self.puzzleIndex) + "_" + str(self.countAdditionalTiles) + ".arc"))
         else:
-            state.debugPrint("ErrTraceButtonUnkCommand: " + str(command.opcode))
+            super().executeCommand(command)
     
     def getScript(self):
         output = script.gdScript()
@@ -514,7 +907,7 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
         self.cursorPoints = []
         self.cursorTotalPoints = [0,0]
         self.cursorTotalPointsLength = 0
-        self.cursorLineSurface.fill((0,0,0))
+        self.cursorLineSurface.fill(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
 
     def handleEvent(self, event):
         if self.traceLocationIndexingEnable:
@@ -557,7 +950,7 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
                 self.cursorIsDrawing = True
                 self.cursorTotalPoints = [0,0]
                 self.cursorTotalPointsLength = 0
-                self.cursorLineSurface.fill((0,0,0))
+                self.cursorLineSurface.fill(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
                 self.cursorAddPoint((event.pos[0], event.pos[1]))
 
         elif event.type == pygame.MOUSEMOTION:
@@ -574,6 +967,69 @@ class PuzzletTraceButton(LaytonContextPuzzlet):
                 self.cursorPoints = []
         return False
 
+class PuzzletSort(LaytonContextPuzzlet):
+
+    # TODO - Make more resilient to null tiles, as the anim bypass code will fail at the end
+
+    buttonSubmit        = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system/btn/" + conf.LAYTON_ASSET_LANG, "hantei"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True)
+    buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.interactableElements = []
+        self.interactableElementsAnimMapLists = []
+        self.solutionAnimNames = []
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x2e':
+            # TODO - Is "Create an Animation" applied by default or just unused?
+            self.interactableElements.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/touch", command.operands[2][:-4], x=command.operands[0],
+                                                                y=command.operands[1] + conf.LAYTON_SCREEN_HEIGHT))
+            self.interactableElements[-1].setAnimationFromName(str(command.operands[3]))
+            self.interactableElementsAnimMapLists.append(list(self.interactableElements[-1].animMap.keys()))
+            self.solutionAnimNames.append(str(command.operands[4]))
+        else:
+            super().executeCommand(command)
+
+    def draw(self, gameDisplay):
+        for element in self.interactableElements:
+            element.draw(gameDisplay)
+        PuzzletSort.buttonSubmit.draw(gameDisplay)
+    
+    def update(self, gameClockDelta):
+        for element in self.interactableElements:
+            element.update(gameClockDelta)
+    
+    def evaluateSolution(self):
+        for indexElement, element in enumerate(self.interactableElements):
+            if element.animActive != self.solutionAnimNames[indexElement]:
+                return False
+        return True
+
+    def handleEvent(self, event):
+        PuzzletSort.buttonSubmit.handleEvent(event)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for indexElement, element in enumerate(self.interactableElements):
+                if element.wasClicked(event.pos):
+                    # TODO - Ensure that the next animation being used has indices. For now, the only one that doesn't is "Create an Animation"
+                    offset = 1
+                    nextAnim = "Create an Animation"
+                    while nextAnim == "Create an Animation":
+                        nextAnim = self.interactableElementsAnimMapLists[indexElement][(self.interactableElementsAnimMapLists[indexElement].index(element.animActive) + offset) % len(self.interactableElementsAnimMapLists[indexElement])]
+                        offset += 1
+                    element.setAnimationFromName(nextAnim)
+                    return True
+
+        if PuzzletSort.buttonSubmit.peekPressedStatus():
+            if PuzzletSort.buttonSubmit.getPressedStatus():
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            return True
+        return False
+
 class LaytonPuzzleHandler(state.LaytonSubscreen):
 
     # defaultHandlers = {0: 'Matchstick', 1: 'Sliding', 2: 'Multiple Choice', 3: 'Mark Answer',
@@ -587,20 +1043,19 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 
     # Taken from jiten.plz (Naming scheme for handlers; handlers are also derived from the parameter grabbing this)
     # 22 unique handlers
-    defaultHandlers = {0: 'Matchstick', 3: 'Mark Answer',
+    defaultHandlers = {0: 'Matchstick',
+                       3: PuzzletOnOff,    # Mark Answer
                        2: PuzzletPushButton,
                        5: PuzzletTraceButton,
-
-                       10: 'Sort', 13: 'Move to Answer',
-                       14: 'Tap to Answer', 15: 'Draw Line', 17: 'Move Knight', 23: 'Area', 24: 'Rose Placement', 27: 'Skate to Exit',
-                       29: 'Remove Balls', 30: 'Move in Pairs', 31: 'Lamp Placement', 33: 'Cross Bridge', 34: 'Shape Search', 35:'Placement',
-
+                       10: PuzzletSort,
+                       13: 'Move to Answer',
+                       14: 'Tap to Answer', 17: 'Move Knight', 23: 'Area', 24: 'Rose Placement', 27: 'Skate to Exit',
+                       29: 'Remove Balls', 30: 'Move in Pairs', 31: 'Lamp Placement', 33: 'Cross Bridge', 34: 'Shape Search', 
                        12: PuzzletTileRotate, 18: PuzzletTileRotate,
-
-                       16: 'Write Answer', 22: 'Write Answer', 28: 'Write Answer', 32: 'Write Answer', 
+                       16: 'Write Answer', 22: 'Write Answer', 28: 'Write Answer', 32: 'Write Answer', 35:'Placement',
                        1: 'Sliding', 25: PuzzletSliding, 
                        26: 'Arrange to Answer', 11: 'Arrange to Answer',
-                       6: 'Draw Line', 9:PuzzletCut}
+                       6: 'Draw Line', 9:PuzzletCut, 15: 'Draw Line'}
 
     def __init__(self, puzzleIndex, playerState):
         state.LaytonSubscreen.__init__(self)
@@ -625,8 +1080,8 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
         else:
             state.debugPrint("WarnUnknownHandler:", self.puzzleData.idHandler, LaytonPuzzleHandler.defaultHandlers[self.puzzleData.idHandler])
 
-        self.addToStack(LaytonScrollerOverlay(self.puzzleData.textPrompt, playerState))
         self.addToStack(LaytonPuzzleUi(self.puzzleData, puzzleIndex, playerState))
+        self.addToStack(LaytonScrollerOverlay(self.puzzleData.textPrompt, playerState))
         self.addToStack(LaytonTouchOverlay())
         pygame.event.post(pygame.event.Event(const.ENGINE_SKIP_CLOCK, {const.PARAM:None}))
 
@@ -650,5 +1105,12 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(6, tempPlayerState), tempPlayerState)    # 3 - Multiroom tracebutton, 6 - single tracebutton, 8 - pushButton, 10, 16 - cut
+    state.play(LaytonPuzzleHandler(44, tempPlayerState), tempPlayerState)
+    # 3, 6 Tracebutton
+    # 8 PushButton
     # 2, 39, 115 Rotate and arrange
+    # 44, 21, 25, 57 sliding
+    # 10, 16, 41 cut
+    # 29 Placement (??)
+    # 56 Rose placement
+    # 34, 38 sort

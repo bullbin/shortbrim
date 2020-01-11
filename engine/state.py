@@ -103,7 +103,9 @@ class LaytonContext():
         return None
     
     def executeCommand(self, command):
-        debugPrint("ErrNoRedefinitionCommand: " + str(command.opcode))
+        debugPrint("ErrNoRedefinitionCommand: " + str(command.opcode.hex()))
+        for operand in command.operands:
+            debugPrint("\t" + str(operand))
 
     def setStackUpdate(self):
         self.screenStackUpdate = True
@@ -272,6 +274,15 @@ def play(rootHandler, playerState):
             debugFont = playerState.getFont("fontq")
             debugGameFps = round(gameClock.get_fps(), 2)
 
+            tempMousePos = pygame.mouse.get_pos()
+            if tempMousePos[1] > conf.LAYTON_SCREEN_HEIGHT:
+                tempMousePos = (tempMousePos[0],
+                                tempMousePos[1] - conf.LAYTON_SCREEN_HEIGHT)
+            else:
+                tempMousePos = (tempMousePos[0], 0)
+
+            debugMousePos = anim.AnimatedText(debugFont, initString=str(tempMousePos), colour=(254,254,254))
+
             if conf.ENGINE_PERFORMANCE_MODE:
                 debugFps = anim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=(255,0,0))
             else:
@@ -283,11 +294,12 @@ def play(rootHandler, playerState):
                     debugGameFpsRatio = debugGameFps/conf.ENGINE_FPS
                     perfColour = (round((1-debugGameFpsRatio) * 255), round(debugGameFpsRatio * 255), 0)
                 debugFps = anim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=perfColour)
-                debugFpsShadow = pygame.Surface((debugFps.textRender.get_width(), debugFps.textRender.get_height()))
+                debugFpsShadow = pygame.Surface((max(debugFps.textRender.get_width(), debugMousePos.textRender.get_width()), debugFps.textRender.get_height())) #+ debugMousePos.textRender.get_height()))
                 debugFpsShadow.set_alpha(127)
                 gameDisplay.blit(debugFpsShadow, (0,0))
 
             debugFps.draw(gameDisplay)
+            debugMousePos.draw(gameDisplay, location=(0, debugFont.get_height()))
 
         pygame.display.update()
         gameClockBypass = False
