@@ -60,7 +60,7 @@ class LaytonPlayerState():
     def puzzleLoadNames(self):
         if len(self.puzzleData.keys()) == 0:
             self.puzzleLoadData()
-        qscript = script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "qinfo\\" + conf.LAYTON_ASSET_LANG + "\\qscript.gds"), None)
+        qscript = script.gdScript.fromData(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "qinfo\\" + conf.LAYTON_ASSET_LANG + "\\qscript.gds"))
         for instruction in qscript.commands:
             if instruction.opcode == b'\xdc':
                 try:
@@ -72,7 +72,7 @@ class LaytonPlayerState():
                     self.puzzleData[instruction.operands[0]].category = instruction.operands[1]
 
     def puzzleLoadData(self):
-        pscript = script.gdScript(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds"), None)
+        pscript = script.gdScript.fromData(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "pcarot\\pscript.gds"))
         for instruction in pscript.commands:
             if instruction.opcode == b'\xc3': # Set picarot decay
                 self.puzzleData[instruction.operands[0]] = LaytonPuzzleDataEntry()
@@ -294,7 +294,7 @@ def play(rootHandler, playerState):
                     debugGameFpsRatio = debugGameFps/conf.ENGINE_FPS
                     perfColour = (round((1-debugGameFpsRatio) * 255), round(debugGameFpsRatio * 255), 0)
                 debugFps = anim.AnimatedText(debugFont, initString="FPS: " + str(debugGameFps), colour=perfColour)
-                debugFpsShadow = pygame.Surface((max(debugFps.textRender.get_width(), debugMousePos.textRender.get_width()), debugFps.textRender.get_height())) #+ debugMousePos.textRender.get_height()))
+                debugFpsShadow = pygame.Surface((max(debugFps.textRender.get_width(), debugMousePos.textRender.get_width()), debugFps.textRender.get_height() + debugMousePos.textRender.get_height()))
                 debugFpsShadow.set_alpha(127)
                 gameDisplay.blit(debugFpsShadow, (0,0))
 

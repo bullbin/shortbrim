@@ -1030,6 +1030,721 @@ class PuzzletSort(LaytonContextPuzzlet):
             return True
         return False
 
+class PuzzletWrite(LaytonContextPuzzlet):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x43':
+            print("Set entry bg as " + command.operands[0])
+        elif command.opcode == b'\x42':
+            print("Set answer " + str(command.operands[0]) + " to " + command.operands[1])
+        elif command.opcode == b'\x41':
+            print("Set box details for answer " + str(command.operands[0]) + ", corner (" + str(command.operands[1]) + ", " + str(command.operands[2]) + "), length " + str(command.operands[3]))
+        else:
+            super().executeCommand(command)
+
+class PuzzletWriteAltCustomBackground(PuzzletWrite):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        PuzzletWrite.__init__(self, puzzleData, puzzleIndex, playerState)
+
+class PuzzletWriteAltAnswerUsesChars(PuzzletWrite):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        PuzzletWrite.__init__(self, puzzleData, puzzleIndex, playerState)
+
+class IntermediaryPuzzletTapToAnswer(LaytonContextPuzzlet):
+
+    COLOR_ALPHA = (240,0,0)
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.tileBoardDimensions = (0,0)
+        self.posCorner = (0,0)
+        self.tileDimensions = (24,24)
+        self.overlaySurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.overlaySurface.set_colorkey(PuzzletArea.COLOR_ALPHA)
+        self.overlaySurface.fill(PuzzletArea.COLOR_ALPHA)
+    
+    def generateOverlaySurface(self):
+        pass
+    
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.overlaySurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+
+    def addElement(self, pos):
+        pass
+
+    def removeElement(self, pos):
+        pass
+
+    def isSpacePopulated(self, pos):
+        return False
+
+    def isSpaceAvailable(self, pos):
+        return True
+
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.pos[0] >= self.posCorner[0] and event.pos[1] >= self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT:
+                if (event.pos[0] < self.posCorner[0] + self.tileDimensions[0] * self.tileBoardDimensions[0] and
+                    event.pos[1] < self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT + self.tileDimensions[1] * self.tileBoardDimensions[1]):   # Clicked on grid
+                    deltaTilesX = (event.pos[0] - self.posCorner[0]) // self.tileDimensions[0]
+                    deltaTilesY = (event.pos[1] - conf.LAYTON_SCREEN_HEIGHT - self.posCorner[1]) // self.tileDimensions[1]
+                    tempPos = (deltaTilesX, deltaTilesY)
+                    if self.isSpaceAvailable(tempPos):
+                        if self.isSpacePopulated(tempPos):
+                            self.removeElement(tempPos)
+                        else:
+                            self.addElement(tempPos)
+                        self.generateOverlaySurface()
+                        return True
+        return False
+
+class PuzzletArea(IntermediaryPuzzletTapToAnswer):
+
+    buttonSubmit        = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system/btn/" + conf.LAYTON_ASSET_LANG, "hantei"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True)
+    buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        IntermediaryPuzzletTapToAnswer.__init__(self, puzzleData, puzzleIndex, playerState)
+        self.overlayColour = (0,0,0)
+        self.tilesUnavailable = []
+        self.tilesPopulated = []
+        self.tilesSolution = []
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        PuzzletArea.buttonSubmit.draw(gameDisplay)
+
+    def isSpaceAvailable(self, pos):
+        if pos in self.tilesUnavailable:
+            return False
+        return True
+
+    def isSpacePopulated(self, pos):
+        return pos in self.tilesPopulated
+
+    def addElement(self, pos):
+        self.tilesPopulated.append(pos)
+
+    def removeElement(self, pos):
+        self.tilesPopulated.pop(self.tilesPopulated.index(pos))
+
+    def generateOverlaySurface(self):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1])
+        
+        self.overlaySurface.fill(self.overlaySurface.get_colorkey())
+        tileMask = pygame.Surface(self.tileDimensions)
+        tileMask.fill(self.overlayColour)
+        for tilePos in self.tilesPopulated:
+            self.overlaySurface.blit(tileMask, tileToScreenPos(tilePos))
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x4a': # CornerX, CornerY, LenX, LenY, TileX, TileY
+            self.posCorner = (command.operands[0], command.operands[1])
+            self.tileDimensions = (command.operands[4], command.operands[5])
+            self.tileBoardDimensions = (command.operands[2], command.operands[3])
+            self.overlayColour = (command.operands[6] << 3, command.operands[7] << 3, command.operands[8] << 3)
+            self.overlaySurface.set_alpha(command.operands[9] << 3)
+            self.generateOverlaySurface()
+        elif command.opcode == b'\x4b': # Add solution
+            self.tilesSolution.append((command.operands[0], command.operands[1]))
+            for addX in range(1, command.operands[2]):
+                self.tilesSolution.append((command.operands[0] + addX, command.operands[1]))
+            for addY in range(1, command.operands[3]):
+                self.tilesSolution.append((command.operands[0], command.operands[1] + addY))
+        elif command.opcode == b'\x6e': # Exclude tiles
+            for avoidX in range(command.operands[2]):
+                for avoidY in range(command.operands[3]):
+                    self.tilesUnavailable.append((command.operands[0] + avoidX, command.operands[1] + avoidY))
+        else:
+            LaytonContextPuzzlet.executeCommand(self, command)
+    
+    def evaluateSolution(self):
+        if len(self.tilesPopulated) != len(self.tilesSolution):
+            return False
+        for tilePos in self.tilesPopulated:
+            if tilePos not in self.tilesSolution:
+                return False
+        return True
+
+    def handleEvent(self, event):
+        PuzzletArea.buttonSubmit.handleEvent(event)
+        if PuzzletArea.buttonSubmit.peekPressedStatus():
+            if PuzzletArea.buttonSubmit.getPressedStatus():
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            return True
+        else:
+            super().handleEvent(event)
+    
+class PuzzletRose(IntermediaryPuzzletTapToAnswer):
+
+    BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/rose", "rose_gfx")
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        IntermediaryPuzzletTapToAnswer.__init__(self, puzzleData, puzzleIndex, playerState)
+        self.wallsVertical = []
+        self.wallsHorizontal = []
+        
+        # Interface as surfaces rather than static images just for any speedup
+        self.imageRose = PuzzletRose.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("rose")
+        self.imageTile = PuzzletRose.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("one")
+        self.imageOcclude = PuzzletRose.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("two")
+        if self.imageRose == None or self.imageTile == None or self.imageOcclude == None:
+            self.imageRose = pygame.Surface(self.tileDimensions)
+            self.imageTile = pygame.Surface(self.tileDimensions)
+            self.imageOcclude = pygame.Surface(self.tileDimensions)
+
+        self.activeRoses = {}
+        self.activeTileMap = {}
+    
+    def isOccluded(self, tilePos, isVertical, isHorizontal, movingInPositiveDirection):
+        wallsToConsider = []
+        if isVertical:
+            if movingInPositiveDirection:   # If moving in positive direction, don't subtract from original co-ordinate
+                targetAxis = tilePos[1]
+            else:
+                targetAxis = tilePos[1] + 1
+            for wall in self.wallsHorizontal:   # Preprocess walls
+                if wall.posCornerStart[1] == targetAxis:
+                    wallsToConsider.append(wall)
+            for wall in wallsToConsider:    # Test simple one-axis collision
+                if wall.posCornerStart[0] <= tilePos[0] and wall.posCornerEnd[0] > tilePos[0]:
+                    return True
+
+        elif isHorizontal:
+            if movingInPositiveDirection:
+                targetAxis = tilePos[0] + 1
+            else:
+                targetAxis = tilePos[0]
+            for wall in self.wallsVertical:   # Preprocess walls
+                if wall.posCornerStart[0] == targetAxis:
+                    wallsToConsider.append(wall)
+            for wall in wallsToConsider:
+                if wall.posCornerStart[1] <= tilePos[1] and wall.posCornerEnd[1] > tilePos[1]:
+                    return True
+        return False   
+
+    def isOnMap(self, rosePos):
+        if rosePos[0] >= 0 and rosePos[0] < self.tileBoardDimensions[0]:
+            if rosePos[1] >= 0 and rosePos[1] < self.tileBoardDimensions[1]:
+                return True
+        return False
+
+    def generateRoseMask(self, rosePos):
+
+        def checkAroundQuadrant(quadrant):
+            unocclusions = []
+            if self.isOnMap((quadrant[0], quadrant[1] - 1)) and not(self.isOccluded(quadrant, True, False, True)):    # up
+                unocclusions.append((quadrant[0], quadrant[1] - 1))
+            if self.isOnMap((quadrant[0], quadrant[1] + 1)) and not(self.isOccluded(quadrant, True, False, False)):   # down
+                unocclusions.append((quadrant[0], quadrant[1] + 1))
+            if self.isOnMap((quadrant[0] + 1, quadrant[1])) and not(self.isOccluded(quadrant, False, True, True)):    # right
+                unocclusions.append((quadrant[0] + 1, quadrant[1]))
+            if self.isOnMap((quadrant[0] - 1, quadrant[1])) and not(self.isOccluded(quadrant, False, True, False)):   # left
+                unocclusions.append((quadrant[0] - 1, quadrant[1]))
+            return unocclusions
+
+        lightMask = []
+        tempBuffer = []
+        unoccludedQuadrants = checkAroundQuadrant(rosePos)
+        tempBuffer.extend(unoccludedQuadrants)
+        for quadrant in unoccludedQuadrants:
+            tempBuffer.extend(checkAroundQuadrant(quadrant))
+        for item in tempBuffer:
+            if item not in lightMask:
+                lightMask.append(item)
+                
+        return lightMask
+    
+    def executeCommand(self, command):
+        if command.opcode == b'\x4c':
+            self.tileBoardDimensions = (command.operands[2], command.operands[3])
+            self.posCorner = (command.operands[0], command.operands[1])
+        elif command.opcode == b'\x4d':
+            if command.operands[0] == command.operands[2]:
+                self.wallsVertical.append(han_nazo_element.RoseWall((command.operands[0], command.operands[1]), (command.operands[2], command.operands[3])))
+            elif command.operands[1] == command.operands[3]:
+                self.wallsHorizontal.append(han_nazo_element.RoseWall((command.operands[0], command.operands[1]), (command.operands[2], command.operands[3])))
+            else:
+                state.debugPrint("ErrRoseUnsupportedLine: Wall from", (command.operands[0], command.operands[1]), "to", (command.operands[2], command.operands[3]), "isn't vertical or horizontal!")
+        else:
+            LaytonContextPuzzlet.executeCommand(self, command)
+    
+    def addElement(self, tilePos):
+        tilesUnoccluded = self.generateRoseMask(tilePos)
+        self.activeRoses[tilePos] = tilesUnoccluded
+        for tile in tilesUnoccluded:
+            if tile in self.activeTileMap.keys():
+                self.activeTileMap[tile] += 1
+            else:
+                self.activeTileMap[tile] = 1
+
+    def removeElement(self, tilePos):
+        for tile in self.activeRoses[tilePos]:
+            if self.activeTileMap[tile] < 2:
+                del self.activeTileMap[tile]
+            else:
+                self.activeTileMap[tile] -= 1
+        del self.activeRoses[tilePos]
+
+    def generateOverlaySurface(self):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1])
+
+        self.overlaySurface.fill(self.overlaySurface.get_colorkey())
+
+        countPos = 0
+        solved = True
+        for tilePos in self.activeTileMap.keys():
+            if self.activeTileMap[tilePos] > 1:
+                self.overlaySurface.blit(self.imageOcclude, tileToScreenPos(tilePos))
+                solved = False
+            else:
+                self.overlaySurface.blit(self.imageTile, tileToScreenPos(tilePos))
+            countPos += 1
+
+        for tilePos in self.activeRoses.keys():
+            self.overlaySurface.blit(self.imageRose, tileToScreenPos(tilePos))
+        
+        if countPos == (self.tileBoardDimensions[0] * self.tileBoardDimensions[1]) and solved:
+            self.setVictory()
+    
+    def isSpacePopulated(self, pos):
+        return pos in self.activeRoses.keys()
+
+class PuzzletLamp(PuzzletArea):
+
+    BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/lamp", "lamp_gfx")
+    TILE_SIZE_LAMP = (16,16)
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        PuzzletArea.__init__(self, puzzleData, puzzleIndex, playerState)
+        self.movesMinimum = 0
+
+        self.posCorner = (16,16)        # Hard-coded data for the lamp handler, since the tiles are actually smaller than the grid
+        self.tileBoardDimensions = (7,7)
+        self.tilesFader = []
+        self.tileToLightLines = {}
+
+        self.lightLines = []
+        self.lightLinesFader = []
+
+        self.overlayTransparentLightShaftSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_WIDTH)).convert_alpha()
+        self.overlayTransparentLightShaftSurface.fill((0,0,0,0))
+        self.imageLamp = PuzzletLamp.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("lamp")
+        if self.imageLamp == None:
+            self.imageLamp = pygame.Surface(PuzzletLamp.TILE_SIZE_LAMP)
+    
+    def generateOverlaySurface(self):
+        
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1])
+
+        self.overlaySurface.fill(self.overlaySurface.get_colorkey())   
+        for tilePos in self.tilesPopulated:
+            self.overlaySurface.blit(self.imageLamp, tileToScreenPos(tilePos))
+
+    def evaluateSolution(self):
+        if len(self.tilesPopulated) <= self.movesMinimum:
+            illuminatedLines = []
+            for tile in self.tilesPopulated:
+                for indexLine in self.tileToLightLines[tile]:
+                    if indexLine not in illuminatedLines:
+                        illuminatedLines.append(indexLine)
+            if len(illuminatedLines) == len(self.lightLines):
+                return True
+        return False
+    
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.overlayTransparentLightShaftSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+        super().draw(gameDisplay) # draw tiles + buttonSubmit
+
+    def addElement(self, pos):
+        self.tilesPopulated.append(pos)
+        if pos not in self.tileToLightLines.keys():
+            self.tileToLightLines[pos] = []
+            for indexLine in range(len(self.lightLines)):
+                if self.lightLines[indexLine].isOnWall(pos):
+                    self.tileToLightLines[pos].append(indexLine)
+
+        for indexLine in self.tileToLightLines[pos]:
+            self.lightLinesFader[indexLine].reset()
+    
+    def update(self, gameClockDelta):
+
+        def tileToScreenPos(tilePos):
+            return ((self.posCorner[0] + 8) + tilePos[0] * self.tileDimensions[0],
+                    (self.posCorner[1] + 8) + tilePos[1] * self.tileDimensions[1])
+
+        self.overlayTransparentLightShaftSurface.fill((0,0,0,0))
+        for indexLine, lineFader in enumerate(self.lightLinesFader):
+            if lineFader.isActive:
+                lineFader.update(gameClockDelta)
+                if lineFader.isActive:
+                    tempShaftSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_WIDTH))
+                    tempShaftSurface.set_colorkey((0,0,0))
+                    tempShaftSurface.set_alpha(round(lineFader.getStrength() * 255))
+                    pygame.draw.line(tempShaftSurface, self.overlayColour,
+                                    tileToScreenPos(self.lightLines[indexLine].posCornerStart),  tileToScreenPos(self.lightLines[indexLine].posCornerEnd), width=4)
+                    self.overlayTransparentLightShaftSurface.blit(tempShaftSurface, (0,0))
+
+    def removeElement(self, pos):
+        for indexLine in self.tileToLightLines[pos]:
+            self.lightLinesFader[indexLine].isActive = False
+        self.tilesPopulated.pop(self.tilesPopulated.index(pos))
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x67': # Moves, ColourR, ColourG, ColourB
+            self.overlayColour = (command.operands[1] << 3, command.operands[2] << 3, command.operands[3] << 3)
+            self.movesMinimum = command.operands[0]
+        elif command.opcode == b'\x68': # Add line of light
+            self.lightLines.append(han_nazo_element.RoseWall((command.operands[0], command.operands[1]), (command.operands[2], command.operands[3])))
+            self.lightLinesFader.append(anim.AnimatedFader(2000, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True))
+            self.lightLinesFader[-1].isActive = False
+        elif command.opcode == b'\x6f':
+            for avoidX in range(command.operands[2]):
+                for avoidY in range(command.operands[3]):
+                    self.tilesUnavailable.append((command.operands[0] + avoidX, command.operands[1] + avoidY))
+        else:
+            LaytonContextPuzzlet.executeCommand(self, command)
+
+class PuzzletIceSkate(LaytonContextPuzzlet):
+
+    BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/iceskate", "iceskate_gfx")
+    TIME_PER_TILE = 400
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.posCorner = (0,0)
+        self.tileBoardDimensions = (0,0)
+        self.tileDimensions = (16,16)
+        self.posSpawn = (0,0)
+        self.posExit = (0,0)
+
+        self.sourceAnimPosCharacter = (0,0)
+        self.posCharacter = (0,0)
+        self.isCharacterAnimating = False
+        self.isInitialStartup = True
+
+        self.wallsHorizontal = []
+        self.wallsVertical = []
+
+        self.arrowLeft = anim.StaticButton(PuzzletIceSkate.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("left"), imageIsSurface=True)
+        self.arrowRight = anim.StaticButton(PuzzletIceSkate.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("right"), imageIsSurface=True)
+        self.arrowUp = anim.StaticButton(PuzzletIceSkate.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("up"), imageIsSurface=True)
+        self.arrowDown = anim.StaticButton(PuzzletIceSkate.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("down"), imageIsSurface=True)
+        PuzzletIceSkate.BANK_IMAGES.setAnimationFromName("layton")
+
+        self.movementFader = None
+        self.movementPossibilities = [0,0,0,0]
+    
+    def isOccluded(self, tilePos, isVertical, isHorizontal, movingInPositiveDirection):
+        # TODO - Find a way to bend the rules and get this inherited from the Rose handler instead
+        # TODO - Can the wall collision be used here?
+        if isHorizontal and (tilePos[1] < 0 or tilePos[1] >= self.tileBoardDimensions[1]):
+            return True
+        if isVertical and (tilePos[0] < 0 or tilePos[0] >= self.tileBoardDimensions[0]):
+            return True
+
+        wallsToConsider = []
+        if isVertical:
+            if movingInPositiveDirection:   # If moving in positive direction, don't subtract from original co-ordinate
+                targetAxis = tilePos[1]
+            else:
+                targetAxis = tilePos[1] + 1
+            for wall in self.wallsHorizontal:   # Preprocess walls
+                if wall.posCornerStart[1] == targetAxis:
+                    wallsToConsider.append(wall)
+            for wall in wallsToConsider:    # Test simple one-axis collision
+                if wall.posCornerStart[0] <= tilePos[0] and wall.posCornerEnd[0] > tilePos[0]:
+                    return True
+
+        elif isHorizontal:
+            if movingInPositiveDirection:
+                targetAxis = tilePos[0] + 1
+            else:
+                targetAxis = tilePos[0]
+            for wall in self.wallsVertical:   # Preprocess walls
+                if wall.posCornerStart[0] == targetAxis:
+                    wallsToConsider.append(wall)
+            for wall in wallsToConsider:
+                if wall.posCornerStart[1] <= tilePos[1] and wall.posCornerEnd[1] > tilePos[1]:
+                    return True
+
+        return False   
+    
+    def getMovementOpportunities(self):
+        output = [0,0,0,0]
+
+        for upMovement in range(self.posCharacter[1]):
+            tempPos = (self.posCharacter[0], self.posCharacter[1] - upMovement)
+            if self.isOccluded(tempPos, True, False, True):
+                break
+            else:
+                output[2] += 1
+        for downMovement in range(self.tileBoardDimensions[1] - self.posCharacter[1] - 1):
+            tempPos = (self.posCharacter[0], self.posCharacter[1] + downMovement)
+            if self.isOccluded(tempPos, True, False, False):
+                break
+            else:
+                output[3] += 1
+        for leftMovement in range(self.posCharacter[0]):
+            tempPos = (self.posCharacter[0] - leftMovement, self.posCharacter[1])
+            if self.isOccluded(tempPos, False, True, False):
+                break
+            else:
+                output[0] += 1
+        for rightMovement in range(self.tileBoardDimensions[0] - self.posCharacter[0] - 1):
+            tempPos = (self.posCharacter[0] + rightMovement, self.posCharacter[1])
+            if self.isOccluded(tempPos, False, True, True):
+                break
+            else:
+                output[1] += 1
+        
+        # Correct for misaligned exit
+        if (self.posCharacter[0] - output[0] - 1, self.posCharacter[1]) == self.posExit:
+            output[0] += 1
+        if (self.posCharacter[0] + output[1] + 1, self.posCharacter[1]) == self.posExit:
+            output[1] += 1
+        if (self.posCharacter[0], self.posCharacter[1] - output[2] - 1) == self.posExit:
+            output[2] += 1
+        if (self.posCharacter[0], self.posCharacter[1] + output[3] + 1) == self.posExit:
+            output[3] += 1
+        
+        return output
+
+    def draw(self, gameDisplay):
+        if not(self.isCharacterAnimating):
+            if self.movementPossibilities[0] > 0:
+                self.arrowLeft.draw(gameDisplay)
+            if self.movementPossibilities[1] > 0:
+                self.arrowRight.draw(gameDisplay)
+            if self.movementPossibilities[2] > 0:
+                self.arrowUp.draw(gameDisplay)
+            if self.movementPossibilities[3] > 0:
+                self.arrowDown.draw(gameDisplay)
+
+        PuzzletIceSkate.BANK_IMAGES.draw(gameDisplay)
+
+    def update(self, gameClockDelta):
+
+        if self.isCharacterAnimating:
+
+            self.movementFader.update(gameClockDelta)
+            
+            if not(self.movementFader.isActive):
+                self.isCharacterAnimating = False
+                if self.posCharacter == self.posExit:
+                    self.movementPossibilities = [0,0,0,0]
+                    self.setVictory()
+                else:
+                    self.movementPossibilities = self.getMovementOpportunities()
+            
+            self.generateGraphicsPositions()
+
+        if self.isInitialStartup:
+            self.movementPossibilities = self.getMovementOpportunities()
+            self.generateGraphicsPositions()
+            self.isInitialStartup = False
+
+        PuzzletIceSkate.BANK_IMAGES.update(gameClockDelta)
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x63': # Set board parameters
+            self.posCorner = (command.operands[0], command.operands[1])
+            self.tileBoardDimensions = (command.operands[2], command.operands[3])
+            self.posSpawn = (command.operands[4], command.operands[5])
+            self.posCharacter = self.posSpawn
+            self.posExit = (command.operands[6], command.operands[7])  # This can be negative to signal that the player exits off the grid.
+        elif command.opcode == b'\x64':
+            if command.operands[0] == command.operands[2]:
+                self.wallsVertical.append(han_nazo_element.RoseWall((command.operands[0], command.operands[1]), (command.operands[2], command.operands[3])))
+            elif command.operands[1] == command.operands[3]:
+                self.wallsHorizontal.append(han_nazo_element.RoseWall((command.operands[0], command.operands[1]), (command.operands[2], command.operands[3])))
+            else:
+                state.debugPrint("ErrIceSkateUnsupportedLine: Wall from", (command.operands[0], command.operands[1]), "to", (command.operands[2], command.operands[3]), "isn't vertical or horizontal!")
+        else:
+            LaytonContextPuzzlet.executeCommand(self, command)
+    
+    def resetAllButtons(self):
+        self.arrowLeft.reset()
+        self.arrowRight.reset()
+        self.arrowUp.reset()
+        self.arrowDown.reset()
+
+    def generateGraphicsPositions(self):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1])
+
+        tempScreenPos = tileToScreenPos(self.posCharacter)
+        tempScreenPos = (tempScreenPos[0], tempScreenPos[1] + conf.LAYTON_SCREEN_HEIGHT)
+
+        if self.isCharacterAnimating:
+            initTempScreenPos = tileToScreenPos(self.sourceAnimPosCharacter)
+            initTempScreenPos = (initTempScreenPos[0], initTempScreenPos[1] + conf.LAYTON_SCREEN_HEIGHT)
+            deltaPos = ((tempScreenPos[0] - initTempScreenPos[0]),
+                        (tempScreenPos[1] - initTempScreenPos[1]))
+            tempScreenPos = (round(initTempScreenPos[0] + deltaPos[0] * self.movementFader.getStrength()),
+                            round(initTempScreenPos[1] + deltaPos[1] * self.movementFader.getStrength()))
+        else:
+            PuzzletIceSkate.BANK_IMAGES.setAnimationFromName("layton")
+            self.arrowLeft.pos = (tempScreenPos[0] - self.tileDimensions[0], tempScreenPos[1])
+            self.arrowRight.pos = (tempScreenPos[0] + self.tileDimensions[0], tempScreenPos[1])
+            self.arrowUp.pos = (tempScreenPos[0], tempScreenPos[1] - self.tileDimensions[1])
+            self.arrowDown.pos = (tempScreenPos[0], tempScreenPos[1] + self.tileDimensions[1])
+        
+        PuzzletIceSkate.BANK_IMAGES.pos = tempScreenPos
+
+    def startMovement(self, animName, newPos, distance):
+        self.sourceAnimPosCharacter = self.posCharacter
+        PuzzletIceSkate.BANK_IMAGES.setAnimationFromName(animName)
+        self.isCharacterAnimating = True
+        self.posCharacter = newPos
+        self.movementFader = anim.AnimatedFader(PuzzletIceSkate.TIME_PER_TILE * distance, anim.AnimatedFader.MODE_TRIANGLE, False, cycle=False)
+        self.resetAllButtons()
+
+    def handleEvent(self, event):
+        if not(self.isCharacterAnimating):
+            self.arrowLeft.handleEvent(event)
+            self.arrowRight.handleEvent(event)
+            self.arrowUp.handleEvent(event)
+            self.arrowDown.handleEvent(event)
+
+            if self.arrowLeft.peekPressedStatus() or self.arrowRight.peekPressedStatus() or self.arrowUp.peekPressedStatus() or self.arrowDown.peekPressedStatus():
+                if self.arrowLeft.getPressedStatus():
+                    self.startMovement("move_left", (self.posCharacter[0] - self.movementPossibilities[0], self.posCharacter[1]), self.movementPossibilities[0])
+                elif self.arrowRight.getPressedStatus():
+                    self.startMovement("move_right", (self.posCharacter[0] + self.movementPossibilities[1], self.posCharacter[1]), self.movementPossibilities[1])
+                elif self.arrowUp.getPressedStatus():
+                    self.startMovement("move_up", (self.posCharacter[0], self.posCharacter[1] - self.movementPossibilities[2]), self.movementPossibilities[2])
+                elif self.arrowDown.getPressedStatus():
+                    self.startMovement("move_down", (self.posCharacter[0], self.posCharacter[1] + self.movementPossibilities[3]), self.movementPossibilities[3])
+                return True
+
+class PuzzletPancake(LaytonContextPuzzlet):
+
+    BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/pancake", "pancake_gfx")
+    PANCAKE_THICKNESS = 8
+    PANCAKE_WIDTH = 48
+    PANCAKE_X = [31, 96, 159]
+    PANCAKE_Y = 146
+    PANCAKE_X_LIMIT = 187
+    MOVE_COUNTER_POS = (112, 11 + conf.LAYTON_SCREEN_HEIGHT)
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.platesTargetHeight = 0
+        self.plates = [[],[],[]]
+        self.platesColliders = [None, None, None]
+        self.activePancakePlateIndex = None
+        self.activePancakeMouseButtonOffset = (0,0)
+        self.activePancakePos = (0,0)
+
+        self.countMoveFont         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/common", "counter_number")
+        self.countMoves = 0
+    
+    def draw(self, gameDisplay):
+
+        def setAnimationFromNameReadyToDraw(name, gameDisplay):
+            if self.countMoveFont.setAnimationFromName(name):
+                self.countMoveFont.setInitialFrameFromAnimation()
+                self.countMoveFont.draw(gameDisplay)
+        
+        self.countMoveFont.pos = PuzzletPancake.MOVE_COUNTER_POS
+        for char in str('%04d' % self.countMoves):
+            setAnimationFromNameReadyToDraw(char, gameDisplay)
+            self.countMoveFont.pos = (self.countMoveFont.pos[0] + self.countMoveFont.dimensions[0] - 1, self.countMoveFont.pos[1])
+
+        for indexPlate, plate in enumerate(self.plates):
+            if indexPlate == self.activePancakePlateIndex:
+                for pancake in plate[:-1]:
+                    pancake.draw(gameDisplay)
+            else:
+                for pancake in plate:
+                    pancake.draw(gameDisplay)
+        if self.activePancakePlateIndex != None:
+            self.plates[self.activePancakePlateIndex][-1].pos = self.activePancakePos
+            self.plates[self.activePancakePlateIndex][-1].draw(gameDisplay)
+    
+    def generatePositions(self):
+        for indexPlate, plate in enumerate(self.plates):
+            x = PuzzletPancake.PANCAKE_X[indexPlate]
+            y = PuzzletPancake.PANCAKE_Y
+            for pancake in plate:
+                pancake.pos = (x - pancake.dimensions[0] // 2, y + conf.LAYTON_SCREEN_HEIGHT)
+                y -= PuzzletPancake.PANCAKE_THICKNESS
+            self.platesColliders[indexPlate] = pygame.Rect(x - PuzzletPancake.PANCAKE_WIDTH // 2, y + conf.LAYTON_SCREEN_HEIGHT - PuzzletPancake.PANCAKE_THICKNESS,
+                                                           PuzzletPancake.PANCAKE_WIDTH, PuzzletPancake.PANCAKE_THICKNESS * 4)
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x40':
+            self.platesTargetHeight = command.operands[0]
+            for pancakeAnimIndex in range(command.operands[0], 0, -1):
+                self.plates[0].append(han_nazo_element.Pancake(PuzzletPancake.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame(str(pancakeAnimIndex)), pancakeAnimIndex, imageIsSurface=True))
+            self.generatePositions()
+        else:
+            super().executeCommand(command)
+    
+    def handleEvent(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for indexPlate, plate in enumerate(self.plates):
+                if len(plate) > 0:
+                    if plate[-1].wasClicked(event.pos):
+                        self.activePancakePlateIndex = indexPlate
+                        self.activePancakeMouseButtonOffset = (event.pos[0] - plate[-1].pos[0],
+                                                               event.pos[1] - plate[-1].pos[1])
+                        self.activePancakePos = plate[-1].pos
+        elif event.type == pygame.MOUSEMOTION and self.activePancakePlateIndex != None:
+            self.activePancakePos = (event.pos[0] - self.activePancakeMouseButtonOffset[0],
+                                     event.pos[1] - self.activePancakeMouseButtonOffset[1])
+            if self.activePancakePos[1] < conf.LAYTON_SCREEN_HEIGHT:
+                self.activePancakePos = (self.activePancakePos[0], conf.LAYTON_SCREEN_HEIGHT)
+            if self.activePancakePos[0] + self.plates[self.activePancakePlateIndex][-1].dimensions[0] > PuzzletPancake.PANCAKE_X_LIMIT:
+                self.activePancakePos = (PuzzletPancake.PANCAKE_X_LIMIT - self.plates[self.activePancakePlateIndex][-1].dimensions[0], self.activePancakePos[1])
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if self.activePancakePlateIndex != None:
+                for indexPlate, collider in enumerate(self.platesColliders):
+                    if indexPlate != self.activePancakePlateIndex:
+                        if collider.collidepoint(event.pos):
+                            if len(self.plates[indexPlate]) > 0:
+                                if self.plates[indexPlate][-1].weight > self.plates[self.activePancakePlateIndex][-1].weight:
+                                    self.plates[indexPlate].append(self.plates[self.activePancakePlateIndex].pop())
+                                    self.countMoves += 1
+                            else:
+                                self.plates[indexPlate].append(self.plates[self.activePancakePlateIndex].pop())
+                                self.countMoves += 1
+                self.generatePositions()
+            self.activePancakePlateIndex = None
+            if len(self.plates[-1]) == self.platesTargetHeight:
+                self.setVictory()
+
+class PuzzletTile(LaytonContextPuzzlet):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+
+class PuzzletTileRotatable(PuzzletTile):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        PuzzletTile.__init__(self, puzzleData, puzzleIndex, playerState)
+
+class PuzzletNull(LaytonContextPuzzlet):
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+
+# Ice one can inherit from PuzzletRose
+
 class LaytonPuzzleHandler(state.LaytonSubscreen):
 
     # defaultHandlers = {0: 'Matchstick', 1: 'Sliding', 2: 'Multiple Choice', 3: 'Mark Answer',
@@ -1042,20 +1757,27 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
     #                    33: 'Cross Bridge', 34: 'Shape Search'}
 
     # Taken from jiten.plz (Naming scheme for handlers; handlers are also derived from the parameter grabbing this)
-    # 22 unique handlers
-    defaultHandlers = {0: 'Matchstick',
-                       3: PuzzletOnOff,    # Mark Answer
-                       2: PuzzletPushButton,
-                       5: PuzzletTraceButton,
-                       10: PuzzletSort,
-                       13: 'Move to Answer',
-                       14: 'Tap to Answer', 17: 'Move Knight', 23: 'Area', 24: 'Rose Placement', 27: 'Skate to Exit',
-                       29: 'Remove Balls', 30: 'Move in Pairs', 31: 'Lamp Placement', 33: 'Cross Bridge', 34: 'Shape Search', 
-                       12: PuzzletTileRotate, 18: PuzzletTileRotate,
-                       16: 'Write Answer', 22: 'Write Answer', 28: 'Write Answer', 32: 'Write Answer', 35:'Placement',
-                       1: 'Sliding', 25: PuzzletSliding, 
-                       26: 'Arrange to Answer', 11: 'Arrange to Answer',
-                       6: 'Draw Line', 9:PuzzletCut, 15: 'Draw Line'}
+    # 20 unique modes shared across handlers with different parameters
+    # Some modes which are indicated as in-use are not actually used by any puzzles so their opcodes will be unknown
+    defaultHandlers = {3: PuzzletOnOff,             # Mark Answer - Finished
+                       2: PuzzletPushButton,        # Finished
+                       5: PuzzletTraceButton,       # Finished - Unk command remaining
+                       10: PuzzletSort,             # Finished
+                       13: PuzzletPancake,          # Finished - Intro animation missing
+                       17: 'Move Knight',
+                       23: PuzzletArea,             # Finished
+                       24: PuzzletRose,             # Finished
+                       27: PuzzletIceSkate,         # Finished
+                       29: 'Remove Balls',
+                       30: 'Move in Pairs',
+                       31: PuzzletLamp,             # Finished
+                       33: 'Cross Bridge',
+                       34: 'Shape Search',
+                       18: PuzzletTileRotate,
+                       16: PuzzletWriteAltAnswerUsesChars, 22: PuzzletWrite, 28: PuzzletWriteAltCustomBackground, 35: PuzzletWriteAltCustomBackground,  # What is 35?
+                       25: PuzzletSliding,          # Finished - Slight bug on fast moving shapes
+                       26: PuzzletTileRotatable, 11: PuzzletTile,
+                       6: 'Draw Line', 9: PuzzletCut, 15: 'Draw Line'}
 
     def __init__(self, puzzleIndex, playerState):
         state.LaytonSubscreen.__init__(self)
@@ -1075,14 +1797,20 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
         
         if type(LaytonPuzzleHandler.defaultHandlers[self.puzzleData.idHandler]) != str:
             self.addToStack(LaytonPuzzleHandler.defaultHandlers[self.puzzleData.idHandler](self.puzzleData, puzzleIndex, playerState))
-            self.commandFocus = self.stack[-1]
-            self.executeGdScript(puzzleScript)
         else:
             state.debugPrint("WarnUnknownHandler:", self.puzzleData.idHandler, LaytonPuzzleHandler.defaultHandlers[self.puzzleData.idHandler])
+            self.addToStack(PuzzletNull(self.puzzleData, puzzleIndex, playerState))
+
+        self.commandFocus = self.stack[-1]
+        self.executeGdScript(puzzleScript)
 
         self.addToStack(LaytonPuzzleUi(self.puzzleData, puzzleIndex, playerState))
         self.addToStack(LaytonScrollerOverlay(self.puzzleData.textPrompt, playerState))
         self.addToStack(LaytonTouchOverlay())
+
+        self.puzzleFader = anim.AnimatedFader(1000, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
+        self.puzzleFaderSurface = anim.AlphaSurface(0)
+
         pygame.event.post(pygame.event.Event(const.ENGINE_SKIP_CLOCK, {const.PARAM:None}))
 
     def executeGdScript(self, puzzleScript):
@@ -1090,27 +1818,45 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
             if self.commandFocus != None:
                 self.commandFocus.executeCommand(command)
     
+    def resetFader(self, inverted):
+        self.puzzleFader = anim.AnimatedFader(500, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=inverted)
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        self.puzzleFaderSurface.draw(gameDisplay)
+    
     def updateSubscreenMethods(self, gameClockDelta):
+        self.puzzleFader.update(gameClockDelta)
+        if not(self.isContextFinished):
+            self.puzzleFaderSurface.setAlpha(round(self.puzzleFader.getStrength() * 255))
+
         if self.commandFocus != None:
-            if self.commandFocus.registerVictory:
-                self.commandFocus.registerVictory = False
-                self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=True))
-                self.isContextFinished = True
-            elif self.commandFocus.registerLoss:
-                self.commandFocus.registerLoss = False
-                self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=False))
+            if self.commandFocus.registerVictory or self.commandFocus.registerLoss:
+                if not(self.puzzleFader.isActive):
+                    if self.puzzleFaderSurface.alpha == 255:
+                        if self.commandFocus.registerVictory:
+                            self.commandFocus.registerVictory = False
+                            self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=True))
+                        elif self.commandFocus.registerLoss:
+                            self.commandFocus.registerLoss = False
+                            self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=False))
+                        self.puzzleFaderSurface.setAlpha(0)
+                        self.isContextFinished = True
+                    else:
+                        self.resetFader(False)
             elif self.commandFocus.registerQuit:
                 self.isContextFinished = True
 
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(44, tempPlayerState), tempPlayerState)
+    state.play(LaytonPuzzleHandler(67, tempPlayerState), tempPlayerState)
     # 3, 6 Tracebutton
     # 8 PushButton
     # 2, 39, 115 Rotate and arrange
     # 44, 21, 25, 57 sliding
     # 10, 16, 41 cut
     # 29 Placement (??)
-    # 56 Rose placement
+    # 56, 61 Rose placement
     # 34, 38 sort
+    # 17, 91 area

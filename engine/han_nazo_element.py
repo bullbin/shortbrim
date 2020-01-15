@@ -68,6 +68,7 @@ class IndependentTileRotateable(IndependentTile):
         return False
 
 class SlidingShape():
+
     def __init__(self, cornerPos, isLocked):
         self.isLocked = isLocked
         self.isBound = False
@@ -107,3 +108,43 @@ class SlidingShape():
             if rect.collidepoint(pos):
                 return True
         return False
+
+class RoseWall():
+    def __init__(self, start, end):
+        # TODO - Rearrange points to make them move positively, the rose wall logic only checks under these cases
+        # TODO - These are unsigned anyway, right?
+        self.posCornerStart = start
+        self.posCornerEnd = end
+    
+    def isOnWall(self, pos):
+        
+        def testInBounds(pos):
+            minX = [self.posCornerStart[0], self.posCornerEnd[0]]
+            minY = [self.posCornerEnd[1], self.posCornerStart[1]]
+            minX.sort()
+            minY.sort()
+            if (pos[0] >= minX[0] and pos[0] <= minX[1] and
+                pos[1] >= minY[0] and pos[1] <= minY[1]):
+                return True
+            return False
+
+        if testInBounds(pos):
+            if pos == self.posCornerStart or pos == self.posCornerEnd:
+                return True
+            elif self.posCornerStart[0] == self.posCornerEnd[0]:
+                # Vertical line
+                return pos[0] == self.posCornerStart[0]
+            elif self.posCornerStart[1] == self.posCornerEnd[1]:
+                # Horizontal line
+                return pos[1] == self.posCornerStart[1]
+            else:
+                gradWall = (self.posCornerEnd[1] - self.posCornerStart[1]) / (self.posCornerEnd[0] - self.posCornerStart[0])
+                if pos[0] - self.posCornerStart[0] > 0:
+                    gradPoint = (pos[1] - self.posCornerStart[1]) / (pos[0] - self.posCornerStart[0])
+                    return gradWall == gradPoint or gradWall == -gradPoint
+        return False
+
+class Pancake(anim.StaticImage):
+    def __init__(self, imagePath, weight, x=0, y=0, imageIsSurface=False, imageIsNull=False, imageNullDimensions=None):
+        anim.StaticImage.__init__(self, imagePath, x, y, imageIsSurface, imageIsNull, imageNullDimensions)
+        self.weight = weight
