@@ -352,6 +352,8 @@ class PuzzletCut(LaytonContextPuzzlet):
         self.nodesPairs = []
         self.nodesSolutionPairs = []
         self.nodeInitial = None
+
+        self.dimensionsBoard = (0,0)
     
     def draw(self, gameDisplay):
         gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
@@ -380,16 +382,10 @@ class PuzzletCut(LaytonContextPuzzlet):
             return True
         return False
 
-    def handleEvent(self, event):
-        PuzzletCut.buttonSubmit.handleEvent(event)
-        if PuzzletCut.buttonSubmit.peekPressedStatus():
-            if PuzzletCut.buttonSubmit.getPressedStatus():
-                if self.evaluateSolution():
-                    self.setVictory()
-                else:
-                    self.setLoss()
-            return True
-        
+    def addLine(self, pair):
+        self.nodesPairs.append(pair)
+    
+    def handleNodesEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.nodeInitial = self.getPressedNode(event.pos)
             if self.nodeInitial != None:
@@ -400,15 +396,29 @@ class PuzzletCut(LaytonContextPuzzlet):
                 if tempPressedNode != self.nodeInitial:
                     pair = (self.nodeInitial, tempPressedNode)
                     if pair not in self.nodesPairs and (pair[1], pair[0]) not in self.nodesPairs:
-                        self.nodesPairs.append((self.nodeInitial, tempPressedNode))
+                        self.addLine((self.nodeInitial, tempPressedNode))
                         self.redrawLineSurface()
             self.nodeInitial = None
             if tempPressedNode != None:
                 return True
         return False
 
+    def handleEvent(self, event):
+        PuzzletCut.buttonSubmit.handleEvent(event)
+        if PuzzletCut.buttonSubmit.peekPressedStatus():
+            if PuzzletCut.buttonSubmit.getPressedStatus():
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            return True
+
+        return self.handleNodesEvent(event)
+
     def executeCommand(self, command):
-        if command.opcode == b'\x24':   # Set line colour
+        if command.opcode == b'\x11':
+            self.dimensionsBoard = (command.operands[0] * self.posMultiplier, command.operands[1] * self.posMultiplier)
+        elif command.opcode == b'\x24':   # Set line colour
             self.colourLine = pygame.Color(command.operands[0],command.operands[1],command.operands[2])
         elif command.opcode == b'\x28': # Add point
             if (self.posCorner[0] + command.operands[0] * self.posMultiplier, (command.operands[1] * self.posMultiplier) + self.posCorner[1]) not in self.nodes:
@@ -422,9 +432,63 @@ class PuzzletCut(LaytonContextPuzzlet):
                 state.debugPrint("ErrPuzzletCut: Solution connection has no valid index!")
         elif command.opcode == b'\x10':
             self.posCorner = (command.operands[0],command.operands[1])
+            print("corner", self.posCorner)
+        else:
+            super().executeCommand(command)
+
+class PuzzletCutAltMoveLimit(PuzzletCut):
+
+    NO_MORE_LINES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/cut/" + conf.LAYTON_ASSET_LANG, "nomorelines")
+    NO_MORE_LINES = NO_MORE_LINES.setAnimationFromNameAndReturnInitialFrame("gfx")
+    POS_NO_MORE_LINES = ((conf.LAYTON_SCREEN_WIDTH - NO_MORE_LINES.get_width()) // 2,
+                         conf.LAYTON_SCREEN_HEIGHT + ((conf.LAYTON_SCREEN_HEIGHT - NO_MORE_LINES.get_height()) // 2))
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        PuzzletCut.__init__(self, puzzleData, puzzleIndex, playerState)
+        self.moveLimit = 0
+        self.moveCount = 0
+        self.moveMaxCount = 0
+        self.enableSoftlock = False
+        self.enableMoveLimit = False
+        self.enableMoveMax = False
+
+        self.posMultiplier = 1
+    
+    def evaluateSolution(self):
+        if self.enableMoveMax:
+            if self.moveCount > self.moveMaxCount:
+                return False
+        super().evaluateSolution()
+
+    def addLine(self, pair):
+        super().addLine(pair)
+        self.moveCount += 1
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        if self.enableSoftlock:
+            gameDisplay.blit(PuzzletCutAltMoveLimit.NO_MORE_LINES, PuzzletCutAltMoveLimit.POS_NO_MORE_LINES)
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x0d':
+            self.moveLimit = command.operands[0]
+            self.enableMoveLimit = True
+        elif command.opcode == b'\x12':
+            self.moveMaxCount = command.operands[0]
         else:
             super().executeCommand(command)
     
+    def handleNodesEvent(self, event):
+        if self.enableMoveLimit:
+            if self.moveCount < self.moveLimit:
+                super().handleNodesEvent(event)
+            else:
+                if not(self.enableSoftlock) and (event.type == pygame.MOUSEBUTTONDOWN and self.getPressedNode(event.pos) != None):
+                    self.enableSoftlock = True
+                return True
+        else:
+            super().handleNodesEvent(event)
+
 class PuzzletSliding(LaytonContextPuzzlet):
 
     DIRECTION_UP = 0
@@ -783,190 +847,6 @@ class PuzzletTileRotate(LaytonContextPuzzlet):
         else:
             super().executeCommand(command)
 
-class PuzzletTraceButton(LaytonContextPuzzlet):
-
-    promptRetry         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton/" + conf.LAYTON_ASSET_LANG, "retry_trace")
-    promptRetry         = anim.StaticImage(promptRetry.setAnimationFromNameAndReturnInitialFrame("gfx"), imageIsSurface=True)
-    promptRetry.pos     = ((conf.LAYTON_SCREEN_WIDTH - promptRetry.image.get_width()) // 2, ((conf.LAYTON_SCREEN_HEIGHT - promptRetry.image.get_height()) // 2) + conf.LAYTON_SCREEN_HEIGHT)
-    
-    promptPoint         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton", "point_trace")
-    promptPoint.setActiveFrame(0)
-
-    promptArrowLeft     = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton", "arrow_left"), None,
-                                              imageIsSurface=True, useButtonFromAnim=True, x=2, y=conf.LAYTON_SCREEN_HEIGHT)
-    promptArrowRight    = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton", "arrow_right"), None,
-                                              imageIsSurface=True, useButtonFromAnim=True, x=158, y=conf.LAYTON_SCREEN_HEIGHT)
-    
-    buttonSubmit        = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system/btn/" + conf.LAYTON_ASSET_LANG, "hantei"), None,
-                                              imageIsSurface=True, useButtonFromAnim=True)
-    buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
-
-    TRACE_LINE_THICKNESS = 3
-    TRACE_COLOUR_DEFAULT = (240,0,0)
-    TRACE_COLOUR_TRANSPARENCY = (0,240,0)
-    TRACE_X_LIMIT = conf.LAYTON_SCREEN_WIDTH - (buttonSubmit.dimensions[0] + TRACE_LINE_THICKNESS)
-
-    def __init__(self, puzzleData, puzzleIndex, playerState):
-        LaytonContextPuzzlet.__init__(self)
-        self.puzzleIndex = puzzleIndex
-        
-        self.cursorEnableSoftlockRetryScreen = True
-        self.cursorIsDrawing = False
-        self.cursorColour = PuzzletTraceButton.TRACE_COLOUR_DEFAULT
-        self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
-        self.cursorLineSurface.set_colorkey(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
-        self.cursorLineSurface.fill(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
-
-        self.cursorSelectedItem = None
-        self.cursorPoints = []
-        self.cursorTotalPoints = [0,0]
-        self.cursorTotalPointsLength = 0
-
-        self.traceLocationsDict = {0:[]}
-
-        self.countAdditionalTiles = 0
-        self.traceLocationIndexingEnable = False
-        self.indexAdditionalTiles = 0
-        self.traceAdditionalTiles = []
-    
-    def cursorAddPoint(self, point):
-        tempPointX = point[0]
-        tempPointY = point[1]
-        if tempPointX < PuzzletTraceButton.TRACE_LINE_THICKNESS // 2:
-            tempPointX = PuzzletTraceButton.TRACE_LINE_THICKNESS // 2
-        if tempPointY < conf.LAYTON_SCREEN_HEIGHT:
-            tempPointY = conf.LAYTON_SCREEN_HEIGHT
-        if tempPointX > PuzzletTraceButton.TRACE_X_LIMIT:
-            tempPointX = PuzzletTraceButton.TRACE_X_LIMIT
-        tempPointY -= conf.LAYTON_SCREEN_HEIGHT
-        self.cursorPoints.append((tempPointX, tempPointY))
-        self.cursorTotalPoints[0] += point[0]
-        self.cursorTotalPoints[1] += point[1]
-        self.cursorTotalPointsLength += 1
-
-    def executeCommand(self, command):
-        if command.opcode == b'\x0c':
-            self.cursorColour = (command.operands[0],command.operands[1],command.operands[2])
-        elif command.opcode == b'\x18':
-            self.traceLocationsDict[self.countAdditionalTiles].append(han_nazo_element.TraceLocation(command.operands[0], command.operands[1] + conf.LAYTON_SCREEN_HEIGHT,
-                                                                      command.operands[2], conf.LAYTON_STRING_BOOLEAN[command.operands[3]]))
-        elif command.opcode == b'\x3e':
-            self.traceLocationIndexingEnable = True
-            self.countAdditionalTiles += 1
-            self.traceLocationsDict[self.countAdditionalTiles] = []
-            self.traceAdditionalTiles.append(anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "nazo/q" + str(self.puzzleIndex) + "_" + str(self.countAdditionalTiles) + ".arc"))
-        else:
-            super().executeCommand(command)
-    
-    def getScript(self):
-        output = script.gdScript()
-        if self.cursorColour != PuzzletTraceButton.TRACE_COLOUR_DEFAULT:
-            output.commands.append(script.gdOperation(b'\x0c', [self.cursorColour[0], self.cursorColour[1], self.cursorColour[2]]))
-    
-    def update(self, gameClockDelta):
-        if len(self.cursorPoints) >= 2:
-            pygame.draw.lines(self.cursorLineSurface, self.cursorColour, True, self.cursorPoints, PuzzletTraceButton.TRACE_LINE_THICKNESS)
-            self.cursorPoints = [self.cursorPoints[-1]]
-            return True
-        return False
-    
-    def findSelectedItem(self):
-        if self.cursorTotalPointsLength >= 1:
-            traceSelectedLocation = (self.cursorTotalPoints[0] // self.cursorTotalPointsLength, self.cursorTotalPoints[1] // self.cursorTotalPointsLength)
-            for locationIndex in range(len(self.traceLocationsDict[self.indexAdditionalTiles])):
-                if self.traceLocationsDict[self.indexAdditionalTiles][locationIndex].wasClicked(traceSelectedLocation):    # For extremely dense items, this may need to be checked across several indices for closest
-                    return locationIndex
-        return None
-
-    def evaluateSolution(self):
-        if self.cursorSelectedItem != None:
-            if self.traceLocationsDict[self.indexAdditionalTiles][self.cursorSelectedItem].isAnswer:
-                return True
-        return False
-
-    def draw(self, gameDisplay):
-        if self.traceLocationIndexingEnable and self.indexAdditionalTiles > 0:
-            gameDisplay.blit(self.traceAdditionalTiles[self.indexAdditionalTiles - 1], (0, conf.LAYTON_SCREEN_HEIGHT))
-
-        gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
-        
-        if not(self.cursorIsDrawing):
-            if self.cursorSelectedItem == None:
-                if self.cursorEnableSoftlockRetryScreen and self.cursorTotalPointsLength > 0:
-                    PuzzletTraceButton.promptRetry.draw(gameDisplay)
-            else:
-                PuzzletTraceButton.promptPoint.draw(gameDisplay)
-        
-        if self.traceLocationIndexingEnable:
-            PuzzletTraceButton.promptArrowLeft.draw(gameDisplay)
-            PuzzletTraceButton.promptArrowRight.draw(gameDisplay)
-        PuzzletTraceButton.buttonSubmit.draw(gameDisplay)
-
-    def clear(self):
-        self.cursorSelectedItem = None
-        self.cursorPoints = []
-        self.cursorTotalPoints = [0,0]
-        self.cursorTotalPointsLength = 0
-        self.cursorLineSurface.fill(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
-
-    def handleEvent(self, event):
-        if self.traceLocationIndexingEnable:
-            PuzzletTraceButton.promptArrowLeft.handleEvent(event)
-            if PuzzletTraceButton.promptArrowLeft.peekPressedStatus():
-                if PuzzletTraceButton.promptArrowLeft.getPressedStatus():
-                    self.clear()
-                    if self.indexAdditionalTiles <= 0:
-                        self.indexAdditionalTiles = self.countAdditionalTiles
-                    else:
-                        self.indexAdditionalTiles -= 1
-                return True
-
-            PuzzletTraceButton.promptArrowRight.handleEvent(event)
-            if PuzzletTraceButton.promptArrowRight.peekPressedStatus():
-                if PuzzletTraceButton.promptArrowRight.getPressedStatus():
-                    self.clear()
-                    if self.indexAdditionalTiles >= self.countAdditionalTiles:
-                        self.indexAdditionalTiles = 0
-                    else:
-                        self.indexAdditionalTiles += 1
-                return True
-
-        PuzzletTraceButton.buttonSubmit.handleEvent(event)
-        if PuzzletTraceButton.buttonSubmit.peekPressedStatus():
-            if PuzzletTraceButton.buttonSubmit.getPressedStatus():
-                if self.evaluateSolution():
-                    self.setVictory()
-                else:
-                    self.setLoss()
-            return True
-
-        if event.type == pygame.MOUSEBUTTONDOWN  and event.pos[1] >= conf.LAYTON_SCREEN_HEIGHT:
-            if self.buttonSubmit.wasClicked(event.pos):
-                if self.evaluateSolution():
-                    self.setVictory()
-                else:
-                    self.setLoss()
-            elif not(self.cursorIsDrawing):
-                self.cursorIsDrawing = True
-                self.cursorTotalPoints = [0,0]
-                self.cursorTotalPointsLength = 0
-                self.cursorLineSurface.fill(PuzzletTraceButton.TRACE_COLOUR_TRANSPARENCY)
-                self.cursorAddPoint((event.pos[0], event.pos[1]))
-
-        elif event.type == pygame.MOUSEMOTION:
-            if self.cursorIsDrawing:
-                self.cursorAddPoint((event.pos[0], event.pos[1]))
-
-        elif event.type == pygame.MOUSEBUTTONUP:
-            if self.cursorIsDrawing:
-                self.cursorSelectedItem = self.findSelectedItem()
-                if self.cursorSelectedItem != None:
-                    PuzzletTraceButton.promptPoint.pos = (self.traceLocationsDict[self.indexAdditionalTiles][self.cursorSelectedItem].pos[0],
-                                                          self.traceLocationsDict[self.indexAdditionalTiles][self.cursorSelectedItem].pos[1] - PuzzletTraceButton.promptPoint.dimensions[1])
-                self.cursorIsDrawing = False
-                self.cursorPoints = []
-        return False
-
 class PuzzletSort(LaytonContextPuzzlet):
 
     # TODO - Make more resilient to null tiles, as the anim bypass code will fail at the end
@@ -1083,6 +963,13 @@ class IntermediaryPuzzletTapToAnswer(LaytonContextPuzzlet):
     def isSpaceAvailable(self, pos):
         return True
 
+    def behaviourWhenSpacePressed(self, pos):
+        if self.isSpacePopulated(pos):
+            self.removeElement(pos)
+        else:
+            self.addElement(pos)
+        self.generateOverlaySurface()
+
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.pos[0] >= self.posCorner[0] and event.pos[1] >= self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT:
@@ -1092,11 +979,7 @@ class IntermediaryPuzzletTapToAnswer(LaytonContextPuzzlet):
                     deltaTilesY = (event.pos[1] - conf.LAYTON_SCREEN_HEIGHT - self.posCorner[1]) // self.tileDimensions[1]
                     tempPos = (deltaTilesX, deltaTilesY)
                     if self.isSpaceAvailable(tempPos):
-                        if self.isSpacePopulated(tempPos):
-                            self.removeElement(tempPos)
-                        else:
-                            self.addElement(tempPos)
-                        self.generateOverlaySurface()
+                        self.behaviourWhenSpacePressed(tempPos)
                         return True
         return False
 
@@ -1419,6 +1302,137 @@ class PuzzletLamp(PuzzletArea):
         else:
             LaytonContextPuzzlet.executeCommand(self, command)
 
+class PuzzletPegSolitaire(LaytonContextPuzzlet):
+
+    # TODO - Pull out class to support these types of puzzles which are like TapToAnswer but fixed on grid
+
+    BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/pegsolitaire", "solitaire_gfx")
+    BALL_X_LIMIT = 187
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.tileBoardDimensions = (7, 7)
+        self.posCorner = (12, 12)
+        self.tileDimensions = (24,24)
+        self.tilesPopulated = []
+
+        self.imageBall = PuzzletPegSolitaire.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("ball")
+        if self.imageBall == None:
+            self.imageBall = pygame.Surface(self.tileDimensions)
+
+        self.activeTile = None
+        self.activeTilePos = (0,0)
+        self.activeTileMouseOffset = (0,0)
+
+    def update(self, gameClockDelta):
+        if len(self.tilesPopulated) < 2:
+            self.setVictory()
+
+    def draw(self, gameDisplay):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1] + conf.LAYTON_SCREEN_HEIGHT)
+
+        for tileIndex, tilePos in enumerate(self.tilesPopulated):
+            if tileIndex != self.activeTile:
+                gameDisplay.blit(self.imageBall, tileToScreenPos(tilePos))
+        if self.activeTile != None:
+            gameDisplay.blit(self.imageBall, self.activeTilePos)
+
+    def isSpaceAvailable(self, pos):
+        if pos[0] < 2 and pos[1] < 2:
+            return False
+        if pos[0] > 4 and pos[1] < 2:
+            return False
+        if pos[0] < 2 and pos[1] > 4:
+            return False
+        if pos[0] > 4 and pos[1] > 4:
+            return False
+        if pos[0] < 0 or pos[0] >= self.tileBoardDimensions[0] or pos[1] < 0 or pos[1] >= self.tileBoardDimensions[1]:
+            return False
+        return True
+
+    def isSpacePopulated(self, pos):
+        if pos in self.tilesPopulated:
+            return True
+        return False
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x65':
+            if command.operands[4] in [0,1]:
+                for x in range(command.operands[2]):
+                    for y in range(command.operands[3]):
+                        tempPos = (command.operands[0] + x, command.operands[1] + y)
+                        if command.operands[4] == 0:    # Remove
+                            if tempPos in self.tilesPopulated:
+                                del self.tilesPopulated[self.tilesPopulated.index(tempPos)]
+                        else:                           # Add
+                            if not(self.isSpacePopulated(tempPos)) and self.isSpaceAvailable(tempPos):
+                                self.tilesPopulated.append(tempPos)
+            else:
+                state.debugPrint("ErrPuzzletPegSolitaire: Unknown fill mode", command.operands[4])
+    
+    def updateMouseOffset(self, pos):
+        self.activeTilePos = (pos[0] - self.activeTileMouseOffset[0],
+                              pos[1] - self.activeTileMouseOffset[1])
+        if self.activeTilePos[1] < conf.LAYTON_SCREEN_HEIGHT:
+            self.activeTilePos = (pos[0] - self.activeTileMouseOffset[0],
+                                  conf.LAYTON_SCREEN_HEIGHT)
+        if self.activeTilePos[1] > (conf.LAYTON_SCREEN_HEIGHT * 2) - self.imageBall.get_height():
+            self.activeTilePos = (self.activeTilePos[0],
+                                  (conf.LAYTON_SCREEN_HEIGHT * 2) - self.imageBall.get_height())
+        if self.activeTilePos[0] + self.imageBall.get_width() > PuzzletPegSolitaire.BALL_X_LIMIT:
+            self.activeTilePos = (PuzzletPegSolitaire.BALL_X_LIMIT - self.imageBall.get_width(),
+                                  self.activeTilePos[1])
+        if self.activeTilePos[0] < 0:
+            self.activeTilePos = (0,
+                                  self.activeTilePos[1])
+
+    def handleEvent(self, event):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1] + conf.LAYTON_SCREEN_HEIGHT)
+        def screenPosToTile(screenPos):
+            screenPos = ((screenPos[0] - self.posCorner[0]) // self.tileDimensions[0],
+                         (screenPos[1] - conf.LAYTON_SCREEN_HEIGHT - self.posCorner[1]) // self.tileDimensions[1])
+            return screenPos
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.pos[0] >= self.posCorner[0] and event.pos[1] >= self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT:
+                if (event.pos[0] < self.posCorner[0] + self.tileDimensions[0] * self.tileBoardDimensions[0] and
+                    event.pos[1] < self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT + self.tileDimensions[1] * self.tileBoardDimensions[1]):   # Clicked on grid
+                    deltaTilesX = (event.pos[0] - self.posCorner[0]) // self.tileDimensions[0]
+                    deltaTilesY = (event.pos[1] - conf.LAYTON_SCREEN_HEIGHT - self.posCorner[1]) // self.tileDimensions[1]
+                    tempPos = (deltaTilesX, deltaTilesY)
+                    if self.isSpacePopulated(tempPos):
+                        tilePos = tileToScreenPos(tempPos)
+                        self.activeTile = self.tilesPopulated.index(tempPos)
+                        self.activeTileMouseOffset = (event.pos[0] - tilePos[0],
+                                                      event.pos[1] - tilePos[1])
+                        self.updateMouseOffset(event.pos)
+                        return True
+        elif event.type == pygame.MOUSEMOTION:
+            if self.activeTile != None:
+                self.updateMouseOffset(event.pos)
+                return True
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if self.activeTile != None:
+                self.updateMouseOffset(event.pos)
+                tempPos = screenPosToTile(event.pos)
+                if self.isSpaceAvailable(tempPos):
+                    deltaPos = (tempPos[0] - self.tilesPopulated[self.activeTile][0], tempPos[1] - self.tilesPopulated[self.activeTile][1])
+                    deltaAbsPos = (abs(deltaPos[0]), abs(deltaPos[1]))
+                    if deltaAbsPos == (2,0) or deltaAbsPos == (0,2):  # Check if moving 2 spaces
+                        tempObsPos = (self.tilesPopulated[self.activeTile][0] + deltaPos[0] // 2, self.tilesPopulated[self.activeTile][1] + deltaPos[1] // 2)
+                        if self.isSpacePopulated(tempObsPos):
+                            self.tilesPopulated[self.activeTile] = tempPos
+                            del (self.tilesPopulated[self.tilesPopulated.index(tempObsPos)])
+                self.activeTile = None
+                return True
+        return False
+
 class PuzzletIceSkate(LaytonContextPuzzlet):
 
     BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/iceskate", "iceskate_gfx")
@@ -1739,11 +1753,328 @@ class PuzzletTileRotatable(PuzzletTile):
     def __init__(self, puzzleData, puzzleIndex, playerState):
         PuzzletTile.__init__(self, puzzleData, puzzleIndex, playerState)
 
+class IntermediaryPuzzletTrace(LaytonContextPuzzlet):
+    
+    buttonSubmit        = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system/btn/" + conf.LAYTON_ASSET_LANG, "hantei"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True)
+    buttonSubmit.setPos((conf.LAYTON_SCREEN_WIDTH - buttonSubmit.dimensions[0], (conf.LAYTON_SCREEN_HEIGHT * 2) - buttonSubmit.dimensions[1]))
+
+    TRACE_LINE_THICKNESS = 3
+    TRACE_COLOUR_DEFAULT = (240,0,0)
+    TRACE_COLOUR_TRANSPARENCY = (0,240,0)
+    TRACE_X_LIMIT = conf.LAYTON_SCREEN_WIDTH - (buttonSubmit.dimensions[0] + TRACE_LINE_THICKNESS)
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        LaytonContextPuzzlet.__init__(self)
+        self.cursorIsDrawing = False
+        self.cursorColour = IntermediaryPuzzletTrace.TRACE_COLOUR_DEFAULT
+        self.cursorLineSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.cursorLineSurface.set_colorkey(IntermediaryPuzzletTrace.TRACE_COLOUR_TRANSPARENCY)
+        self.cursorLineSurface.fill(IntermediaryPuzzletTrace.TRACE_COLOUR_TRANSPARENCY)
+        self.cursorPoints = []
+        self.cursorTotalPoints = [0,0]
+        self.cursorTotalPointsLength = 0
+
+    def cursorAddPoint(self, point):
+        tempPointX = point[0]
+        tempPointY = point[1]
+        if tempPointX < IntermediaryPuzzletTrace.TRACE_LINE_THICKNESS // 2:
+            tempPointX = IntermediaryPuzzletTrace.TRACE_LINE_THICKNESS // 2
+        if tempPointY < conf.LAYTON_SCREEN_HEIGHT:
+            tempPointY = conf.LAYTON_SCREEN_HEIGHT
+        if tempPointX > IntermediaryPuzzletTrace.TRACE_X_LIMIT:
+            tempPointX = IntermediaryPuzzletTrace.TRACE_X_LIMIT
+        tempPointY -= conf.LAYTON_SCREEN_HEIGHT
+        self.cursorPoints.append((tempPointX, tempPointY))
+        self.cursorTotalPoints[0] += point[0]
+        self.cursorTotalPoints[1] += point[1]
+        self.cursorTotalPointsLength += 1
+
+    def update(self, gameClockDelta):
+        if len(self.cursorPoints) >= 2:
+            pygame.draw.lines(self.cursorLineSurface, self.cursorColour, True, self.cursorPoints, PuzzletTraceButton.TRACE_LINE_THICKNESS)
+            self.cursorPoints = [self.cursorPoints[-1]]
+            return True
+        return False
+
+    def draw(self, gameDisplay):
+        gameDisplay.blit(self.cursorLineSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+        IntermediaryPuzzletTrace.buttonSubmit.draw(gameDisplay)
+
+    def clear(self):
+        self.cursorSelectedItem = None
+        self.cursorPoints = []
+        self.cursorTotalPoints = [0,0]
+        self.cursorTotalPointsLength = 0
+        self.cursorLineSurface.fill(IntermediaryPuzzletTrace.TRACE_COLOUR_TRANSPARENCY)
+    
+    def evaluateSolution(self):
+        return False
+
+    def cursorStartDrawing(self, point):
+        self.cursorIsDrawing = True
+        self.cursorTotalPoints = [0,0]
+        self.cursorTotalPointsLength = 0
+        self.cursorLineSurface.fill(IntermediaryPuzzletTrace.TRACE_COLOUR_TRANSPARENCY)
+        self.cursorAddPoint(point)
+    
+    def cursorEndDrawing(self, point):
+        self.cursorIsDrawing = False
+        self.cursorPoints = []
+
+    def handleEvent(self, event):
+        IntermediaryPuzzletTrace.buttonSubmit.handleEvent(event)
+        if IntermediaryPuzzletTrace.buttonSubmit.peekPressedStatus():
+            if IntermediaryPuzzletTrace.buttonSubmit.getPressedStatus():
+                if self.evaluateSolution():
+                    self.setVictory()
+                else:
+                    self.setLoss()
+            return True
+
+        if event.type == pygame.MOUSEBUTTONDOWN  and event.pos[1] >= conf.LAYTON_SCREEN_HEIGHT:
+            if not(self.cursorIsDrawing):
+                self.cursorStartDrawing(event.pos)
+
+        elif event.type == pygame.MOUSEMOTION:
+            if self.cursorIsDrawing:
+                self.cursorAddPoint(event.pos)
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if self.cursorIsDrawing:
+                self.cursorAddPoint(event.pos)
+                self.cursorEndDrawing(event.pos)
+
+        return False
+
+class PuzzletTraceButton(IntermediaryPuzzletTrace):
+
+    promptRetry         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton/" + conf.LAYTON_ASSET_LANG, "retry_trace")
+    promptRetry         = anim.StaticImage(promptRetry.setAnimationFromNameAndReturnInitialFrame("gfx"), imageIsSurface=True)
+    promptRetry.pos     = ((conf.LAYTON_SCREEN_WIDTH - promptRetry.image.get_width()) // 2, ((conf.LAYTON_SCREEN_HEIGHT - promptRetry.image.get_height()) // 2) + conf.LAYTON_SCREEN_HEIGHT)
+    
+    promptPoint         = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton", "point_trace")
+    promptPoint.setActiveFrame(0)
+
+    promptArrowLeft     = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton", "arrow_left"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True, x=2, y=conf.LAYTON_SCREEN_HEIGHT)
+    promptArrowRight    = anim.AnimatedButton(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/tracebutton", "arrow_right"), None,
+                                              imageIsSurface=True, useButtonFromAnim=True, x=158, y=conf.LAYTON_SCREEN_HEIGHT)
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        IntermediaryPuzzletTrace.__init__(self, puzzleData, puzzleIndex, playerState)
+        self.puzzleIndex = puzzleIndex
+
+        self.traceLocationsDict = {0:[]}
+
+        self.cursorEnableSoftlockRetryScreen = True
+        self.cursorSelectedItem = None
+        self.countAdditionalTiles = 0
+        self.traceLocationIndexingEnable = False
+        self.indexAdditionalTiles = 0
+        self.traceAdditionalTiles = []
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x0c':
+            self.cursorColour = (command.operands[0],command.operands[1],command.operands[2])
+        elif command.opcode == b'\x18':
+            self.traceLocationsDict[self.countAdditionalTiles].append(han_nazo_element.TraceLocation(command.operands[0], command.operands[1] + conf.LAYTON_SCREEN_HEIGHT,
+                                                                      command.operands[2], conf.LAYTON_STRING_BOOLEAN[command.operands[3]]))
+        elif command.opcode == b'\x3e':
+            self.traceLocationIndexingEnable = True
+            self.countAdditionalTiles += 1
+            self.traceLocationsDict[self.countAdditionalTiles] = []
+            self.traceAdditionalTiles.append(anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "nazo/q" + str(self.puzzleIndex) + "_" + str(self.countAdditionalTiles) + ".arc"))
+        else:
+            super().executeCommand(command)
+    
+    def findSelectedItem(self):
+        if self.cursorTotalPointsLength >= 1:
+            traceSelectedLocation = (self.cursorTotalPoints[0] // self.cursorTotalPointsLength, self.cursorTotalPoints[1] // self.cursorTotalPointsLength)
+            for locationIndex in range(len(self.traceLocationsDict[self.indexAdditionalTiles])):
+                if self.traceLocationsDict[self.indexAdditionalTiles][locationIndex].wasClicked(traceSelectedLocation):    # For extremely dense items, this may need to be checked across several indices for closest
+                    return locationIndex
+        return None
+
+    def evaluateSolution(self):
+        if self.cursorSelectedItem != None:
+            if self.traceLocationsDict[self.indexAdditionalTiles][self.cursorSelectedItem].isAnswer:
+                return True
+        return False
+
+    def cursorEndDrawing(self, pos):
+        self.cursorSelectedItem = self.findSelectedItem()
+        if self.cursorSelectedItem != None:
+            PuzzletTraceButton.promptPoint.pos = (self.traceLocationsDict[self.indexAdditionalTiles][self.cursorSelectedItem].pos[0],
+                                                    self.traceLocationsDict[self.indexAdditionalTiles][self.cursorSelectedItem].pos[1] - PuzzletTraceButton.promptPoint.dimensions[1])
+        super().cursorEndDrawing(pos)
+
+    def draw(self, gameDisplay):
+        if self.traceLocationIndexingEnable and self.indexAdditionalTiles > 0:
+            gameDisplay.blit(self.traceAdditionalTiles[self.indexAdditionalTiles - 1], (0, conf.LAYTON_SCREEN_HEIGHT))
+
+        super().draw(gameDisplay)
+        
+        if not(self.cursorIsDrawing):
+            if self.cursorSelectedItem == None:
+                if self.cursorEnableSoftlockRetryScreen and self.cursorTotalPointsLength > 0:
+                    PuzzletTraceButton.promptRetry.draw(gameDisplay)
+            else:
+                PuzzletTraceButton.promptPoint.draw(gameDisplay)
+        
+        if self.traceLocationIndexingEnable:
+            PuzzletTraceButton.promptArrowLeft.draw(gameDisplay)
+            PuzzletTraceButton.promptArrowRight.draw(gameDisplay)
+
+    def handleEvent(self, event):
+        if self.traceLocationIndexingEnable:
+            PuzzletTraceButton.promptArrowLeft.handleEvent(event)
+            if PuzzletTraceButton.promptArrowLeft.peekPressedStatus():
+                if PuzzletTraceButton.promptArrowLeft.getPressedStatus():
+                    self.clear()
+                    if self.indexAdditionalTiles <= 0:
+                        self.indexAdditionalTiles = self.countAdditionalTiles
+                    else:
+                        self.indexAdditionalTiles -= 1
+                return True
+
+            PuzzletTraceButton.promptArrowRight.handleEvent(event)
+            if PuzzletTraceButton.promptArrowRight.peekPressedStatus():
+                if PuzzletTraceButton.promptArrowRight.getPressedStatus():
+                    self.clear()
+                    if self.indexAdditionalTiles >= self.countAdditionalTiles:
+                        self.indexAdditionalTiles = 0
+                    else:
+                        self.indexAdditionalTiles += 1
+                return True
+
+        super().handleEvent(event)
+
+class PuzzletShapeSearch(IntermediaryPuzzletTrace):
+
+    COVERAGE_TO_SOLVE = 0.975
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        IntermediaryPuzzletTrace.__init__(self, puzzleData, puzzleIndex, playerState)
+        self.pointsInternal = []
+        self.pointsExternal = []
+        self.convexHullMasterPoint = None
+        self.convexHullNeedsComputing = False
+
+        self.overlaySolution = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.overlaySolution.set_colorkey((0,0,0))
+
+        self.canBeSolved = True
+        self.maxAngle = [0,0]
+
+    def addInternalPoint(self, point):
+        self.pointsInternal.append(point)
+        self.convexHullNeedsComputing = True
+    def addExternalPoint(self, point):
+        self.pointsExternal.append(point)
+        self.convexHullNeedsComputing = True
+
+    def clear(self):
+        self.canBeSolved = True
+        self.maxAngle = [0,0]
+        super().clear()
+
+    def cursorAddPoint(self, point):
+        super().cursorAddPoint(point)
+        if self.overlaySolution.get_at((point[0], point[1] - conf.LAYTON_SCREEN_HEIGHT)) == (0,0,0):
+            self.canBeSolved = False
+
+        if self.canBeSolved and self.convexHullMasterPoint != None:
+            tempDelta = (point[0] - self.convexHullMasterPoint[0], - (point[1] - self.convexHullMasterPoint[1] - conf.LAYTON_SCREEN_HEIGHT))
+            angle = atan2(tempDelta[1], tempDelta[0])
+            if angle > 0 and self.maxAngle[0] < angle:
+                self.maxAngle[0] = angle
+            elif angle < 0 and self.maxAngle[1] > angle:
+                self.maxAngle[1] = angle
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x1a':
+            self.addInternalPoint((command.operands[0], command.operands[1]))
+        elif command.opcode == b'\x1b':
+            self.addExternalPoint((command.operands[0], command.operands[1]))
+        elif command.opcode == b'\x19':
+            if self.convexHullMasterPoint == None:
+                self.convexHullMasterPoint = (command.operands[0], command.operands[1])
+            else:
+                state.debugPrint("WarnPuzzletShapeSearch: Convex hull master point already set to a value!")
+        else:
+            super().executeCommand(command)
+
+    def evaluateSolution(self):
+        if self.canBeSolved:
+            if (self.maxAngle[0] - self.maxAngle[1]) / (2 * pi) >= PuzzletShapeSearch.COVERAGE_TO_SOLVE:
+                return True
+        return False
+
+    def generateSolutionSurface(self):
+
+        def sortConvexHull(points):
+            
+            def calculateAngleFromPoint(point1, point2):
+                return atan2(point2[1] - point1[1], point2[0] - point1[0])
+            
+            def calculateDistanceBetweenPoints(point1, point2):
+                return sqrt(point1 ** 2 + point2 ** 2) 
+
+            output = []
+            if len(points) > 0:
+                rootPointIndex = 0
+                rootPoint = points[0]
+                for indexPoint, point in enumerate(points):
+                    if point[1] > rootPoint[1]: # Lower down on screen
+                        rootPoint = point
+                        rootPointIndex = indexPoint
+
+                output.append(rootPoint)
+                computePoints = points[0:rootPointIndex] + points[rootPointIndex + 1:]
+                anglePointsDict = {}
+
+                for point in computePoints:
+                    angleFromPoint = calculateAngleFromPoint(point, rootPoint)
+                    if angleFromPoint not in anglePointsDict.keys():
+                        anglePointsDict[angleFromPoint] = []
+                    anglePointsDict[angleFromPoint].append(point)
+                
+                sortedAngles = list(anglePointsDict.keys())
+                sortedAngles.sort()
+
+                for angle in sortedAngles:
+                    if len(anglePointsDict[angle]) > 1: # These keys need to be sorted
+                        tempDistanceToPointDict = {}
+                        for point in anglePointsDict[angle]:
+                            tempDistanceToPointDict[calculateDistanceBetweenPoints(point, rootPoint)] = point
+                        sortedDistances = list(tempDistanceToPointDict.keys())
+                        sortedDistances.sort()
+                        for key in sortedDistances:
+                            output.append(tempDistanceToPointDict[key])
+                    else:
+                        output.extend(anglePointsDict[angle])
+            return output
+
+        if len(self.pointsExternal) > 1 and len(self.pointsInternal) > 1:
+            self.overlaySolution.fill((0,0,0))
+            pygame.draw.polygon(self.overlaySolution, (255,255,255), sortConvexHull(self.pointsExternal))
+            pygame.draw.polygon(self.overlaySolution, (0,0,0), sortConvexHull(self.pointsInternal))
+
+    def update(self, gameClockDelta):
+        super().update(gameClockDelta)
+        if self.convexHullNeedsComputing:
+            if self.convexHullMasterPoint == None:
+                state.debugPrint("ErrPuzzletShapeSearch: Solution cannot be calculated without central point!")
+            self.generateSolutionSurface()
+            self.convexHullNeedsComputing = False
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+
 class PuzzletNull(LaytonContextPuzzlet):
     def __init__(self, puzzleData, puzzleIndex, playerState):
         LaytonContextPuzzlet.__init__(self)
-
-# Ice one can inherit from PuzzletRose
 
 class LaytonPuzzleHandler(state.LaytonSubscreen):
 
@@ -1768,17 +2099,20 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
                        23: PuzzletArea,             # Finished
                        24: PuzzletRose,             # Finished
                        27: PuzzletIceSkate,         # Finished
-                       29: 'Remove Balls',
+                       29: PuzzletPegSolitaire,     # Finished
                        30: 'Move in Pairs',
                        31: PuzzletLamp,             # Finished
                        33: 'Cross Bridge',
-                       34: 'Shape Search',
+                       34: PuzzletShapeSearch,      # Finished
+                       6:  PuzzletShapeSearch,      # Finished - Variant of Cut which doesn't use the handler!
                        18: PuzzletTileRotate,
                        16: PuzzletWriteAltAnswerUsesChars, 22: PuzzletWrite, 28: PuzzletWriteAltCustomBackground, 35: PuzzletWriteAltCustomBackground,  # What is 35?
                        25: PuzzletSliding,          # Finished - Slight bug on fast moving shapes
                        26: PuzzletTileRotatable, 11: PuzzletTile,
-                       6: 'Draw Line', 9: PuzzletCut, 15: 'Draw Line'}
-
+                       9: PuzzletCut, 15: PuzzletCutAltMoveLimit}
+    
+    # TODO - One added handler had a puzzle with variable length for one command (0 ending); this cannot slip through!!
+    
     def __init__(self, puzzleIndex, playerState):
         state.LaytonSubscreen.__init__(self)
         self.transitionsEnableIn = False
@@ -1850,7 +2184,11 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(67, tempPlayerState), tempPlayerState)
+    state.play(LaytonPuzzleHandler(16, tempPlayerState), tempPlayerState)
+
+    # 69,111 - 15_cut puzzlet with scale 1?
+
+    # 67
     # 3, 6 Tracebutton
     # 8 PushButton
     # 2, 39, 115 Rotate and arrange
