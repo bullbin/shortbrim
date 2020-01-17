@@ -432,7 +432,6 @@ class PuzzletCut(LaytonContextPuzzlet):
                 state.debugPrint("ErrPuzzletCut: Solution connection has no valid index!")
         elif command.opcode == b'\x10':
             self.posCorner = (command.operands[0],command.operands[1])
-            print("corner", self.posCorner)
         else:
             super().executeCommand(command)
 
@@ -982,6 +981,126 @@ class IntermediaryPuzzletTapToAnswer(LaytonContextPuzzlet):
                         self.behaviourWhenSpacePressed(tempPos)
                         return True
         return False
+
+class PuzzletKnight(IntermediaryPuzzletTapToAnswer):
+
+    BANK_IMAGES = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "nazo/knight", "knight_gfx")
+    TIME_PER_SQUARE = 100
+
+    def __init__(self, puzzleData, puzzleIndex, playerState):
+        IntermediaryPuzzletTapToAnswer.__init__(self, puzzleData, puzzleIndex, playerState)
+
+        self.imageKnight        = PuzzletKnight.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("o")
+        self.imageKnightVisited = PuzzletKnight.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("red")
+        self.imageTileAvailable = PuzzletKnight.BANK_IMAGES.setAnimationFromNameAndReturnInitialFrame("ki")
+        if self.imageKnight == None or self.imageKnightVisited == None or self.imageTileAvailable == None:
+            self.imageKnight        = pygame.Surface((22,22))
+            self.imageKnightVisited = pygame.Surface((22,22))
+            self.imageTileAvailable = pygame.Surface((22,22))
+
+        self.tilesAvailable = []
+        self.tilesVisited   = []
+        self.posKnight      = (0,0)
+        self.requireInitialUpdate = True
+
+        self.movementFader = anim.AnimatedFader(PuzzletKnight.TIME_PER_SQUARE, anim.AnimatedFader.MODE_TRIANGLE, False, cycle=True)
+        self.movementDelta = (0,0)
+        self.movementFader.isActive = False
+        self.movementFaderElapsed = 0
+
+    def generateOverlaySurface(self):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + tilePos[1] * self.tileDimensions[1])
+            
+        self.overlaySurface.fill(self.overlaySurface.get_colorkey())
+
+        for pos in self.tilesAvailable:
+            self.overlaySurface.blit(self.imageTileAvailable, tileToScreenPos(pos))
+        for pos in self.tilesVisited:
+            self.overlaySurface.blit(self.imageKnightVisited, tileToScreenPos(pos))
+
+    def isSpacePopulated(self, pos):
+        return pos in self.tilesVisited
+    
+    def isSpaceAvailable(self, pos):
+        if pos in self.tilesAvailable:
+            return True
+        return False
+
+    def draw(self, gameDisplay):
+
+        def tileToScreenPos(tilePos):
+            return (self.posCorner[0] + tilePos[0] * self.tileDimensions[0],
+                    self.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT + tilePos[1] * self.tileDimensions[1])
+
+        super().draw(gameDisplay)
+        if self.movementFader.isActive:
+            xFactor = self.movementFaderElapsed / self.movementFader.durationCycle / 2
+            yFactor = self.movementFader.getStrength()
+            tempPlace = (self.tilesVisited[-1][0] + self.movementDelta[0] * xFactor,
+                         self.tilesVisited[-1][1] + self.movementDelta[1] * xFactor - yFactor)
+            tempScreenPos = tileToScreenPos(tempPlace)
+            if tempScreenPos[1] < conf.LAYTON_SCREEN_HEIGHT:    # Moving onto top screen
+                if tempScreenPos[1] + self.imageKnight.get_height() >= conf.LAYTON_SCREEN_HEIGHT:
+                    tempImageLength = self.imageKnight.get_height() - (conf.LAYTON_SCREEN_HEIGHT - tempScreenPos[1])
+                    cutoff = (0, self.imageKnight.get_height() - tempImageLength, self.imageKnight.get_width(), tempImageLength)
+                    gameDisplay.blit(self.imageKnight, (tempScreenPos[0], conf.LAYTON_SCREEN_HEIGHT), cutoff)
+            else:
+                gameDisplay.blit(self.imageKnight, tempScreenPos)
+
+        else:
+            gameDisplay.blit(self.imageKnightVisited, tileToScreenPos(self.posKnight))
+            gameDisplay.blit(self.imageKnight, tileToScreenPos(self.posKnight))
+
+    def addElement(self, pos):
+        self.movementDelta = (pos[0] - self.posKnight[0], pos[1] - self.posKnight[1])
+        tempTileDelta = sqrt(self.movementDelta[0] ** 2 + self.movementDelta[1] ** 2)
+        self.movementFader = anim.AnimatedFader(tempTileDelta * PuzzletKnight.TIME_PER_SQUARE, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=True)
+        self.movementFaderElapsed = 0
+        self.tilesVisited.append(self.posKnight)
+        self.posKnight = pos
+        self.getAvailableSpaces()
+
+    def update(self, gameClockDelta):
+        if self.requireInitialUpdate:
+            self.getAvailableSpaces()
+            self.requireInitialUpdate = False
+        if self.movementFader.isActive:
+            self.movementFader.update(gameClockDelta)
+            self.movementFaderElapsed += gameClockDelta
+
+    def getAvailableSpaces(self):
+        self.tilesAvailable = []
+        if self.tileBoardDimensions == (0,0):
+            self.setVictory()
+        elif len(self.tilesVisited) + 1 == self.tileBoardDimensions[0] * self.tileBoardDimensions[1]:
+            self.setVictory()
+        else:
+            deltaPos = [(2, 1), (1, -2), (-2, -1), (-1, 2),
+                        (2,-1), (-1,-2), (-2,  1), (1, 2)]
+            for pos in deltaPos:
+                tempPosKnight = (self.posKnight[0] + pos[0],
+                                self.posKnight[1] + pos[1])
+                if ((tempPosKnight[0] >= 0 and tempPosKnight[1] >= 0) and
+                    (tempPosKnight[0] < self.tileBoardDimensions[0] and tempPosKnight[1] < self.tileBoardDimensions[1])):
+                    self.tilesAvailable.append(tempPosKnight)
+            self.generateOverlaySurface()
+
+    def executeCommand(self, command):
+        if command.opcode == b'\x44':
+            self.posCorner = (command.operands[0], command.operands[1])
+            self.tileDimensions = (command.operands[2], command.operands[2])
+            self.tileBoardDimensions = (command.operands[3], command.operands[4])
+            self.posKnight = (command.operands[5], command.operands[6])
+        else:
+            super().executeCommand(command)
+    
+    def handleEvent(self, event):
+        if self.movementFader.isActive:
+            return False
+        super().handleEvent(event)
 
 class PuzzletArea(IntermediaryPuzzletTapToAnswer):
 
@@ -2090,12 +2209,12 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
     # Taken from jiten.plz (Naming scheme for handlers; handlers are also derived from the parameter grabbing this)
     # 20 unique modes shared across handlers with different parameters
     # Some modes which are indicated as in-use are not actually used by any puzzles so their opcodes will be unknown
-    defaultHandlers = {3: PuzzletOnOff,             # Mark Answer - Finished
-                       2: PuzzletPushButton,        # Finished
-                       5: PuzzletTraceButton,       # Finished - Unk command remaining
+    defaultHandlers = {3:  PuzzletOnOff,            # Mark Answer - Finished
+                       2:  PuzzletPushButton,       # Finished
+                       5:  PuzzletTraceButton,      # Finished - Unk command remaining
                        10: PuzzletSort,             # Finished
                        13: PuzzletPancake,          # Finished - Intro animation missing
-                       17: 'Move Knight',
+                       17: PuzzletKnight,           # Finished
                        23: PuzzletArea,             # Finished
                        24: PuzzletRose,             # Finished
                        27: PuzzletIceSkate,         # Finished
@@ -2109,10 +2228,10 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
                        16: PuzzletWriteAltAnswerUsesChars, 22: PuzzletWrite, 28: PuzzletWriteAltCustomBackground, 35: PuzzletWriteAltCustomBackground,  # What is 35?
                        25: PuzzletSliding,          # Finished - Slight bug on fast moving shapes
                        26: PuzzletTileRotatable, 11: PuzzletTile,
-                       9: PuzzletCut, 15: PuzzletCutAltMoveLimit}
+                       9:  PuzzletCut, 15: PuzzletCutAltMoveLimit}
     
     # TODO - One added handler had a puzzle with variable length for one command (0 ending); this cannot slip through!!
-    
+
     def __init__(self, puzzleIndex, playerState):
         state.LaytonSubscreen.__init__(self)
         self.transitionsEnableIn = False
@@ -2184,7 +2303,7 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(16, tempPlayerState), tempPlayerState)
+    state.play(LaytonPuzzleHandler(2, tempPlayerState), tempPlayerState)
 
     # 69,111 - 15_cut puzzlet with scale 1?
 
