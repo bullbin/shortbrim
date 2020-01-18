@@ -1070,12 +1070,12 @@ class PuzzletKnight(IntermediaryPuzzletTapToAnswer):
         if self.movementFader.isActive:
             self.movementFader.update(gameClockDelta)
             self.movementFaderElapsed += gameClockDelta
+        elif len(self.tilesVisited) + 1 == self.tileBoardDimensions[0] * self.tileBoardDimensions[1]:
+            self.setVictory()
 
     def getAvailableSpaces(self):
         self.tilesAvailable = []
         if self.tileBoardDimensions == (0,0):
-            self.setVictory()
-        elif len(self.tilesVisited) + 1 == self.tileBoardDimensions[0] * self.tileBoardDimensions[1]:
             self.setVictory()
         else:
             deltaPos = [(2, 1), (1, -2), (-2, -1), (-1, 2),
@@ -2303,7 +2303,7 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(2, tempPlayerState), tempPlayerState)
+    state.play(LaytonPuzzleHandler(99, tempPlayerState), tempPlayerState)
 
     # 69,111 - 15_cut puzzlet with scale 1?
 
