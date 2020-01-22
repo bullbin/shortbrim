@@ -98,9 +98,10 @@ class FileInterface():
     @staticmethod
     def _dataFromRom(filepath):
         if FileInterface._isPathAvailableRom(filepath):
-            testFile = FileInterface.rom.getFileByName(resolveFilepath(filepath))
+            testFile = asset.File(data=FileInterface.rom.getFileByName(resolveFilepath(filepath)))
+            testFile.decompress()
             debugPrint("RomGrab", resolveFilepath(filepath))
-            return testFile
+            return testFile.data
         debugErrorPrint("RomGrabFailed", resolveFilepath(filepath))
         return b''
     

@@ -2,8 +2,17 @@ import pygame, han_nazo, conf, state, script, anim, const
 
 from file import FileInterface
 from os import path
+from hat_io import asset
 
 pygame.init()
+
+import time
+
+# TODO - For every handler, ensure that executeCommand returns False, as stack-like behaviour will be encouraged UNIVERSALLY
+
+class LaytonEventContext(state.LaytonContext):
+    def __init__(self):
+        state.LaytonContext.__init__(self)
 
 class LaytonCharacterController():
     def __init__(self):
@@ -91,13 +100,16 @@ class LaytonEventBackground(state.LaytonContext):
         self.backgroundTs = pygame.Surface((0,0))
     
     def executeCommand(self, command):
-        if command.opcode == b'\x0c':       # Draw image, TS
+        if command.opcode == b'\x22':       # Draw image, TS
             self.backgroundTs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
-        elif command.opcode == b'\x0b':     # Draw image, BS. Note that the game does not use this image - it uses the darker version
-            if "room" in command.operands[0]:
-                self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0][:-4] + ".arc")
-            elif "room" not in command.operands[0] or self.backgroundBs.get_width() == 0:
-                self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
+        elif command.opcode == b'\x21':     # Draw image, BS. Note that the game does not use this image - it uses the darker version
+            self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
+        elif command.opcode == b'\x37':
+            tempSurface = pygame.Surface((self.backgroundBs.get_width(), self.backgroundBs.get_height()))
+            # TODO - Assumes top screen and bottom screen are same height
+            # TODO - Unk
+            tempSurface.set_alpha(command.operands[3])
+            self.backgroundBs.blit(tempSurface, (0,0))
         else:
             state.debugPrint("ErrUnkCommand: " + str(command.opcode))
 
@@ -154,70 +166,75 @@ class LaytonEventGraphics(state.LaytonContext):
         self.eventTempAnimControllersMouth = []
 
     def executeCommand(self, command):
-        if command.opcode == b'\x48':           # Select puzzle
-            if self.eventPuzzleHandler != None:
-                state.debugPrint("WarnPuzzleOverridden: Cached puzzle " + str(self.eventPuzzleHandler.puzzleIndex) + " overriden with " + str(command.operands[0]))
-            else:
-                state.debugPrint("LogEventLoadedPuzzle: Cached puzzle" + str(command.operands[0]))
-            self.eventPuzzleHandler = han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState)
-        elif command.opcode == b'\x6c':           # Draw static image - usually a character
-            if len(self.eventCharacters) > self.eventCharactersBodyMouthLoadIndices[0]: # If mouth has already been loaded
-                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].setAnimBody(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
-                                                                                                                     x=command.operands[0],
-                                                                                                                     y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
-            else:
-                self.eventCharacters.append(LaytonCharacterController())
-                self.eventCharacters[-1].setAnimBody(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0],
-                                                                            y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
-            if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].animBody.setAnimationFromName(command.operands[3])):
-                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].animBody.setActiveFrame(0)
-            self.eventCharactersBodyMouthLoadIndices[0] += 1
-        elif command.opcode == b'\x6d':           # Draw animated image - usually the character mouth
-            if len(self.eventCharacters) > self.eventCharactersBodyMouthLoadIndices[1]: # If mouth has already been loaded
-                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].setAnimMouth(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
-                                                                                                                      x=command.operands[0],
-                                                                                                                      y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT))
-            else:
-                self.eventCharacters.append(LaytonCharacterController())
-                self.eventCharacters[-1].setAnimMouth(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
-                                                                             x=command.operands[0], y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT))
-            if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setAnimationFromName(command.operands[3])):
-                self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setActiveFrame(0)
-            self.eventCharactersBodyMouthLoadIndices[1] += 1
+        # if command.opcode == b'\x48':           # Select puzzle
+        #     if self.eventPuzzleHandler != None:
+        #         state.debugPrint("WarnPuzzleOverridden: Cached puzzle " + str(self.eventPuzzleHandler.puzzleIndex) + " overriden with " + str(command.operands[0]))
+        #     else:
+        #         state.debugPrint("LogEventLoadedPuzzle: Cached puzzle" + str(command.operands[0]))
+        #     self.eventPuzzleHandler = han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState)
+        # elif command.opcode == b'\x6c':           # Draw static image - usually a character
+        #     if len(self.eventCharacters) > self.eventCharactersBodyMouthLoadIndices[0]: # If mouth has already been loaded
+        #         self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].setAnimBody(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
+        #                                                                                                              x=command.operands[0],
+        #                                                                                                              y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
+        #     else:
+        #         self.eventCharacters.append(LaytonCharacterController())
+        #         self.eventCharacters[-1].setAnimBody(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4], x=command.operands[0],
+        #                                                                     y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT), command.operands[2][0:-4])
+        #     if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].animBody.setAnimationFromName(command.operands[3])):
+        #         self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[0]].animBody.setActiveFrame(0)
+        #     self.eventCharactersBodyMouthLoadIndices[0] += 1
+        # elif command.opcode == b'\x6d':           # Draw animated image - usually the character mouth
+        #     if len(self.eventCharacters) > self.eventCharactersBodyMouthLoadIndices[1]: # If mouth has already been loaded
+        #         self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].setAnimMouth(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
+        #                                                                                                               x=command.operands[0],
+        #                                                                                                               y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT))
+        #     else:
+        #         self.eventCharacters.append(LaytonCharacterController())
+        #         self.eventCharacters[-1].setAnimMouth(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, command.operands[2][0:-4],
+        #                                                                      x=command.operands[0], y=command.operands[1]+conf.LAYTON_SCREEN_HEIGHT))
+        #     if not(self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setAnimationFromName(command.operands[3])):
+        #         self.eventCharacters[self.eventCharactersBodyMouthLoadIndices[1]].animMouth.setActiveFrame(0)
+        #     self.eventCharactersBodyMouthLoadIndices[1] += 1
 
-        elif command.opcode == b'\x6e':
-            self.eventTempAnimControllersBody.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
-        elif command.opcode == b'\x6f':
-            self.eventTempAnimControllersMouth.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
+        # elif command.opcode == b'\x6e':
+        #     self.eventTempAnimControllersBody.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
+        # elif command.opcode == b'\x6f':
+        #     self.eventTempAnimControllersMouth.append(LaytonCharacterAnimNamePacket(command.operands[0], command.operands[1]))
 
-        elif command.opcode == b'\x9c' and not(self.workaroundDisableAdditionalEntries):
-            self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_RIGHT, command.operands[0], command.operands[1]))
-            if len(self.eventTempAnimControllersBody) > 0:
-                self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
-            if len(self.eventTempAnimControllersMouth) > 0:
-                self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
-            self.clearTemps()
-            if len(command.operands) > 2:
-                self.workaroundDisableAdditionalEntries = True
-                state.debugPrint("WarnEventGraphics: Text workaround triggered!")
-        elif command.opcode == b'\x9d' and not(self.workaroundDisableAdditionalEntries):
-            self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_LEFT, command.operands[0], command.operands[1]))
-            if len(self.eventTempAnimControllersBody) > 0:
-                self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
-            if len(self.eventTempAnimControllersMouth) > 0:
-                self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
-            self.clearTemps()
-            if len(command.operands) > 2:
-                self.workaroundDisableAdditionalEntries = True
-                state.debugPrint("WarnEventGraphics: Text workaround triggered!")
+        # elif command.opcode == b'\x9c' and not(self.workaroundDisableAdditionalEntries):
+        #     self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_RIGHT, command.operands[0], command.operands[1]))
+        #     if len(self.eventTempAnimControllersBody) > 0:
+        #         self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
+        #     if len(self.eventTempAnimControllersMouth) > 0:
+        #         self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
+        #     self.clearTemps()
+        #     if len(command.operands) > 2:
+        #         self.workaroundDisableAdditionalEntries = True
+        #         state.debugPrint("WarnEventGraphics: Text workaround triggered!")
+        # elif command.opcode == b'\x9d' and not(self.workaroundDisableAdditionalEntries):
+        #     self.eventText.append(LaytonEventTextController(LaytonEventTextController.CHAR_LEFT, command.operands[0], command.operands[1]))
+        #     if len(self.eventTempAnimControllersBody) > 0:
+        #         self.eventText[-1].animNamePacketsBody = self.eventTempAnimControllersBody
+        #     if len(self.eventTempAnimControllersMouth) > 0:
+        #         self.eventText[-1].animNamePacketsMouth = self.eventTempAnimControllersMouth
+        #     self.clearTemps()
+        #     if len(command.operands) > 2:
+        #         self.workaroundDisableAdditionalEntries = True
+        #         state.debugPrint("WarnEventGraphics: Text workaround triggered!")
 
-        elif command.opcode == b'\xb4':
-            if command.operands[0] >= len(self.eventCharacters):
-                self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = conf.LAYTON_STRING_BOOLEAN[command.operands[1]]
-            else:
-                self.eventCharacters[command.operands[0]].isFlipped = conf.LAYTON_STRING_BOOLEAN[command.operands[1]]
+        # elif command.opcode == b'\xb4':
+        #     if command.operands[0] >= len(self.eventCharacters):
+        #         self.eventCharacters[command.operands[0] % len(self.eventCharacters)].isFlippedMouth = conf.LAYTON_STRING_BOOLEAN[command.operands[1]]
+        #     else:
+        #         self.eventCharacters[command.operands[0]].isFlipped = conf.LAYTON_STRING_BOOLEAN[command.operands[1]]
+        # else:
+        #     state.debugPrint("ErrEventUnkCommand: " + str(command.opcode))
+        if command.opcode == b'\x5c':   # Play voiced dialogue
+            pass
         else:
-            state.debugPrint("ErrEventUnkCommand: " + str(command.opcode))
+            super().executeCommand(command)
+        return True
     
     def incrementEventText(self):
         if len(self.eventText) > 0 and self.eventTextIndex < len(self.eventText):
@@ -327,7 +344,11 @@ class LaytonEventGraphics(state.LaytonContext):
                 self.eventCharacters[int(event.command[1])].animMouth.setAnimationFromName(event.command[2])
 
 class LaytonEventHandler(state.LaytonSubscreen):
-    def __init__(self, eventIndex, playerState):
+
+    TIME_FADE_TRANSITION = 2000
+    MODE_FADE_TRANSITION = anim.AnimatedFader.MODE_SINE_SMOOTH
+
+    def __init__(self, eventIndex, eventSubIndex, playerState):
         state.LaytonSubscreen.__init__(self)
         self.transitionsEnableIn = False
         self.transitionsEnableOut = False
@@ -336,19 +357,98 @@ class LaytonEventHandler(state.LaytonSubscreen):
         self.addToStack(LaytonEventBackground(playerState))
         self.addToStack(LaytonEventGraphics(eventIndex, playerState))
         self.commandFocus = self.stack[-1]
-        self.executeGdScript(script.gdScript.fromData(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "event\\e" + str(eventIndex) + ".gds")))
 
-    def executeGdScript(self, puzzleScript):
-        for command in puzzleScript.commands:
-            if command.opcode == b'\x0b' or command.opcode == b'\x0c':
-                self.stack[0].executeCommand(command)
-            elif self.commandFocus == None:
-                self.executeCommand(command)
-            else:
-                self.commandFocus.executeCommand(command)
+        self.isScriptAwaitingExecution = True
+        self.indexScriptCommand = 0
+
+        self.faderSceneTransition = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+        self.faderSceneTransition.isActive = False
+
+        self.faderSceneSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
+        self.faderSceneSurface.set_alpha(255)
+
+        self.faderSceneSurfaceScreenTop = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.faderSceneSurfaceScreenTop.set_alpha(255)
+        self.faderSceneSurfaceScreenBottom = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.faderSceneSurfaceScreenBottom.set_alpha(255)
+        self.faderSceneTransitionScreenTop = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+        self.faderSceneTransitionScreenTop.isActive = False
+        self.faderSceneTransitionScreenBottom = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+        self.faderSceneTransitionScreenBottom.isActive = False
+
+        self.scriptTalkBank = asset.LaytonPack(version=1)
+        self.scriptTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + ("%02d" % eventIndex) + ".plz"))
+        self.scriptEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + ("%02d" % eventIndex) + ".plz",
+                                                                                "e" + ("%02d" % eventIndex) + "_" + ("%03d" % eventSubIndex) + ".gds", version = 1))
+
+    def updateSubscreenMethods(self, gameClockDelta):
+        if (self.faderSceneTransitionScreenTop.isActive or self.faderSceneTransitionScreenBottom.isActive):
+            self.faderSceneTransitionScreenTop.update(gameClockDelta)
+            self.faderSceneTransitionScreenBottom.update(gameClockDelta)
+            self.faderSceneSurfaceScreenTop.set_alpha(round(self.faderSceneTransitionScreenTop.getStrength() * 255))
+            self.faderSceneSurfaceScreenBottom.set_alpha(round(self.faderSceneTransitionScreenBottom.getStrength() * 255))
+
+        elif self.indexScriptCommand < len(self.scriptEvent.commands):
+            while self.isScriptAwaitingExecution and self.indexScriptCommand < len(self.scriptEvent.commands) and not(self.faderSceneTransitionScreenTop.isActive or self.faderSceneTransitionScreenBottom.isActive):
+                # TODO - Execute next instruction
+                self.isScriptAwaitingExecution = self.executeGdScriptCommand(self.scriptEvent.commands[self.indexScriptCommand])
+                self.indexScriptCommand += 1
+            pygame.event.post(pygame.event.Event(const.ENGINE_SKIP_CLOCK, {const.PARAM:None}))
+        else:
+            state.debugPrint("LogEventHandler: Terminated execution!")
+            self.isContextFinished = True
+
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        gameDisplay.blit(self.faderSceneSurfaceScreenTop, (0,0))
+        gameDisplay.blit(self.faderSceneSurfaceScreenBottom, (0, conf.LAYTON_SCREEN_HEIGHT))
+
+    def executeGdScriptCommand(self, command):
+        if command.opcode == b'\x21' or command.opcode == b'\x22': # Background-related
+            self.stack[0].executeCommand(command)
+
+        elif command.opcode == b'\x02': # Screen0,1 Fade in
+            self.faderSceneTransitionScreenTop = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
+            self.faderSceneTransitionScreenBottom = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
+        elif command.opcode == b'\x03': # Screen0,1 Fade out
+            self.faderSceneTransitionScreenTop = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+            self.faderSceneTransitionScreenBottom = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+
+        # Is 31,32 outin waiting or fading?
+
+        # TODO - On every fade operation, the dialogue box fades as well, and fades first
+        # It may be best to just unify this all under one big handler :(
+
+        elif command.opcode == b'\x33': # Screen1 Fade out
+            self.faderSceneTransitionScreenBottom = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+        elif command.opcode == b'\x34': # Screen1 Fade in
+            self.faderSceneTransitionScreenBottom = anim.AnimatedFader(LaytonEventHandler.TIME_FADE_TRANSITION, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
+
+        elif command.opcode == b'\x37': # Set darkness
+            self.stack[0].executeCommand(command)
+
+        elif command.opcode == b'\x87': # Screen0 Fade out
+            self.faderSceneTransitionScreenTop = anim.AnimatedFader(command.operands[0] * conf.ENGINE_FRAME_INTERVAL, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False)
+        elif command.opcode == b'\x88': # Screen0 Fade in
+            self.faderSceneTransitionScreenTop = anim.AnimatedFader(command.operands[0] * conf.ENGINE_FRAME_INTERVAL, LaytonEventHandler.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
+        
+        elif command.opcode == b'\x99': # Play sampled music
+            pass
+
+        else:
+            return self.commandFocus.executeCommand(command)
+        return True
+    
+    def handleEvent(self, event):
+        if event.type == const.ENGINE_RESUME_EXECUTION_STACK:
+            self.isScriptAwaitingExecution = True
+        else:
+            return super().handleEvent(event)
 
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    state.play(LaytonEventHandler(1, playerState), playerState)   # 57 is interesting, 45 has mouth layering issue, 48 causes a crash
-    # 17 good for anims
+    tempDebugExitLayer = state.LaytonScreen()
+    tempDebugExitLayer.addToStack(LaytonEventHandler(10, 30, playerState))
+    #time.sleep(10)
+    state.play(tempDebugExitLayer, playerState)

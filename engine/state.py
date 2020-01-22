@@ -106,6 +106,7 @@ class LaytonContext():
         debugPrint("ErrNoRedefinitionCommand: " + str(command.opcode.hex()))
         for operand in command.operands:
             debugPrint("\t" + str(operand))
+        return True # Return if execution can continue as normal
 
     def setStackUpdate(self):
         self.screenStackUpdate = True

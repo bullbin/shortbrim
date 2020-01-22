@@ -329,7 +329,7 @@ class File():
         try:
             self.data = ndspy.lz10.decompress(self.data[offsetIn:])
             return True
-        except TypeError:
+        except:
             return False
     
     def save(self):

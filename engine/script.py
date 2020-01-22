@@ -27,6 +27,7 @@ class gdOperation():
 
 class gdScript(asset.File):
     def __init__(self):
+        asset.File.__init__(self)
         self.commands = []
         self.commandLoc = []
         self.length = 0
@@ -53,6 +54,8 @@ class gdScript(asset.File):
                 debugPrint("LogGdsLoad: Reading complete!")
         except FileNotFoundError:
             debugPrint("ErrGdsLoad: GDS does not exist!")
+        except TypeError:
+            debugPrint("ErrGdsLoad: Invalid data provided to reader!")
 
     def parseCommand(self, reader, enableBranching, useBranchingHack):
         self.commandLoc.append(reader.tell())
