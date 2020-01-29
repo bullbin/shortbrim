@@ -150,7 +150,7 @@ class LaytonRoomTapObject(state.LaytonContext):
                             LaytonRoomTapObject.BACKGROUND_BS.pos[1] + ((LaytonRoomTapObject.BACKGROUND_BS.dimensions[1] - (len(tobjFillText.split("\n")) * font.get_height())) // 2))
         else:
             tobjTextPos =  LaytonRoomTapObject.BACKGROUND_PORTRAIT.pos
-        self.tobjText               = anim.TextScroller(font, tobjFillText, textPosOffset=tobjTextPos)
+        self.tobjText               = anim.NuvoTextScroller(font, tobjFillText, textPosOffset=tobjTextPos)
         self.tobjText.skip()
 
         LaytonRoomTapObject.CURSOR_BS.setAnimationFromName("touch")
@@ -238,6 +238,7 @@ class LaytonRoomGraphics(state.LaytonContext):
             self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "eventobj", "obj_" + str(eventData.idEventObj),
                                                        x = eventData.bounding.posCorner[0], y = eventData.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
             self.animObjects[-1].setAnimationFromName("gfx")
+            print(eventData.idEvent, eventData.bounding.posCorner, eventData.bounding.sizeBounding)
         
         for hintIndex, hintZone in enumerate(placeData.hints):
             self.eventHint.append(LaytonRoomTapRegion(2, (hintZone.posCorner[0], hintZone.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT),
@@ -350,4 +351,4 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    state.play(LaytonRoomHandler(59, 1, playerState), playerState) # 48 hidden puzzle
+    state.play(LaytonRoomHandler(8, 1, playerState), playerState) # 48 hidden puzzle

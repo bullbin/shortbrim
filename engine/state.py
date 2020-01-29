@@ -29,9 +29,15 @@ class LaytonPuzzleDataEntry():
         return self.decayValues[self.decayState]
 
 class LaytonPlayerState():
+
+    MYSTERY_LOCKED = 0
+    MYSTERY_WAITING_TO_BE_UNLOCKED = 1
+    MYSTERY_UNLOCKED = 2
+
     def __init__(self):
         self.name = "LT1_ENGINE"
         self.puzzleData = {}
+        self.statusMystery = {}
         self.puzzletTutorialsCompleted = []
         self.currentRoom = 0
         self.currentObjective = 10
@@ -39,13 +45,15 @@ class LaytonPlayerState():
         self.hintCoinsFound = []
         self.fonts = {}
 
-        for fontName, fontEncoding, xFontSpacing, yFontSpacing, altFontSize in [("font18", "shift-jis", 1, 1, 17), ("fontevent", "cp1252", 1, 3, 17), ("fontq", "cp1252", 1, 2, 17)]:
+        for fontName, fontEncoding, xFontSpacing, yFontSpacing, altFontSize in [("font18", "shift-jis", 1, 1, 17), ("fontevent", "cp1252", 1, 5, 17), ("fontq", "cp1252", 1, 2, 17)]:
             if conf.GRAPHICS_USE_GAME_FONTS:
                 self.fonts[fontName] = anim.FontMap(conf.PATH_ASSET_FONT + fontName + ".png", conf.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, xFontGap=xFontSpacing, yFontGap=yFontSpacing)
                 if not(self.fonts[fontName].isLoaded):
                     self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
             else:
                 self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
+        for indexMystery in range(10):
+            self.statusMystery[indexMystery] = LaytonPlayerState.MYSTERY_LOCKED
 
     def getPuzzleEntry(self, index):
         if index not in self.puzzleData.keys():
@@ -309,8 +317,8 @@ def play(rootHandler, playerState):
             if event.type == pygame.QUIT:
                 isActive = False
             elif event.type == const.ENGINE_SKIP_CLOCK:
-                debugPrint("State: Clock bypassed on this frame!")
-                gameClockBypass = True
+                if conf.ENGINE_ENABLE_CLOCK_BYPASS:
+                    gameClockBypass = True
             else:
                 rootHandler.handleEvent(event)
         
@@ -318,3 +326,4 @@ def play(rootHandler, playerState):
 
         if gameClockBypass and gameClockDelta > conf.ENGINE_FRAME_INTERVAL:
             gameClockDelta = conf.ENGINE_FRAME_INTERVAL
+            debugPrint("State: Clock bypassed on this frame!")

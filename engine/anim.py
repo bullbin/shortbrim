@@ -72,13 +72,14 @@ class AnimatedFrameCollection():
 
     ROM_FRAMETIME_MULTIPLIER = (1000 / 60) * 1 #(5 / 3)
 
-    def __init__(self, framerate, indices=[], loop=True, isFramerateTimeArray=False):
+    def __init__(self, framerate, indices=[], loop=True, isFramerateTimeArray=False, faceOffset=(None,None)):
         self.framerate = framerate
         self.isActive = True
         self.loop = loop
         self.indices = indices
         self.currentIndex = 0
         self.timeSinceLastUpdate = 0
+        self.offsetFace = faceOffset
 
         if isFramerateTimeArray:
             if type(framerate) != list or len(framerate) == 0:
@@ -247,7 +248,7 @@ class AnimatedImage():
                 if assetImage.alphaMask != None:
                     self.frames[indexImage].set_colorkey(assetImage.alphaMask)
             for anim in assetImage.anims:
-                self.animMap[anim.name] = AnimatedFrameCollection(anim.frameDuration, indices=anim.indexImages, isFramerateTimeArray=True)
+                self.animMap[anim.name] = AnimatedFrameCollection(anim.frameDuration, indices=anim.indexImages, isFramerateTimeArray=True, faceOffset=anim.offsetFace)
         else:
             print("Failed to fetch image!!")
 
@@ -295,6 +296,11 @@ class AnimatedImage():
 
     def getAnim(self):
         return self.animActive
+    
+    def getAnimObject(self):
+        if self.animActive != None:
+            return self.animMap[self.animActive]
+        return None
 
     def drawAlpha(self, gameDisplay):
         if self.animActiveFrame != None:
@@ -690,158 +696,162 @@ class AnimatedImageWithFadeInOutPerAnim(AnimatedImage):
         return out
 
 class AlphaSurface():
-    def __init__(self, alpha):
+    def __init__(self, alpha, dimensions=(conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)):
         self.alpha = alpha
-        self.surface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface(dimensions).convert_alpha()
 
     def setAlpha(self, alpha):
         self.alpha = alpha
 
-    def draw(self, gameDisplay):
+    def draw(self, gameDisplay, location=(0,0)):
         if self.alpha > 0:
             if self.alpha == 255:
-                gameDisplay.blit(self.surface, (0,0))
+                gameDisplay.blit(self.surface, location)
             else:
                 tempAlphaSurface = self.surface.copy().convert_alpha()
                 tempAlphaSurface.fill((255, 255, 255, self.alpha), None, pygame.BLEND_RGBA_MULT)
-                gameDisplay.blit(tempAlphaSurface, (0,0))
+                gameDisplay.blit(tempAlphaSurface, location)
     
     def clear(self):
-        self.surface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2)).convert_alpha()
+        self.surface = pygame.Surface((self.surface.get_width(), self.surface.get_height())).convert_alpha()
         self.surface.fill((0,0,0,0))
 
-class TextScroller():
-    """Text renderer that handles newlines, colour switching and character replacement codes.
-    Text is automatically animated; to render immediately, call skip() prior to drawing
-    """
+class AnimatedTextLine(AnimatedText):
+    def __init__(self, font, text, colour, indexLine):
+        AnimatedText.__init__(self, font, initString=text, colour=colour)
+        self.indexLine = indexLine
 
-    LAYTON_CONTROL_CHAR = ['#', '@', '&']
+class NuvoTextScroller():
+
+    DURATION_WAIT = 500
+
+    LAYTON_CONTROL_CHAR = ["#", "@", "&"]
 
     def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
         self.textInput = textInput
         self.frameStep = 1000/targetFramerate
-        self.textPosOffset = textPosOffset
+        self.timeSinceLastUpdate = 0
+        self.pos = textPosOffset
         self.font = font
-        self.reset()
-        self.substituteChars()
 
-    def incrementText(self):    # There are much faster ways to do this, consider writing to a surface then just masking instead of redrawing per character
-        if self.textPos < len(self.textInput):
-            if self.textInput[self.textPos] in TextScroller.LAYTON_CONTROL_CHAR:
-                if self.textInput[self.textPos] == "#":
-                    if self.textCurrentColour != self.textInput[self.textPos + 1]:
-                        self.textCurrentColour = self.textInput[self.textPos + 1]
-                        if self.textPos == self.textNewline:
-                            self.textNewline += 2
-                        self.textPos += 2
-                        if self.textPos < len(self.textInput) and self.textPos > 2:
-                            if self.textInput[self.textPos] != "\n":    # Register colour change between rects
-                                self.textNewline = self.textPos
-                                self.textRects[-1].append(AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour]))
-
-                elif self.textInput[self.textPos] == '@':       # Only bug remaining is that clearing under low framerates can wipe far too early
-                    if self.textInput[self.textPos + 1] == "c":
-                        self.textRects = []
-                        self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
-                        self.textPos += 1
-                    else:
-                        if self.textInput[self.textPos + 1] == "w":         # Wait
-                            self.isPaused = True
-                            self.durationPause = 500
-                        elif self.textInput[self.textPos + 1] == "p":         # Pause until tap
-                            self.isWaitingForTap = True
-                        else:
-                            debugPrint("TextScrollerWarnUnhandledCommand: '" + self.textInput[self.textPos + 1] + "'")
-                        self.textInput = self.textInput[:self.textPos] + self.textInput[self.textPos + 2:]
-                        if self.textPos != self.textNewline:
-                            self.textPos -= 1
-
-                if self.textInput[self.textPos] == '&':
-                    tempStringControl = ""
-                    tempTextPos = self.textPos
-                    while self.textInput[tempTextPos + 1] != '&':
-                        tempStringControl += self.textInput[tempTextPos + 1]
-                        tempTextPos += 1
-                        if len(tempStringControl) > 30:
-                            debugPrint("TextScrollerControlGrabError: Fetched " + tempStringControl)
-                            break
-                    self.textInput = self.textInput[0:self.textPos] + self.textInput[tempTextPos + 2:]
-                    pygame.event.post(pygame.event.Event(const.ANIM_SET_ANIM, {const.PARAM:tempStringControl}))
-                    if self.textPos != self.textNewline:
-                        self.textPos -= 1
-
-            if self.textPos < len(self.textInput):
-                if self.textInput[self.textPos] == "\n" or len(self.textRects) == 0:
-                    if len(self.textRects) == 0:
-                        self.textNewline = self.textPos
-                    else:
-                        self.textNewline = self.textPos + 1
-                    self.textRects.append([AnimatedText(self.font, colour=conf.GRAPHICS_FONT_COLOR_MAP[self.textCurrentColour])])
-                else:
-                    self.textRects[-1][-1].text = self.textInput[self.textNewline:self.textPos + 1]
-                    self.textRects[-1][-1].update(None)
-                self.textPos += 1
-        else:
-            self.drawIncomplete = False
+        self.indexChar = 0
+        self.indexLine = 0
+        self.lines = []
+        self.colour = (0,0,0)
+        self.drawIncomplete = True
+        self.isWaitingForTap = False
     
-    def substituteChars(self):
-        indexReplacementCharStart = self.textInput.find("<")
-        while indexReplacementCharStart != -1:
-            indexReplacementCharEnd = indexReplacementCharStart + 1
-            while self.textInput[indexReplacementCharEnd] != ">":
-                indexReplacementCharEnd += 1
-            try:
-                self.textInput = self.textInput[:indexReplacementCharStart] + conf.GRAPHICS_FONT_CHAR_SUBSTITUTION[self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd]] + self.textInput[indexReplacementCharEnd + 1:]
-            except KeyError:
-                debugPrint("TextScroller: Character '" + self.textInput[indexReplacementCharStart + 1:indexReplacementCharEnd] + "' has no substitution!")
-                self.textInput = self.textInput[:indexReplacementCharStart] + self.textInput[indexReplacementCharEnd + 1:]
-            indexReplacementCharStart = self.textInput.find("<")
+    def update(self, gameClockDelta):
+        if self.drawIncomplete and not(self.isWaitingForTap):
+            if self.indexChar < len(self.textInput):
+                self.timeSinceLastUpdate += gameClockDelta
+                while self.timeSinceLastUpdate >= self.frameStep and self.indexChar < len(self.textInput) and not(self.isWaitingForTap):
+                    self.incrementText()
+                    self.timeSinceLastUpdate -= self.frameStep
+            else:
+                self.drawIncomplete = False
+    
+    def skip(self):
+        while self.indexChar < len(self.textInput) and not(self.isWaitingForTap):
+            self.incrementText()
+
+    def draw(self, gameDisplay):
+        lastLineIndex = -1
+        for textObj in self.lines:
+            if lastLineIndex != textObj.indexLine: # Recalculate x
+                x = self.pos[0]
+                y = self.pos[1] + self.font.get_height() * textObj.indexLine
+                lastLineIndex = textObj.indexLine
+            textObj.draw(gameDisplay, location=(x,y))
+            x += textObj.textRender.get_width()
 
     def reset(self):
-        self.textNewline = 0
-        self.textCurrentColour = "x"
-        self.textPos = 0
-        self.textRects = []
-        self.timeSinceLastUpdate = 0
         self.drawIncomplete = True
-
-        self.isPaused = False
         self.isWaitingForTap = False
-        self.durationPause = 0
-        self.durationElapsedPause = 0
+        self.indexChar = 0
+        self.colour = (0,0,0)
+        self.resetLinePointer()
 
-    def updateText(self):
-        while self.timeSinceLastUpdate >= self.frameStep:
-            self.timeSinceLastUpdate -= self.frameStep
-            self.incrementText()
+    def resetLinePointer(self):
+        self.lines = []
+        self.indexLine = 0
 
-    def update(self, gameClockDelta):
-        if self.drawIncomplete:
-            if self.isPaused:
-                self.durationElapsedPause += gameClockDelta
-                if self.durationPause <= self.durationElapsedPause:
-                    self.isPaused = False
-                    self.timeSinceLastUpdate += (self.durationElapsedPause - self.durationPause)
-                    self.durationPause = 0
-                    self.durationElapsedPause = 0
-            elif not(self.isWaitingForTap):
-                self.timeSinceLastUpdate += gameClockDelta
-            self.updateText()
+    def doOnPaused(self):
+        self.timeSinceLastUpdate -= NuvoTextScroller.DURATION_WAIT
 
-    def getDrawingState(self):
-        if self.isPaused or self.isWaitingForTap or not(self.drawIncomplete):
-            return False
-        return True
+    def doOnWaitToTap(self):
+        self.isWaitingForTap = True
 
-    def skip(self):
-        while self.drawIncomplete:
-            self.incrementText()
-    
-    def draw(self, gameDisplay):
-        x, y = self.textPosOffset
-        for animText in self.textRects:
-            x = self.textPosOffset[0]
-            for lineText in animText:
-                lineText.draw(gameDisplay, location=(x,y))
-                x += lineText.textRender.get_width()
-            y += self.font.get_height()
+    def doOnTriggerAnimChange(self, animName):
+        print("animSwitch", animName)
+
+    def incrementText(self):
+        nextChar = self.getNextChar()
+        wasCharControlCharacter = False
+        if nextChar[0] in NuvoTextScroller.LAYTON_CONTROL_CHAR[:2] or (nextChar[0] in NuvoTextScroller.LAYTON_CONTROL_CHAR and nextChar[-1] in NuvoTextScroller.LAYTON_CONTROL_CHAR):
+            wasCharControlCharacter = True
+        elif nextChar[0] == "<" and nextChar[-1] == ">":
+            wasCharControlCharacter = True
+        elif nextChar == "\n":
+            wasCharControlCharacter = True
+
+        if wasCharControlCharacter:
+            if nextChar == "\n":
+                self.indexLine += 1
+            elif nextChar[0] == "#":
+                # Change colour
+                # TODO - Error check against colours
+                self.colour = conf.GRAPHICS_FONT_COLOR_MAP[nextChar[1]]
+            elif nextChar[0] == "@":
+                if nextChar[1] == "B":
+                    self.indexLine += 1
+                elif nextChar[1] == "c":
+                    self.resetLinePointer()
+                elif nextChar[1] == "w":
+                    self.doOnPaused()
+                elif nextChar[1] == "p":
+                    self.doOnWaitToTap()
+                else:
+                    debugPrint("NuvoUnhandledCommand: Unknown control character '"  + nextChar[1] + "'")
+
+            elif nextChar[0] == "&":
+                self.doOnTriggerAnimChange(nextChar[1:-1])
+
+            if self.indexChar < len(self.textInput) and self.timeSinceLastUpdate >= self.frameStep and not(self.isWaitingForTap):
+                self.incrementText() # Keep incrementing if control character used
+        else:
+            if len(self.lines) > 0:
+                if self.lines[-1].indexLine == self.indexLine:
+                    if self.lines[-1].textColour == self.colour: # Extend shape
+                        self.lines[-1].text = self.lines[-1].text + nextChar
+                    else: # Create new text
+                        self.lines.append(AnimatedTextLine(self.font, nextChar, self.colour, self.indexLine))
+                    self.lines[-1].update(None)
+                else: # Add new text
+                    self.lines.append(AnimatedTextLine(self.font, nextChar, self.colour, self.indexLine))
+            else:
+                self.lines.append(AnimatedTextLine(self.font, nextChar, self.colour, self.indexLine))
+
+    def getNextChar(self):
+        if self.textInput[self.indexChar] == "<":
+            tempReplacementChar = ""
+            while self.textInput[self.indexChar] != ">":
+                tempReplacementChar = tempReplacementChar + self.textInput[self.indexChar]
+                self.indexChar += 1
+            self.indexChar += 1
+            return tempReplacementChar + ">"
+        elif self.textInput[self.indexChar] == "@" or self.textInput[self.indexChar] == "#":
+            self.indexChar += 2
+            return self.textInput[self.indexChar - 2:self.indexChar]
+        elif self.textInput[self.indexChar] == "&":
+            tempReplacementChar = "&"
+            self.indexChar += 1
+            # TODO - Fix error lol
+            while self.textInput[self.indexChar] != "&":
+                tempReplacementChar = tempReplacementChar + self.textInput[self.indexChar]
+                self.indexChar += 1
+            self.indexChar += 1
+            return tempReplacementChar + "&"
+        else:
+            self.indexChar += 1
+            return self.textInput[self.indexChar - 1]

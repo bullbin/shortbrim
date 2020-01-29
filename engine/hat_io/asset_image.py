@@ -110,6 +110,7 @@ class AnimationBasicSequence():
         self.frameDuration = []
         self.indexImages = []
         self.name = "Create an Animation"
+        self.offsetFace = (0,0)
     def __str__(self):
         return "Animation Details\nName:\t" + self.name + "\nFrmIdx:\t" + str(self.indexFrames) + "\nImgIdx:\t" + str(self.indexImages) + "\nUnkFrm:\t" + str(self.frameDuration) + "\n"
 
@@ -119,6 +120,9 @@ class LaytonAnimatedImage(File):
         self.images = []
         self.anims = []
         self.alphaMask = None
+
+        self.variableName = ""
+        self.variables = {"Var1", "Var2", "Var3", "Var4", "Var5", "Var6", "Var7", "Var8", "Var9", "Var10", "Var11", "Var12", "Var13", "Var14", "Var15", "Var16"}
     
     def load(self, data, isArj=False):
         reader = binary.BinaryReader(data = data)
@@ -141,6 +145,30 @@ class LaytonAnimatedImage(File):
             countColours = reader.readU4()
 
         palette = self.getPaletteAndAnimations(reader, countColours)
+
+        # Variable-space
+        if reader.hasDataRemaining():
+            unk = reader.read(2)
+            if unk != b'\x34\x12':
+                print("Variable magic failed, still reading forwards...")
+
+            self.variables = {}
+            for _indexVar in range(16):
+                self.variables[reader.readPaddedString(16, 'shift-jis')] = None
+            for key in list(self.variables.keys()):
+                self.variables[key] = reader.read(16)
+
+            tempDimensions = [[],[]]
+            for indexDimension in range(2):
+                for _indexPos in range(len(self.anims)):
+                    tempDimensions[indexDimension].append(reader.readU2())
+            for indexAnim in range(len(self.anims)):
+                self.anims[indexAnim].offsetFace = (tempDimensions[0][indexAnim], tempDimensions[1][indexAnim])
+                unk = reader.read(1)
+            self.variableName = reader.readPaddedString(128, 'shift-jis')
+            if reader.hasDataRemaining():
+                print("Did not reach end of image file!")
+            
         for indexImage, image in enumerate(self.images):
             self.images[indexImage] = image.getPilConstructedImage(palette, bpp, isArj)
             
@@ -385,13 +413,4 @@ class LaytonBackgroundImage(File):
 
 if __name__ == "__main__":
     # TODO - Bypass error if no data (file not found)
-    #debug = LaytonAnimatedImage()
-    #debug = LaytonBackgroundImage()
-    #debug.load(binary.BinaryReader(filename="q_bg.arc").data)
-    #debug.export("image2")
-
-    debug = LaytonBackgroundImage.fromPil(Image.open(r"redacted"))
-    debug.image.save(r"redacted")
-    debug.save()
-    debug.compress(addHeader=True)
-    debug.export(r"redacted.arc")
+    pass

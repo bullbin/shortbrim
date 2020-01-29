@@ -46,9 +46,12 @@ class gdScript(asset.File):
                 if enableBranching:
                     self.lastJump = 0
                 self.offsetEofc = data.readU4()
-                data.seek(2,1)
+                if data.readU2() == 1:
+                    lengthInstruction = 4
+                else:
+                    lengthInstruction = 2
                 while data.tell() != self.offsetEofc + 4:
-                    tempCommand = self.parseCommand(data, enableBranching, useBranchingHack)
+                    tempCommand = self.parseCommand(data, enableBranching, useBranchingHack, lengthInstruction)
                     if not(tempCommand[0]):
                         self.commands.append(tempCommand[1])
                 debugPrint("LogGdsLoad: Reading complete!")
@@ -57,11 +60,11 @@ class gdScript(asset.File):
         except TypeError:
             debugPrint("ErrGdsLoad: Invalid data provided to reader!")
 
-    def parseCommand(self, reader, enableBranching, useBranchingHack):
+    def parseCommand(self, reader, enableBranching, useBranchingHack, lengthInstruction):
         self.commandLoc.append(reader.tell())
         invalidateCommand = False
         opcode = bytes(reader.read(1))
-        reader.seek(1,1)
+        reader.seek(lengthInstruction - 1, 1)
         tempOperands = []
         while True:
             paramId = int.from_bytes(reader.read(2), 'little')

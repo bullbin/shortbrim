@@ -10,7 +10,7 @@ class HintTab():
         self.tabLocked      = anim.AnimatedButton(imageLockedButton, None, imageIsSurface=True, useButtonFromAnim=True, x=pos[0], y=pos[1])
         self.tabUnlocked    = anim.AnimatedButton(imageUnlockedButton, None, imageIsSurface=True, useButtonFromAnim=True, x=pos[0], y=pos[1])
 
-        self.hText = anim.TextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(20, conf.LAYTON_SCREEN_HEIGHT + 43))
+        self.hText = anim.NuvoTextScroller(playerState.getFont("fontq"), hintText, textPosOffset=(20, conf.LAYTON_SCREEN_HEIGHT + 43))
         self.hText.skip()
         self.isUnlocked = isUnlocked
 

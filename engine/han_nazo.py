@@ -60,9 +60,9 @@ class LaytonScrollerOverlay(state.LaytonContext):
         self.screenIsOverlay = True
         self.screenBlockInput = True
         if conf.GRAPHICS_USE_GAME_FONTS:
-            self.puzzleQText = anim.TextScroller(playerState.getFont("fontq"), textPrompt, targetFramerate=60, textPosOffset=(11,22))
+            self.puzzleQText = anim.NuvoTextScroller(playerState.getFont("fontq"), textPrompt, targetFramerate=60, textPosOffset=(11,22))
         else:
-            self.puzzleQText = anim.TextScroller(playerState.getFont("fontq"), textPrompt, targetFramerate=60, textPosOffset=(8,22))
+            self.puzzleQText = anim.NuvoTextScroller(playerState.getFont("fontq"), textPrompt, targetFramerate=60, textPosOffset=(8,22))
 
     def update(self, gameClockDelta):
         self.puzzleQText.update(gameClockDelta)
@@ -2303,7 +2303,7 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(99, tempPlayerState), tempPlayerState)
+    state.play(LaytonPuzzleHandler(16, tempPlayerState), tempPlayerState)
 
     # 69,111 - 15_cut puzzlet with scale 1?
 

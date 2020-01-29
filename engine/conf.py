@@ -11,6 +11,7 @@ ENGINE_FRAME_INTERVAL           = 1000 / ENGINE_FPS
 ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive, but ensures stable frametimes; best with original timer
 ENGINE_FORCE_USE_ALT_TIMER      = True     # Enforces alternate timer with lower overhead and support for arbitrary framerates
 ENGINE_PERFORMANCE_MODE         = False    # Reduces graphical accuracy in favour of performance
+ENGINE_ENABLE_CLOCK_BYPASS      = True      # Decreases wait accuracy in favour of hiding engine stutter
 
 ENGINE_GAME_VARIANT             = LAYTON_2
 
