@@ -522,9 +522,11 @@ class FontVector():
 class AnimatedText():
     def __init__(self, font, initString = "", colour=(0,0,0)):
         self.text = initString
+        self.drawnText = None
         self.textColour = colour
         self.font = font
         if type(self.font) == FontMap:
+            # TODO - Remove control characters and colour code
             self.textRender = pygame.Surface((len(self.text) * self.font.fontWidth, self.font.fontHeight))
             if conf.ENGINE_PERFORMANCE_MODE:
                 self.update = self.updateBitmapFontFast
@@ -549,30 +551,34 @@ class AnimatedText():
         gameDisplay.blit(self.textRender, textRect)
 
     def updateBitmapFontFast(self, gameClockDelta): # Still expensive due to lots of drawing, but less expensive than the full version which includes colour support
-        self.textRender = pygame.Surface((len(self.text) * (self.font.fontWidth + self.font.getSpacing()[0]), self.font.fontHeight + self.font.getSpacing()[1]))
-        self.textRender.fill(self.font.fontBlendColour)
-        self.textRender.set_colorkey(self.font.fontBlendColour)
-        offsetX = 0
-        for char in self.text:
-            char = self.font.getChar(char)
-            if char != None:
-                self.textRender.blit(char, (offsetX, 0))
-                offsetX += char.get_width() + self.font.getSpacing()[0]
+        if self.drawnText != self.text:
+            self.textRender = pygame.Surface((len(self.text) * (self.font.fontWidth + self.font.getSpacing()[0]), self.font.fontHeight + self.font.getSpacing()[1]))
+            self.textRender.fill(self.font.fontBlendColour)
+            self.textRender.set_colorkey(self.font.fontBlendColour)
+            offsetX = 0
+            for char in self.text:
+                char = self.font.getChar(char)
+                if char != None:
+                    self.textRender.blit(char, (offsetX, 0))
+                    offsetX += char.get_width() + self.font.getSpacing()[0]
+            self.drawnText = self.text
     
     def updateBitmapFont(self, gameClockDelta):
-        self.textTempRender = pygame.Surface((len(self.text) * (self.font.fontWidth + self.font.getSpacing()[0]), self.font.fontHeight + self.font.getSpacing()[1]))
-        self.textTempRender.fill(self.font.fontBlendColour)
-        offsetX = 0
-        for char in self.text:
-            char = self.font.getChar(char)
-            if char != None:
-                charColour = char.copy()
-                charColour.fill(self.textColour, None, pygame.BLEND_RGBA_ADD)
-                self.textTempRender.blit(charColour, (offsetX, 0))
-                offsetX += char.get_width() + self.font.getSpacing()[0]
-        self.textRender = pygame.Surface((offsetX, self.font.fontHeight))
-        self.textRender.blit(self.textTempRender, (0,0))
-        self.textRender.set_colorkey(self.font.fontBlendColour)
+        if self.drawnText != self.text:
+            self.textTempRender = pygame.Surface((len(self.text) * (self.font.fontWidth + self.font.getSpacing()[0]), self.font.fontHeight + self.font.getSpacing()[1]))
+            self.textTempRender.fill(self.font.fontBlendColour)
+            offsetX = 0
+            for char in self.text:
+                char = self.font.getChar(char)
+                if char != None:
+                    charColour = char.copy()
+                    charColour.fill(self.textColour, None, pygame.BLEND_RGBA_ADD)
+                    self.textTempRender.blit(charColour, (offsetX, 0))
+                    offsetX += char.get_width() + self.font.getSpacing()[0]
+            self.textRender = pygame.Surface((offsetX, self.font.fontHeight))
+            self.textRender.blit(self.textTempRender, (0,0))
+            self.textRender.set_colorkey(self.font.fontBlendColour)
+            self.drawnText = self.text
     
     def drawBitmapFont(self, gameDisplay, location=(0,0)):
         gameDisplay.blit(self.textRender, location)

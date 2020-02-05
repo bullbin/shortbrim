@@ -30,9 +30,13 @@ class LaytonPuzzleDataEntry():
 
 class LaytonPlayerState():
 
-    MYSTERY_LOCKED = 0
-    MYSTERY_WAITING_TO_BE_UNLOCKED = 1
-    MYSTERY_UNLOCKED = 2
+    MYSTERY_HIDDEN          = 0
+    MYSTERY_WAITING_LOCK    = 1
+    MYSTERY_LOCKED          = 2
+    MYSTERY_WAITING_UNLOCK  = 3
+    MYSTERY_UNLOCKED        = 4
+
+    MYSTERY_VALID_STATUSES = [MYSTERY_HIDDEN, MYSTERY_LOCKED, MYSTERY_WAITING_UNLOCK, MYSTERY_UNLOCKED]
 
     def __init__(self):
         self.name = "LT1_ENGINE"
@@ -45,15 +49,27 @@ class LaytonPlayerState():
         self.hintCoinsFound = []
         self.fonts = {}
 
-        for fontName, fontEncoding, xFontSpacing, yFontSpacing, altFontSize in [("font18", "shift-jis", 1, 1, 17), ("fontevent", "cp1252", 1, 5, 17), ("fontq", "cp1252", 1, 2, 17)]:
+        for fontName, fontEncoding, xFontSpacing, yFontSpacing, altFontSize in [("font18", "shift-jis", 1, 1, 17), ("fontevent", "cp1252", 1, 4, 17), ("fontq", "cp1252", 1, 2, 17)]:
             if conf.GRAPHICS_USE_GAME_FONTS:
                 self.fonts[fontName] = anim.FontMap(conf.PATH_ASSET_FONT + fontName + ".png", conf.PATH_ASSET_FONT + fontName + ".xml", encoding=fontEncoding, calculateWidth = True, xFontGap=xFontSpacing, yFontGap=yFontSpacing)
                 if not(self.fonts[fontName].isLoaded):
                     self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
             else:
                 self.fonts[fontName] = anim.FontVector(pygame.font.SysFont('freesansmono', altFontSize), yFontSpacing)
+
         for indexMystery in range(10):
-            self.statusMystery[indexMystery] = LaytonPlayerState.MYSTERY_LOCKED
+            self.statusMystery[indexMystery] = LaytonPlayerState.MYSTERY_HIDDEN
+    
+    def getStatusMystery(self, index):
+        if index in self.statusMystery.keys():
+            return self.statusMystery[index]
+        return None
+    
+    def setStatusMystery(self, index, newStatus):
+        if newStatus in LaytonPlayerState.MYSTERY_VALID_STATUSES and index in self.statusMystery.keys():
+            self.statusMystery[index] = newStatus
+            return True
+        return False
 
     def getPuzzleEntry(self, index):
         if index not in self.puzzleData.keys():

@@ -1,4 +1,4 @@
-import pygame, han_nazo, conf, state, script, anim, const
+import pygame, han_nazo, conf, state, script, anim, const, scr_mystery
 
 from file import FileInterface
 from os import path
@@ -242,16 +242,17 @@ class LaytonTextOverlay(state.LaytonContext):
         self.screenOutSurface.draw(gameDisplay)
 
     def handleEvent(self, event):
-        if event.type == pygame.MOUSEBUTTONUP:
-            if self.screenFader.isActive:
-                self.screenFader.isActive = False
-            elif not(self.textTalk.drawIncomplete):
-                self.screenFader = anim.AnimatedFader(LaytonTextOverlay.DURATION_FADE, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
-            elif self.textTalk.isWaitingForTap:
-                self.triggerUnwait()
-            else:
-                self.textTalk.skip()
-            return True
+        if not(self.screenFader.initialInverted) and not(self.screenFader.isActive):
+            if event.type == pygame.MOUSEBUTTONUP:
+                if self.screenFader.isActive:
+                    self.screenFader.isActive = False
+                elif not(self.textTalk.drawIncomplete):
+                    self.screenFader = anim.AnimatedFader(LaytonTextOverlay.DURATION_FADE, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
+                elif self.textTalk.isWaitingForTap:
+                    self.triggerUnwait()
+                else:
+                    self.textTalk.skip()
+                return True
         return False
 
     def killWindow(self):
@@ -314,34 +315,42 @@ class LaytonEventHandler(state.LaytonSubscreen):
         self.scriptTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + ("%02d" % eventIndex) + ".plz"))
         self.scriptEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + ("%02d" % eventIndex) + ".plz",
                                                                                 "e" + ("%02d" % eventIndex) + "_" + ("%03d" % eventSubIndex) + ".gds", version = 1))
+        self.stackOverrideEvents = []
 
         self.imagesCharacter = []
         self.pointerImagesCharacter = {}
 
         self.cacheVoiceline = None
 
-        self.debugDrawFaders = False
+        self.debugDrawFaders = True
         self.isReadyToKill = False
 
+    def clearCharacterImages(self):
+        self.imagesCharacter = []
+        self.pointerImagesCharacter = {}
+
+    def isUpdateBlocked(self):
+        return self.faderSceneSurfaceTop.getActiveStatus() or self.faderSceneSurfaceBottom.getActiveStatus() or self.waitFader.isActive
+    
     def updateSubscreenMethods(self, gameClockDelta):
         
-        def isUpdateBlocked():
-            return self.faderSceneSurfaceTop.getActiveStatus() or self.faderSceneSurfaceBottom.getActiveStatus() or self.waitFader.isActive
-
         for image in self.imagesCharacter:
             image.update(gameClockDelta)
 
-        if isUpdateBlocked():
+        if self.isUpdateBlocked():
             self.waitFader.update(gameClockDelta)
             self.faderSceneSurfaceTop.update(gameClockDelta)
             self.faderSceneSurfaceBottom.update(gameClockDelta)
 
         elif self.indexScriptCommand < len(self.scriptEvent.commands):
-            if self.isScriptAwaitingExecution:
-                while self.isScriptAwaitingExecution and self.indexScriptCommand < len(self.scriptEvent.commands) and not(isUpdateBlocked()):
+            if self.isScriptAwaitingExecution or len(self.stackOverrideEvents) > 0:
+                while not (self.isUpdateBlocked()) and len(self.stackOverrideEvents) > 0:
+                    self.addToStack(self.stackOverrideEvents.pop(0))
+                while not(self.isUpdateBlocked()) and (self.isScriptAwaitingExecution and self.indexScriptCommand < len(self.scriptEvent.commands)):
                     self.isScriptAwaitingExecution = self.executeGdScriptCommand(self.scriptEvent.commands[self.indexScriptCommand])
                     self.indexScriptCommand += 1
                 pygame.event.post(pygame.event.Event(const.ENGINE_SKIP_CLOCK, {const.PARAM:None}))
+                    
         elif self.isScriptAwaitingExecution:    # Script ready to execute more code, so all tasks are finished and fading can happen
             if self.isReadyToKill:
                 state.debugPrint("LogEventHandler: Terminated execution!")
@@ -372,12 +381,18 @@ class LaytonEventHandler(state.LaytonSubscreen):
 
     def executeGdScriptCommand(self, command):
 
-        if command.opcode == b'\x02': # Screen0,1 Fade in
+        def fadeInBothScreens():
             self.faderSceneSurfaceTop.startFadeIn()
             self.faderSceneSurfaceBottom.startFadeIn()
-        elif command.opcode == b'\x03': # Screen0,1 Fade out
+        
+        def fadeOutBothScreens():
             self.faderSceneSurfaceTop.startFadeOut()
             self.faderSceneSurfaceBottom.startFadeOut()
+
+        if command.opcode == b'\x02': # Screen0,1 Fade in
+            fadeInBothScreens()
+        elif command.opcode == b'\x03': # Screen0,1 Fade out
+            fadeOutBothScreens()
 
         elif command.opcode == b'\x04': # Talk overlay
             tempScriptFile = self.scriptTalkBank.getFile("t" + ("%02d" % self.indexEvent) + "_" + ("%03d" % self.indexEventSub) + "_" + str(command.operands[0]) + ".gds")
@@ -386,6 +401,9 @@ class LaytonEventHandler(state.LaytonSubscreen):
                 return False
             else:
                 state.debugPrint("ErrEventHandler: Invalid talk script 't" + ("%02d" % self.indexEvent) + "_" + ("%03d" % self.indexEventSub) + "_" + str(command.operands[0]) + ".gds'")
+
+        elif command.opcode == b'\x09': # Link next script
+            pass
 
         elif command.opcode == b'\x0b': # Start puzzle
             # TODO - Program fade out
@@ -446,6 +464,21 @@ class LaytonEventHandler(state.LaytonSubscreen):
         elif command.opcode == b'\x71': # Spawn mystery screen and clear graphics
             self.faderSceneSurfaceTop.startFadeOut()
             self.faderSceneSurfaceBottom.startFadeOut()
+
+            def terminateGraphicsAndFadeIn():
+                self.clearCharacterImages()
+                fadeInBothScreens()
+            
+            def invertQuitCall():
+                return not(self.isUpdateBlocked())
+            
+            self.playerState.setStatusMystery(command.operands[0] - 1, state.LaytonPlayerState.MYSTERY_LOCKED)
+            self.stackOverrideEvents.append(scr_mystery.Screen(self.playerState, fadeInCall=terminateGraphicsAndFadeIn, fadeOutCall=fadeOutBothScreens, canQuitCall=invertQuitCall))
+            return False
+        
+        elif command.opcode == b'\x72':
+            self.faderSceneSurfaceTop.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
+            self.faderSceneSurfaceBottom.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
         
         elif command.opcode == b'\x87': # Screen0 Fade out
             self.faderSceneSurfaceTop.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
@@ -453,10 +486,13 @@ class LaytonEventHandler(state.LaytonSubscreen):
             self.faderSceneSurfaceTop.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
 
         # CURSED AUDIO CORNER
+        # Sampled channel
         elif command.opcode == b'\x5c': # Play voiceline
             self.cacheVoiceline = None
         elif command.opcode == b'\x99': # Play sampled music
             pass
+
+        # Synth channel
         elif command.opcode == b'\x62': # Play synthesized music
             pass
 
@@ -480,5 +516,5 @@ if __name__ == '__main__':
     playerState.remainingHintCoins = 10
     tempDebugExitLayer = state.LaytonScreen()
     # 11 170, 10 60
-    tempDebugExitLayer.addToStack(LaytonEventHandler(21, 60, playerState))
+    tempDebugExitLayer.addToStack(LaytonEventHandler(11, 170, playerState))
     state.play(tempDebugExitLayer, playerState)
