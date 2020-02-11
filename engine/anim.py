@@ -595,7 +595,7 @@ class AnimatedFader():
     MODE_SINE_SMOOTH = 1
     MODE_TRIANGLE = 2
     
-    def __init__(self, durationCycle, mode, loop, cycle=True, inverted=False):
+    def __init__(self, durationCycle, mode, loop, cycle=True, inverted=False, activeState = True):
         self.durationCycle = durationCycle // 2
         self.doFullCycle = cycle
         self.loop = loop
@@ -603,6 +603,7 @@ class AnimatedFader():
         self.initialInverted = inverted
 
         self.reset()
+        self.isActive = activeState
         if conf.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
             self.getStrength = self.getStrengthTriangle
         elif mode == AnimatedFader.MODE_SINE_SHARP:
@@ -727,6 +728,29 @@ class AlphaSurface():
     def clear(self):
         self.surface = pygame.Surface((self.surface.get_width(), self.surface.get_height())).convert_alpha()
         self.surface.fill((0,0,0,0))
+
+class ScreenFaderSurface():
+
+    TIME_FADE_TRANSITION = 2000
+    MODE_FADE_TRANSITION = AnimatedFader.MODE_SINE_SMOOTH
+
+    def __init__(self):
+        self.fader = AnimatedFader(ScreenFaderSurface.TIME_FADE_TRANSITION, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, activeState=False)
+        self.faderSurface = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.faderSurface.set_alpha(255)
+    
+    def update(self, gameClockDelta):
+        self.fader.update(gameClockDelta)
+        self.faderSurface.set_alpha(round(self.fader.getStrength() * 255))
+    
+    def startFadeOut(self, time = TIME_FADE_TRANSITION):
+        self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False)
+    
+    def startFadeIn(self, time = TIME_FADE_TRANSITION):
+        self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
+
+    def getActiveStatus(self):
+        return self.fader.isActive
 
 class AnimatedTextLine(AnimatedText):
     def __init__(self, font, text, colour, indexLine):

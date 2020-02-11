@@ -132,8 +132,8 @@ class LaytonContext():
         self.screenIsOverlay        = False     # Requires drawing of all screens below it - slow
         self.screenIsBasicOverlay   = False     # Overlays only above the screen below it
 
-        self.transitionsEnableIn    = True
-        self.transitionsEnableOut   = True
+        self.transitionsEnableIn    = False
+        self.transitionsEnableOut   = False
 
         self.screenStackUpdate = False
         self.isContextFinished = False
@@ -243,6 +243,39 @@ class LaytonSubscreen(LaytonScreen):
         self.updateSubscreenMethods(gameClockDelta)
     
     def updateSubscreenMethods(self, gameClockDelta): pass
+
+class LaytonSubscreenWithFader(LaytonSubscreen):
+
+    def __init__(self, enableFaders = True):
+        LaytonSubscreen.__init__(self)
+        self.waitFader                  = anim.AnimatedFader(1, anim.AnimatedFader.MODE_TRIANGLE, False, cycle=False, activeState=False)
+        self.faderSceneSurfaceTop       = anim.ScreenFaderSurface()
+        self.faderSceneSurfaceBottom    = anim.ScreenFaderSurface()
+        self.debugDrawFaders = enableFaders
+    
+    def drawFaders(self, gameDisplay):
+        if self.debugDrawFaders:
+            gameDisplay.blit(self.faderSceneSurfaceTop.faderSurface, (0,0))
+            gameDisplay.blit(self.faderSceneSurfaceBottom.faderSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+    
+    def isUpdateBlocked(self):
+        return self.faderSceneSurfaceTop.getActiveStatus() or self.faderSceneSurfaceBottom.getActiveStatus() or self.waitFader.isActive
+    
+    def doOnUpdatedBlocked(self, gameClockDelta):
+        self.waitFader.update(gameClockDelta)
+        self.faderSceneSurfaceTop.update(gameClockDelta)
+        self.faderSceneSurfaceBottom.update(gameClockDelta)
+    
+    def doOnUpdateCleared(self, gameClockDelta):
+        pass
+
+    def update(self, gameClockDelta):
+        super().update(gameClockDelta)
+        if self.isUpdateBlocked():
+            self.doOnUpdatedBlocked(gameClockDelta)
+        else:
+            self.doOnUpdateCleared(gameClockDelta)
+        self.updateSubscreenMethods(gameClockDelta)
 
 class AltClock():
 

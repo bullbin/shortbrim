@@ -53,10 +53,8 @@ class LaytonHelperEventHandlerSpawner(state.LaytonContext):
             if self.iconBounceWaitDuration >= LaytonHelperEventHandlerSpawner.DURATION_EVENT_ICON_JUMP_PAUSE:
                 self.eventBlackoutFader.update(gameClockDelta)
                 if not(self.eventBlackoutFader.isActive) and self.eventBlackoutFader.getStrength() == 1:
-                    tempMainEvent = int(str(self.indexEvent)[:-3])
-                    tempSubEvent = int(str(self.indexEvent)[3:])
                     self.faderSurface.fill((0,0,0,255))
-                    self.screenNextObject = han_event.LaytonEventHandler(tempMainEvent, tempSubEvent, self.playerState)
+                    self.screenNextObject = han_event.LaytonEventHandler(self.indexEvent, self.playerState)
                     self.isContextFinished = True
             else:
                 self.iconBounceWaitDuration += gameClockDelta
@@ -358,4 +356,4 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    state.play(LaytonRoomHandler(35, 0, playerState), playerState) # 48 hidden puzzle
+    state.play(LaytonRoomHandler(48, 0, playerState), playerState) # 48 hidden puzzle
