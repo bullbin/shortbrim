@@ -53,7 +53,10 @@ class LaytonHelperEventHandlerSpawner(state.LaytonContext):
             if self.iconBounceWaitDuration >= LaytonHelperEventHandlerSpawner.DURATION_EVENT_ICON_JUMP_PAUSE:
                 self.eventBlackoutFader.update(gameClockDelta)
                 if not(self.eventBlackoutFader.isActive) and self.eventBlackoutFader.getStrength() == 1:
-                    self.screenNextObject = han_event.LaytonEventHandler(self.indexEvent, self.playerState)
+                    tempMainEvent = int(str(self.indexEvent)[:-3])
+                    tempSubEvent = int(str(self.indexEvent)[3:])
+                    self.faderSurface.fill((0,0,0,255))
+                    self.screenNextObject = han_event.LaytonEventHandler(tempMainEvent, tempSubEvent, self.playerState)
                     self.isContextFinished = True
             else:
                 self.iconBounceWaitDuration += gameClockDelta
@@ -214,11 +217,15 @@ class LaytonRoomGraphics(state.LaytonContext):
         self.screenIsBasicOverlay   = True
 
         self.playerState = playerState
+        self.placeData = placeData
 
         self.animObjects = []
         self.eventObjects = []
+        self.eventObjectBoundaries = []
+
         self.drawnTobj   = []
         self.drawnEvents = []
+
         self.eventTap  = []
         self.eventHint = []
         self.eventHintId = []
@@ -233,12 +240,11 @@ class LaytonRoomGraphics(state.LaytonContext):
                                                        x = animPos[0], y = animPos[1] + conf.LAYTON_SCREEN_HEIGHT))
             self.animObjects[-1].setAnimationFromName("gfx")
 
-        # TODO - Fix up event loading for eventObj
         for eventData in placeData.objEvent:
-            self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "eventobj", "obj_" + str(eventData.idEventObj),
-                                                       x = eventData.bounding.posCorner[0], y = eventData.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
-            self.animObjects[-1].setAnimationFromName("gfx")
-            print(eventData.idEvent, eventData.bounding.posCorner, eventData.bounding.sizeBounding)
+            if eventData.idEventObj > 0:
+                self.eventObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "eventobj", "obj_" + str(eventData.idEventObj),
+                                                        x = eventData.bounding.posCorner[0], y = eventData.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
+                self.eventObjects[-1].setAnimationFromName("gfx")
         
         for hintIndex, hintZone in enumerate(placeData.hints):
             self.eventHint.append(LaytonRoomTapRegion(2, (hintZone.posCorner[0], hintZone.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT),
@@ -288,11 +294,12 @@ class LaytonRoomGraphics(state.LaytonContext):
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and not(self.isHintCoinLocked):
             self.animTapDraw = True
-            for animObject in self.eventObjects:
-                if animObject.wasClicked(event.pos):
-                    boundingBoxCenterPos = (animObject.pos[0] + animObject.bounding[0] // 2, animObject.pos[1] + animObject.bounding[1] // 2)
-                    self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.indexEvent, boundingBoxCenterPos, self.playerState)
-                    state.debugPrint("WarnGraphicsCommand: Spawned event handler for ID " + str(animObject.indexEvent))
+
+            for animObject in self.placeData.objEvent:
+                if animObject.bounding.wasClicked((event.pos[0], event.pos[1] - conf.LAYTON_SCREEN_HEIGHT)):
+                    boundingBoxCenterPos = (animObject.bounding.posCorner[0] + animObject.bounding.sizeBounding[0] // 2, animObject.bounding.posCorner[1] + animObject.bounding.sizeBounding[1] // 2)
+                    self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.idEvent, boundingBoxCenterPos, self.playerState)
+                    state.debugPrint("WarnGraphicsCommand: Spawned event handler for ID " + str(animObject.idEvent))
                     self.animTapDraw = False
                     return True
             for eventTobj in self.eventTap:
@@ -351,4 +358,4 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    state.play(LaytonRoomHandler(8, 1, playerState), playerState) # 48 hidden puzzle
+    state.play(LaytonRoomHandler(35, 0, playerState), playerState) # 48 hidden puzzle

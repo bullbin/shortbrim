@@ -1,4 +1,4 @@
-import pygame, han_nazo, conf, state, script, anim, const, scr_mystery
+import pygame, han_nazo, conf, state, script, anim, const, scr_mystery, han_room
 
 from file import FileInterface
 from os import path
@@ -71,15 +71,15 @@ class LaytonEventBackground(state.LaytonContext):
         self.transitionsEnableOut   = False
         self.screenBlockInput       = True
 
-        self.backgroundTs = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
-        self.backgroundBs = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT))
+        self.backgroundTs = None
+        self.backgroundBs = None
     
     def executeCommand(self, command):
         if command.opcode == b'\x22':       # Draw image, TS
             self.backgroundTs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
         elif command.opcode == b'\x21':     # Draw image, BS
             self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
-        elif command.opcode == b'\x37':
+        elif command.opcode == b'\x37' and self.backgroundBs != None:
             tempSurface = pygame.Surface((self.backgroundBs.get_width(), self.backgroundBs.get_height()))
             # TODO - Assumes top screen and bottom screen are same height
             # TODO - Unks
@@ -90,9 +90,11 @@ class LaytonEventBackground(state.LaytonContext):
         return True
 
     def draw(self, gameDisplay):
-        gameDisplay.blit(self.backgroundTs, (0, 0))
-        gameDisplay.blit(self.backgroundBs, (0, conf.LAYTON_SCREEN_HEIGHT))
-
+        if self.backgroundBs != None:
+            gameDisplay.blit(self.backgroundBs, (0, conf.LAYTON_SCREEN_HEIGHT))
+        if self.backgroundTs != None:
+            gameDisplay.blit(self.backgroundTs, (0, 0))
+        
 class LaytonTextOverlay(state.LaytonContext):
 
     DURATION_FADE = 500
@@ -150,7 +152,8 @@ class LaytonTextOverlay(state.LaytonContext):
                     if talkScript.commands[0].operands[0] != "NONE":
                         self.animNameStart = talkScript.commands[0].operands[0]
                     else:
-                        self.animNameStart = self.targetAnimBody.getAnim()
+                        if self.targetAnimBody.getAnim() != None:
+                            self.animNameStart = self.targetAnimBody.getAnim()
                     
                     if talkScript.commands[0].operands[1] != "NONE":
                         self.animNameEnd = talkScript.commands[0].operands[1]
@@ -292,7 +295,6 @@ class LaytonEventHandler(state.LaytonSubscreen):
         state.LaytonSubscreen.__init__(self)
         self.transitionsEnableIn = False
         self.transitionsEnableOut = False
-        self.screenBlockInput = True
 
         self.indexEvent = eventIndex
         self.indexEventSub = eventSubIndex
@@ -311,16 +313,33 @@ class LaytonEventHandler(state.LaytonSubscreen):
         self.faderSceneSurfaceTop = ScreenFaderSurface()
         self.faderSceneSurfaceBottom = ScreenFaderSurface()
 
+        if eventIndex == 24:
+            if eventSubIndex < 295:
+                tempEventIndexString = "24a"
+            elif eventSubIndex < 595:
+                tempEventIndexString = "24b"
+            else:
+                tempEventIndexString = "24c"
+        else:
+            tempEventIndexString = ("%02d" % eventIndex)
+
         self.scriptTalkBank = asset.LaytonPack(version=1)
-        self.scriptTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + ("%02d" % eventIndex) + ".plz"))
-        self.scriptEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + ("%02d" % eventIndex) + ".plz",
+        self.scriptTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + tempEventIndexString + ".plz"))
+        self.scriptEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + tempEventIndexString + ".plz",
                                                                                 "e" + ("%02d" % eventIndex) + "_" + ("%03d" % eventSubIndex) + ".gds", version = 1))
+        # self.scriptEvent = script.gdScript.fromData(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "logo.gds"))
         self.stackOverrideEvents = []
 
         self.imagesCharacter = []
         self.pointerImagesCharacter = {}
 
         self.cacheVoiceline = None
+        
+        self.scriptNextEvent = None
+        self.scriptNextEventMode = None
+        self.scriptNextTalkBank = None
+        self.nextIndexEvent = None
+        self.nextIndexEventSub = None
 
         self.debugDrawFaders = True
         self.isReadyToKill = False
@@ -352,19 +371,39 @@ class LaytonEventHandler(state.LaytonSubscreen):
                 pygame.event.post(pygame.event.Event(const.ENGINE_SKIP_CLOCK, {const.PARAM:None}))
                     
         elif self.isScriptAwaitingExecution:    # Script ready to execute more code, so all tasks are finished and fading can happen
-            if self.isReadyToKill:
-                state.debugPrint("LogEventHandler: Terminated execution!")
-                self.isContextFinished = True
+            if self.scriptNextEvent != None:
+                if self.scriptNextEventMode != "drama event":
+                    state.debugPrint("WarnEventHandler: Unknown extension", self.scriptNextEventMode)
+                self.indexScriptCommand = 0
+                self.scriptEvent = self.scriptNextEvent
+                self.scriptTalkBank = self.scriptNextTalkBank
+                self.scriptNextTalkBank = None
+                self.scriptNextEvent = None
+                self.indexEvent = self.nextIndexEvent
+                self.indexEventSub = self.nextIndexEventSub
+                self.nextIndexEvent = None
+                self.nextIndexEventSub = None
+                self.scriptNextEventMode = None
             else:
-                self.isReadyToKill = True
-                if self.faderSceneSurfaceTop.fader.getStrength() ^ self.faderSceneSurfaceBottom.fader.getStrength():
-                    if self.faderSceneSurfaceTop.fader.getStrength():
+                if self.isReadyToKill:
+                    if self.scriptNextEventMode != None:
+                        if self.scriptNextEventMode == "room":
+                            self.screenNextObject = han_room.LaytonRoomHandler(self.playerState.currentRoom, 0, self.playerState)
+                        else:
+                            state.debugPrint("WarnEventHandler: Ignored extension", self.scriptNextEventMode)
+                        self.scriptNextEventMode = None
+                    state.debugPrint("LogEventHandler: Terminated execution!")
+                    self.isContextFinished = True
+                else:
+                    self.isReadyToKill = True
+                    if self.faderSceneSurfaceTop.fader.getStrength() ^ self.faderSceneSurfaceBottom.fader.getStrength():
+                        if self.faderSceneSurfaceTop.fader.getStrength():
+                            self.faderSceneSurfaceTop.startFadeOut()
+                        else:
+                            self.faderSceneSurfaceBottom.startFadeOut()
+                    elif self.faderSceneSurfaceTop.fader.getStrength() != 1.0:
                         self.faderSceneSurfaceTop.startFadeOut()
-                    else:
                         self.faderSceneSurfaceBottom.startFadeOut()
-                elif self.faderSceneSurfaceTop.fader.getStrength() != 1.0:
-                    self.faderSceneSurfaceTop.startFadeOut()
-                    self.faderSceneSurfaceBottom.startFadeOut()
             
     def draw(self, gameDisplay):
         super().draw(gameDisplay)
@@ -388,6 +427,14 @@ class LaytonEventHandler(state.LaytonSubscreen):
         def fadeOutBothScreens():
             self.faderSceneSurfaceTop.startFadeOut()
             self.faderSceneSurfaceBottom.startFadeOut()
+        
+        def addCharacterToDrawList(charIndex):
+            if charIndex in self.pointerImagesCharacter:
+                self.imagesCharacter[self.pointerImagesCharacter[charIndex]] = LaytonCharacterController.loadFromIndex(charIndex)
+            else:
+                self.pointerImagesCharacter[charIndex] = len(self.imagesCharacter)
+                self.imagesCharacter.append(LaytonCharacterController.loadFromIndex(charIndex))
+            self.updateImagePositions()
 
         if command.opcode == b'\x02': # Screen0,1 Fade in
             fadeInBothScreens()
@@ -396,28 +443,55 @@ class LaytonEventHandler(state.LaytonSubscreen):
 
         elif command.opcode == b'\x04': # Talk overlay
             tempScriptFile = self.scriptTalkBank.getFile("t" + ("%02d" % self.indexEvent) + "_" + ("%03d" % self.indexEventSub) + "_" + str(command.operands[0]) + ".gds")
-            if len(tempScriptFile) > 0:
+            if tempScriptFile != None and len(tempScriptFile) > 0:
                 self.screenNextObject = LaytonTextOverlay(self.pointerImagesCharacter, tempScriptFile, self.cacheVoiceline, self.pointerImagesCharacter, self.imagesCharacter, self.playerState)
                 return False
             else:
                 state.debugPrint("ErrEventHandler: Invalid talk script 't" + ("%02d" % self.indexEvent) + "_" + ("%03d" % self.indexEventSub) + "_" + str(command.operands[0]) + ".gds'")
 
-        elif command.opcode == b'\x09': # Link next script
+        elif command.opcode == b'\x05': # Set current room
+            print("DbgEventHandler: Set active room to", command.operands[0])
+            self.playerState.currentRoom = command.operands[0]
+
+        # 06, 07 something to do with next handler.
+        elif command.opcode == b'\x06':
+            self.scriptNextEventMode = command.operands[0]
+        elif command.opcode == b'\x07':
+            # Seems to be for handlers that execute immediately and hold up the stack (eg movies)
             pass
+
+        elif command.opcode == b'\x08':
+            print("DbgEventHandler: Set movie index to", command.operands[0])
+        elif command.opcode == b'\x09': # Link next script
+            print("DbgEventHandler: Continue execution on", command.operands[0])
+            # TODO - Unify converting event index 24 to 24a,b,c
+            self.nextIndexEvent = int(str(command.operands[0])[:2])
+            self.nextIndexEventSub = int(str(command.operands[0])[2:])
+            self.scriptNextEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + str(self.nextIndexEvent) + ".plz",
+                                                                                        "e" + ("%02d" % self.nextIndexEvent) + "_" + ("%03d" % self.nextIndexEventSub) + ".gds", version = 1))
+            self.scriptNextTalkBank = asset.LaytonPack(version=1)
+            self.scriptNextTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + str(self.nextIndexEvent) + ".plz"))
+
+        elif command.opcode == b'\x9c':     # Link next script under condition
+            if command.operands[0] == 0:    # Condition: Puzzles solved
+                if self.playerState.getPuzzleSolvedCount() >= command.operands[1]:
+                    self.nextIndexEvent = int(str(command.operands[2])[:2])
+                    self.nextIndexEventSub = int(str(command.operands[2])[2:])
+                    self.scriptNextEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + str(self.nextIndexEvent) + ".plz",
+                                                                                                "e" + ("%02d" % self.nextIndexEvent) + "_" + ("%03d" % self.nextIndexEventSub) + ".gds", version = 1))
+                    self.scriptNextTalkBank = asset.LaytonPack(version=1)
+                    self.scriptNextTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + str(self.nextIndexEvent) + ".plz"))
+                    state.debugPrint("DbgEventHandler: Conditional link to", self.nextIndexEvent, self.nextIndexEventSub)
+            else:
+                state.debugPrint("ErrEventHandler: Unknown linking condition", command.operands[0], command.operands[1], "for script", command.operands[2])
 
         elif command.opcode == b'\x0b': # Start puzzle
             # TODO - Program fade out
-            # TODO - Bugfix on early exit before judgement anim
             self.screenNextObject = han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState)
             return False
 
         elif command.opcode == b'\x2a': # Load character image # Power, elegance and grace!!
-            if command.operands[0] in self.pointerImagesCharacter:
-                self.imagesCharacter[self.pointerImagesCharacter[command.operands[0]]] = LaytonCharacterController.loadFromIndex(command.operands[0])
-            else:
-                self.pointerImagesCharacter[command.operands[0]] = len(self.imagesCharacter)
-                self.imagesCharacter.append(LaytonCharacterController.loadFromIndex(command.operands[0]))
-            self.updateImagePositions()
+            addCharacterToDrawList(command.operands[0])
         elif command.opcode == b'\x2b': # Unload character image
             if command.operands[0] in self.pointerImagesCharacter:
                 for key in list(self.pointerImagesCharacter.keys()):
@@ -467,13 +541,13 @@ class LaytonEventHandler(state.LaytonSubscreen):
 
             def terminateGraphicsAndFadeIn():
                 self.clearCharacterImages()
-                fadeInBothScreens()
+                self.faderSceneSurfaceBottom.startFadeIn()
             
             def invertQuitCall():
                 return not(self.isUpdateBlocked())
             
-            self.playerState.setStatusMystery(command.operands[0] - 1, state.LaytonPlayerState.MYSTERY_LOCKED)
-            self.stackOverrideEvents.append(scr_mystery.Screen(self.playerState, fadeInCall=terminateGraphicsAndFadeIn, fadeOutCall=fadeOutBothScreens, canQuitCall=invertQuitCall))
+            self.playerState.setStatusMystery(command.operands[0] - 1, state.LaytonPlayerState.MYSTERY_WAITING_LOCK)
+            self.stackOverrideEvents.append(scr_mystery.Screen(self.playerState, fadeOutCall=fadeOutBothScreens, canQuitCall=invertQuitCall, tsFadeInCall=self.faderSceneSurfaceTop.startFadeIn, bsFadeInCall=terminateGraphicsAndFadeIn))
             return False
         
         elif command.opcode == b'\x72':
@@ -487,8 +561,17 @@ class LaytonEventHandler(state.LaytonSubscreen):
 
         # CURSED AUDIO CORNER
         # Sampled channel
+        
+        # 8a, 8b, 8e audio? SAD files match names
+        # 98 yet another sadl 16050
+        # 2c as characters switch
+
         elif command.opcode == b'\x5c': # Play voiceline
             self.cacheVoiceline = None
+        elif command.opcode == b'\x5d': # Play sound effect (ST_<n>)
+            pass
+        elif command.opcode == b'\x5e': # Play sampled effect
+            pass
         elif command.opcode == b'\x99': # Play sampled music
             pass
 
@@ -515,6 +598,7 @@ if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
     tempDebugExitLayer = state.LaytonScreen()
-    # 11 170, 10 60
-    tempDebugExitLayer.addToStack(LaytonEventHandler(11, 170, playerState))
+    # 11 170, 10 60, 11 100, 12 110, 14 010, 15 200, 16 010, 16 050, 18 440, 17 140, 17 150, 17 240, 18 450, 17 080,
+    
+    tempDebugExitLayer.addToStack(LaytonEventHandler(14, 10, playerState))
     state.play(tempDebugExitLayer, playerState)

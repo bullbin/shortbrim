@@ -9,6 +9,13 @@ class Boundary():
     def __init__(self, cornerPos, boundarySize):
         self.posCorner = cornerPos
         self.sizeBounding = boundarySize
+    
+    def wasClicked(self, pos):
+        offset = (pos[0] - self.posCorner[0],
+                  pos[1] - self.posCorner[1])
+        if (offset[0] > 0 and offset[1] > 0) and (offset[0] <= self.sizeBounding[0] and offset[1] <= self.sizeBounding[1]):
+            return True
+        return False
 
 class TObj():
     def __init__(self, boundary, charId, tObjId):

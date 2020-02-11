@@ -89,13 +89,15 @@ class LaytonJudgeAnimOverlay(state.LaytonContext):
     INCORRECT_FRAME_OFFSET = 100
     JUDGE_CHAR_MAP = {1:"l", 2:"r"}
 
-    def __init__(self, puzzleData, wasCorrect=True):
+    def __init__(self, puzzleData, wasCorrect=True, onKill=None):
         state.LaytonContext.__init__(self)
         self.screenIsOverlay        = False
         self.transitionsEnableIn    = False
         self.transitionsEnableOut   = False
 
         self.backgroundFill = pygame.Surface((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2))
+
+        self.doOnKill = onKill
 
         if puzzleData.idCharacterJudgeAnim in LaytonJudgeAnimOverlay.JUDGE_CHAR_MAP.keys():
             totalIndexFrame = 0
@@ -130,6 +132,8 @@ class LaytonJudgeAnimOverlay(state.LaytonContext):
             self.animActive = 0
         else:
             self.isContextFinished = True
+            if self.doOnKill != None:
+                self.doOnKill()
     
     def update(self, gameClockDelta):
         if not(self.animFinished):
@@ -137,6 +141,10 @@ class LaytonJudgeAnimOverlay(state.LaytonContext):
             if not(self.screenEndAnim.getActiveState()):
                 self.animActive += 1
                 self.animFinished = not(self.screenEndAnim.setAnimationFromIndex(self.animActive))
+        if self.animFinished:
+            if self.doOnKill != None:
+                self.doOnKill()
+            self.isContextFinished = True
 
     def draw(self, gameDisplay):
         gameDisplay.blit(self.backgroundFill, (0,0))
@@ -2241,6 +2249,8 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
         self.commandFocus = None
         self.puzzleIndex = puzzleIndex
         puzzleDataIndex = (puzzleIndex // 60) + 1
+        if puzzleDataIndex > 3:
+            puzzleDataIndex = 3
         puzzleScript    = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_SCRIPT + "puzzle.plz",
                                                    "q" + str(puzzleIndex) + "_param.gds", version = 1))
         self.puzzleData = asset_dat.LaytonPuzzleData()
@@ -2256,13 +2266,15 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 
         self.commandFocus = self.stack[-1]
         self.executeGdScript(puzzleScript)
-
+        
         self.addToStack(LaytonPuzzleUi(self.puzzleData, puzzleIndex, playerState))
         self.addToStack(LaytonScrollerOverlay(self.puzzleData.textPrompt, playerState))
         self.addToStack(LaytonTouchOverlay())
 
         self.puzzleFader = anim.AnimatedFader(1000, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
         self.puzzleFaderSurface = anim.AlphaSurface(0)
+
+        self.isPuzzleFinished = False
 
         pygame.event.post(pygame.event.Event(const.ENGINE_SKIP_CLOCK, {const.PARAM:None}))
 
@@ -2279,22 +2291,27 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
         self.puzzleFaderSurface.draw(gameDisplay)
     
     def updateSubscreenMethods(self, gameClockDelta):
+        
+        def endContext():
+            self.isContextFinished = True
+
         self.puzzleFader.update(gameClockDelta)
-        if not(self.isContextFinished):
+        if not(self.isContextFinished) and not(self.isPuzzleFinished):
             self.puzzleFaderSurface.setAlpha(round(self.puzzleFader.getStrength() * 255))
 
         if self.commandFocus != None:
             if self.commandFocus.registerVictory or self.commandFocus.registerLoss:
                 if not(self.puzzleFader.isActive):
-                    if self.puzzleFaderSurface.alpha == 255:
-                        if self.commandFocus.registerVictory:
-                            self.commandFocus.registerVictory = False
-                            self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=True))
-                        elif self.commandFocus.registerLoss:
-                            self.commandFocus.registerLoss = False
-                            self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=False))
-                        self.puzzleFaderSurface.setAlpha(0)
-                        self.isContextFinished = True
+                    if self.puzzleFaderSurface.alpha == 255:    # Fully faded out
+                        if self.commandFocus.registerLoss or self.commandFocus.registerVictory:
+                            self.isPuzzleFinished = True
+                            if self.commandFocus.registerVictory:
+                                self.commandFocus.registerVictory = False
+                                self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=True, onKill=endContext))
+                            else:
+                                self.commandFocus.registerLoss = False
+                                self.addToStack(LaytonJudgeAnimOverlay(self.puzzleData, wasCorrect=False, onKill=endContext))
+                            self.puzzleFaderSurface.setAlpha(0)
                     else:
                         self.resetFader(False)
             elif self.commandFocus.registerQuit:
@@ -2303,9 +2320,11 @@ class LaytonPuzzleHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     tempPlayerState = state.LaytonPlayerState()
     tempPlayerState.remainingHintCoins = 100
-    state.play(LaytonPuzzleHandler(16, tempPlayerState), tempPlayerState)
+    state.play(LaytonPuzzleHandler(8, tempPlayerState), tempPlayerState)
 
     # 69,111 - 15_cut puzzlet with scale 1?
+
+    # 44, 21, 203 error
 
     # 67
     # 3, 6 Tracebutton

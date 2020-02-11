@@ -426,6 +426,12 @@ class AnimatedButton(StaticButton):
         self.pos = pos
         self.imageButtonPressed.pos = pos
     
+    def getImage(self):
+        if self.wasClickedIn:
+            return self.imageButtonPressed.getImage()
+        else:
+            return super().getImage()
+
     def draw(self, gameDisplay):
         if self.wasClickedIn:
             self.imageButtonPressed.draw(gameDisplay)

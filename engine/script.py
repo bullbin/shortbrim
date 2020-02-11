@@ -9,6 +9,10 @@ def debugPrint(line):   # Function needs to be moved from coreState to avoid cyc
     if conf.ENGINE_DEBUG_MODE:
         print(line)
 
+def debugPrintLog(*args, **kwargs):
+    if conf.ENGINE_DEBUG_MODE and conf.ENGINE_DEBUG_ENABLE_LOG:
+        print(*args, **kwargs)
+
 def seekToNextOperation(reader):
     reader.read(2)
     while True:
@@ -54,7 +58,7 @@ class gdScript(asset.File):
                     tempCommand = self.parseCommand(data, enableBranching, useBranchingHack, lengthInstruction)
                     if not(tempCommand[0]):
                         self.commands.append(tempCommand[1])
-                debugPrint("LogGdsLoad: Reading complete!")
+                debugPrintLog("LogGdsLoad: Reading complete!")
         except FileNotFoundError:
             debugPrint("ErrGdsLoad: GDS does not exist!")
         except TypeError:

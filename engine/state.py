@@ -12,6 +12,10 @@ def debugPrint(*args, **kwargs):
     if conf.ENGINE_DEBUG_MODE:
         print(*args, **kwargs)
 
+def debugPrintLog(*args, **kwargs):
+    if conf.ENGINE_DEBUG_MODE and conf.ENGINE_DEBUG_ENABLE_LOG:
+        print(*args, **kwargs)
+
 class LaytonPuzzleDataEntry():
     def __init__(self):
         self.name = ""
@@ -36,12 +40,16 @@ class LaytonPlayerState():
     MYSTERY_WAITING_UNLOCK  = 3
     MYSTERY_UNLOCKED        = 4
 
-    MYSTERY_VALID_STATUSES = [MYSTERY_HIDDEN, MYSTERY_LOCKED, MYSTERY_WAITING_UNLOCK, MYSTERY_UNLOCKED]
+    MYSTERY_VALID_STATUSES = [MYSTERY_HIDDEN, MYSTERY_WAITING_LOCK, MYSTERY_LOCKED, MYSTERY_WAITING_UNLOCK, MYSTERY_UNLOCKED]
+    MYSTERY_WAITING_STATUSES = [MYSTERY_WAITING_LOCK, MYSTERY_WAITING_UNLOCK]
 
     def __init__(self):
         self.name = "LT1_ENGINE"
         self.puzzleData = {}
+
         self.statusMystery = {}
+        self.statusMysteryNew = []
+
         self.puzzletTutorialsCompleted = []
         self.currentRoom = 0
         self.currentObjective = 10
@@ -68,8 +76,22 @@ class LaytonPlayerState():
     def setStatusMystery(self, index, newStatus):
         if newStatus in LaytonPlayerState.MYSTERY_VALID_STATUSES and index in self.statusMystery.keys():
             self.statusMystery[index] = newStatus
+            if newStatus in LaytonPlayerState.MYSTERY_WAITING_STATUSES and not(index in self.statusMysteryNew):
+                self.statusMysteryNew.append(index)
             return True
         return False
+    
+    def isMysteryNew(self, index):
+        if index in self.statusMysteryNew:
+            return True
+        return False
+
+    def clearMysteryNewFlag(self, index):
+        if self.isMysteryNew(index):
+            del self.statusMysteryNew[self.statusMysteryNew.index(index)]
+
+    def getPuzzleSolvedCount(self): # TODO
+        return 0
 
     def getPuzzleEntry(self, index):
         if index not in self.puzzleData.keys():
@@ -342,4 +364,4 @@ def play(rootHandler, playerState):
 
         if gameClockBypass and gameClockDelta > conf.ENGINE_FRAME_INTERVAL:
             gameClockDelta = conf.ENGINE_FRAME_INTERVAL
-            debugPrint("State: Clock bypassed on this frame!")
+            debugPrintLog("State: Clock bypassed on this frame!")
