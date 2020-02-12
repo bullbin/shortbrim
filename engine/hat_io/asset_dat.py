@@ -79,6 +79,34 @@ class LaytonPlaceData(File):
             if tempBoundary.posCorner != (0,0) and tempBoundary.sizeBounding != (0,0):
                 self.objEvent.append(PlaceEvent(tempBoundary, tempEventObjId, tempEventId))
 
+class LaytonEventData(File):
+
+    def __init__(self):
+        File.__init__(self)
+        self.mapTsId = 0
+        self.mapBsId = 0
+        self.characters = []
+        self.charactersPosition = []
+        self.charactersShown = []
+    
+    def load(self, data):
+        reader = binary.BinaryReader(data = data)
+        self.mapBsId = reader.readU2()
+        self.mapTsId = reader.readU2()
+
+        reader.seek(2, 1)
+        for _indexChar in range(8):
+            tempChar = reader.readUInt(1)
+            if tempChar != 0:
+                self.characters.append(tempChar)
+        for _indexChar in range(8):
+            self.charactersPosition.append(reader.readUInt(1))
+        for _indexChar in range(8):
+            if reader.readUInt(1) == 0:
+                self.charactersShown.append(False)
+            else:
+                self.charactersShown.append(True)
+
 class LaytonPuzzleData(File):
 
     OFFSET_TEXT_DEFAULT = 112
