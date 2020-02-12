@@ -260,7 +260,7 @@ class LaytonTextOverlay(state.LaytonContext):
 
 class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
-    def __init__(self, eventIndex, playerState):
+    def __init__(self, eventIndex, playerState, globalTsFader=None, globalBsFader=None):
         state.LaytonSubscreenWithFader.__init__(self)
         self.playerState = playerState
 
@@ -276,7 +276,6 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         self.scriptTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + extendedEventIndex + ".plz"))
         self.scriptEvent = script.gdScript.fromData(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + extendedEventIndex + ".plz",
                                                                                 "e" + self.indexEvent + "_" + self.indexEventSub + ".gds", version = 1))
-        # self.scriptEvent = script.gdScript.fromData(FileInterface.getData(FileInterface.PATH_ASSET_SCRIPT + "logo.gds"))
         self.stackOverrideEvents = []
 
         self.imagesCharacter = []
@@ -297,6 +296,8 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         self.pointerImagesCharacter = {}
     
     def doOnUpdateCleared(self, gameClockDelta):
+
+        # Convert to update function so can be made normal on stack again.
 
         if self.indexScriptCommand < len(self.scriptEvent.commands):
             if self.isScriptAwaitingExecution or len(self.stackOverrideEvents) > 0:
@@ -424,7 +425,7 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
         elif command.opcode == b'\x0b': # Start puzzle
             # TODO - Program fade out
-            self.screenNextObject = han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState)
+            self.addToStack(han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState))
             return False
 
         elif command.opcode == b'\x2a': # Load character image # Power, elegance and grace!!
@@ -534,8 +535,8 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    tempDebugExitLayer = state.LaytonScreen()
+    tempDebugExitLayer = state.LaytonSubscreenWithFader()
     # 11 170, 10 60, 11 100, 12 110, 14 010, 15 200, 16 010, 16 050, 18 440, 17 140, 17 150, 17 240, 18 450, 17 080,
     
-    tempDebugExitLayer.addToStack(LaytonEventHandler(10060, playerState))
+    tempDebugExitLayer.addToStack(LaytonEventHandler(10110, playerState))
     state.play(tempDebugExitLayer, playerState)

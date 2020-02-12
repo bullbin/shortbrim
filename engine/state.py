@@ -203,6 +203,10 @@ class LaytonScreen(LaytonContext):
     def executeCommand(self, command):
         debugPrint("CommandNoTarget: " + str(command.opcode))
 
+    def removeFromStack(self, index):
+        self.stack.remove(self.stack[index])
+        self.hasStackChanged = True
+
     def update(self, gameClockDelta):
         if len(self.stack) >= 1:
             if self.hasStackChanged:            # Update stack pointers if stack has changed
@@ -224,8 +228,7 @@ class LaytonScreen(LaytonContext):
                     self.stack[indexUpdate].screenStackUpdate = False
                     self.hasStackChanged = False
                 if self.stack[indexUpdate].getContextState():   # Stack object has finished operation
-                    self.stack.remove(self.stack[indexUpdate])
-                    self.hasStackChanged = True
+                    self.removeFromStack(indexUpdate)
 
     def handleEvent(self, event):
         for indexUpdate in range(len(self.stack), self.stackLastBlockElement, -1):
@@ -251,13 +254,39 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
         self.waitFader                  = anim.AnimatedFader(1, anim.AnimatedFader.MODE_TRIANGLE, False, cycle=False, activeState=False)
         self.faderSceneSurfaceTop       = anim.ScreenFaderSurface()
         self.faderSceneSurfaceBottom    = anim.ScreenFaderSurface()
+
+        self.faderStackOccluderTop       = anim.ScreenFaderSurface()
+        self.faderStackOccluderBottom    = anim.ScreenFaderSurface()
+
+        self.faderStackOccluderTop.startFadeIn(time=0)
+        self.faderStackOccluderBottom.startFadeIn(time=0)
+        self.faderSceneSurfaceTop.startFadeIn(time=0)
+        self.faderSceneSurfaceBottom.startFadeIn(time=0)
+
         self.debugDrawFaders = enableFaders
+        self.addQueue = []
+        self.removeQueue = []
     
     def drawFaders(self, gameDisplay):
         if self.debugDrawFaders:
             gameDisplay.blit(self.faderSceneSurfaceTop.faderSurface, (0,0))
             gameDisplay.blit(self.faderSceneSurfaceBottom.faderSurface, (0, conf.LAYTON_SCREEN_HEIGHT))
+
+            gameDisplay.blit(self.faderStackOccluderTop.faderSurface, (0,0))
+            gameDisplay.blit(self.faderStackOccluderBottom.faderSurface, (0,conf.LAYTON_SCREEN_HEIGHT))
     
+    def draw(self, gameDisplay):
+        super().draw(gameDisplay)
+        self.drawFaders(gameDisplay)
+
+    def addToStack(self, screenObject):
+        if screenObject != None:
+            self.addQueue.append(screenObject)
+            if screenObject.transitionsEnableIn:
+                self.faderStackOccluderTop.startFadeOutIfNotStarted()
+                self.faderStackOccluderBottom.startFadeOutIfNotStarted()
+            self.updateStackIfQueuePrepared()
+
     def isUpdateBlocked(self):
         return self.faderSceneSurfaceTop.getActiveStatus() or self.faderSceneSurfaceBottom.getActiveStatus() or self.waitFader.isActive
     
@@ -269,8 +298,31 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
     def doOnUpdateCleared(self, gameClockDelta):
         pass
 
+    def updateStackIfQueuePrepared(self):
+        while len(self.addQueue) > 0:
+            tempItem = self.addQueue.pop(0)
+            if not(tempItem.transitionsEnableIn):
+                self.stack.append(tempItem)
+                self.hasStackChanged = True
+            else:
+                if not(self.faderStackOccluderBottom.getActiveStatus()):
+                    self.stack.append(tempItem)
+                    self.hasStackChanged = False
+                else:
+                    self.addQueue.insert(0,tempItem)
+                    break
+
+        if len(self.addQueue) == 0 and not(self.faderStackOccluderBottom.fader.initialInverted):
+            self.faderStackOccluderBottom.startFadeInIfNotStarted()
+            self.faderStackOccluderTop.startFadeInIfNotStarted()
+
     def update(self, gameClockDelta):
+
         super().update(gameClockDelta)
+        self.faderStackOccluderTop.update(gameClockDelta)
+        self.faderStackOccluderBottom.update(gameClockDelta)
+        self.updateStackIfQueuePrepared()
+        
         if self.isUpdateBlocked():
             self.doOnUpdatedBlocked(gameClockDelta)
         else:

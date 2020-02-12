@@ -629,6 +629,9 @@ class AnimatedFader():
                     if self.doFullCycle:
                         if self.inverted == self.initialInverted:
                             self.isActive = False
+                    elif self.durationElapsed == 0 and self.durationCycle == 0:
+                        self.isActive = False
+                        break
                     else:
                         self.isActive = False
     
@@ -746,8 +749,16 @@ class ScreenFaderSurface():
     def startFadeOut(self, time = TIME_FADE_TRANSITION):
         self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False)
     
+    def startFadeOutIfNotStarted(self, time = TIME_FADE_TRANSITION):
+        if self.fader.initialInverted:
+            self.startFadeOut(time=time)
+
     def startFadeIn(self, time = TIME_FADE_TRANSITION):
         self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
+    
+    def startFadeInIfNotStarted(self, time = TIME_FADE_TRANSITION):
+        if not(self.fader.initialInverted):
+            self.startFadeIn(time=time)
 
     def getActiveStatus(self):
         return self.fader.isActive

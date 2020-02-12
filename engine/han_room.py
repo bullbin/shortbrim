@@ -337,7 +337,7 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 
     def __init__(self, roomIndex, roomSubIndex, playerState):
         state.LaytonSubscreen.__init__(self)
-        self.transitionsEnableIn = False
+        self.transitionsEnableIn = True
         self.transitionsEnableOut = False
         self.screenBlockInput = True
 
@@ -356,4 +356,8 @@ class LaytonRoomHandler(state.LaytonSubscreen):
 if __name__ == '__main__':
     playerState = state.LaytonPlayerState()
     playerState.remainingHintCoins = 10
-    state.play(LaytonRoomHandler(48, 0, playerState), playerState) # 48 hidden puzzle
+
+    tempDebugExitLayer = state.LaytonSubscreenWithFader()
+    tempDebugExitLayer.addToStack(LaytonRoomHandler(4, 1, playerState))
+
+    state.play(tempDebugExitLayer, playerState) # 48 hidden puzzle

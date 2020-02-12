@@ -33,9 +33,9 @@ def resolveEventIntegerAsString(eventInt):
     eventSubIndex       = "%03d" % (eventInt % 1000)
     extendedEventIndex  = eventIndex
     if eventIndex == "24":
-        if eventSubIndex < 295:
+        if eventInt % 1000 < 295:
             extendedEventIndex = "24a"
-        elif eventSubIndex < 595:
+        elif eventInt % 1000 < 595:
             extendedEventIndex = "24b"
         else:
             extendedEventIndex = "24c"
