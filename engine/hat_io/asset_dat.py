@@ -85,19 +85,17 @@ class LaytonEventData(File):
         File.__init__(self)
         self.mapTsId = 0
         self.mapBsId = 0
-        self.faderTsActive = False
-        self.faderBsActive = False
-        self.characters = []
-        self.charactersPosition = []
-        self.charactersShown = []
+        self.characters                         = []
+        self.charactersPosition                 = []
+        self.charactersShown                    = []
+        self.charactersInitialAnimationIndex    = []
     
     def load(self, data):
         reader = binary.BinaryReader(data = data)
         self.mapBsId = reader.readU2()
         self.mapTsId = reader.readU2()
 
-        self.faderBsActive = reader.readUInt(1) == 1
-        self.faderTsActive = reader.readUInt(1) == 1
+        reader.seek(2,1)
 
         for _indexChar in range(8):
             tempChar = reader.readUInt(1)
@@ -110,6 +108,8 @@ class LaytonEventData(File):
                 self.charactersShown.append(False)
             else:
                 self.charactersShown.append(True)
+        for _indexChar in range(8):
+            self.charactersInitialAnimationIndex.append(reader.readUInt(1))
 
 class LaytonPuzzleData(File):
 

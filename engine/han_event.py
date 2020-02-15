@@ -8,6 +8,12 @@ pygame.init()
 
 # TODO - For every handler, ensure that executeCommand returns False, as stack-like behaviour will be encouraged UNIVERSALLY
 
+# Item window
+# Command 77
+# Bank data_lt2/ani/system/prize_window.arc
+# Bank data_lt2/ani/menu/bag/item_icon.arc
+# Bank item_<n>.txt txt.plz
+
 class LaytonCharacterController():
 
     SLOT_OFFSET = {0:0, 1:0,
@@ -85,20 +91,24 @@ class LaytonEventBackground(state.LaytonContext):
         self.backgroundTs = None
         self.backgroundBs = None
     
-    def executeCommand(self, command):
-        if command.opcode == b'\x22':       # Draw image, TS
-            self.backgroundTs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
-        elif command.opcode == b'\x21':     # Draw image, BS
-            self.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + command.operands[0])
-        elif command.opcode == b'\x37' and self.backgroundBs != None:
+    @staticmethod
+    def getBackgroundImageAndReturnIfValid(bgPath):
+        tempSurface = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + bgPath)
+        if tempSurface.get_width() == 0:
+            return None
+        return tempSurface
+
+    def setBackgroundBottomScreen(self, bgPath):
+        self.backgroundBs = LaytonEventBackground.getBackgroundImageAndReturnIfValid(bgPath)
+    
+    def setBackgroundTopScreen(self, bgPath):
+        self.backgroundTs = LaytonEventBackground.getBackgroundImageAndReturnIfValid(bgPath)
+    
+    def setBottomScreenDimmingFactor(self, factor):
+        if self.backgroundBs != None:
             tempSurface = pygame.Surface((self.backgroundBs.get_width(), self.backgroundBs.get_height()))
-            # TODO - Assumes top screen and bottom screen are same height
-            # TODO - Unks
-            tempSurface.set_alpha(command.operands[3])
+            tempSurface.set_alpha(factor)
             self.backgroundBs.blit(tempSurface, (0,0))
-        else:
-            super().executeCommand(command)
-        return True
 
     def draw(self, gameDisplay):
         if self.backgroundBs != None:
@@ -346,12 +356,12 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.dataEvent.load(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + extendedEventIndex + ".plz",
                                                             "d" + indexEvent + "_" + indexEventSub + ".dat", version = 1))
 
-        tempBgSurface = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "event/" + conf.LAYTON_ASSET_LANG + "/sub" + str(self.dataEvent.mapTsId))
-        if tempBgSurface.get_width() == 0:
-            tempBgSurface = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "event/sub" + str(self.dataEvent.mapTsId))
-        self.commandFocus.backgroundTs = tempBgSurface
-
-        self.commandFocus.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "map/main" + str(self.dataEvent.mapBsId))
+        self.commandFocus.setBackgroundTopScreen("event/" + conf.LAYTON_ASSET_LANG + "/sub" + str(self.dataEvent.mapTsId))
+        if self.commandFocus.backgroundTs == None:
+            self.commandFocus.setBackgroundTopScreen("event/sub" + str(self.dataEvent.mapTsId))
+        self.commandFocus.setBackgroundBottomScreen("map/main" + str(self.dataEvent.mapBsId))
+        self.commandFocus.setBottomScreenDimmingFactor(120)
+        
         self.imagesCharacter = []
         self.pointerImagesCharacter = {}
 
@@ -368,7 +378,6 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         for indexNewChar, charIndex in enumerate(self.dataEvent.characters):
             self.pointerImagesCharacter[charIndex] = len(self.imagesCharacter)
             self.imagesCharacter.append(LaytonCharacterController.loadFromIndex(charIndex))
-            # print(charIndex, self.dataEvent.charactersShown[indexNewChar])
             self.imagesCharacter[indexNewChar].isShown = self.dataEvent.charactersShown[indexNewChar]
             self.imagesCharacter[indexNewChar].slot = self.dataEvent.charactersPosition[indexNewChar]
                     
@@ -445,6 +454,10 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         if function[0] == "setani":
             if function[1].isdigit() and int(function[1]) < len(self.imagesCharacter):
                 pass
+            else:
+                state.debugPrint("WarnEventHandler: setani command incorrectly formatted! Wanted", functionName)
+        else:
+            state.debugPrint("WarnEventHandler: Unimplemented function", functionName)
         
     def executeGdScriptCommand(self, command):
 
@@ -512,6 +525,11 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.addToStack(han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState))
             return False
 
+        elif command.opcode == b'\x21':
+            self.commandFocus.setBackgroundBottomScreen(command.operands[0])
+        elif command.opcode == b'\x22':
+            self.commandFocus.setBackgroundTopScreen(command.operands[0])
+
         elif command.opcode == b'\x2a': # Show cached character
             if command.operands[0] < len(self.imagesCharacter):
                 self.imagesCharacter[command.operands[0]].isShown = True
@@ -525,22 +543,21 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
                 state.debugPrint("ErrEventHandler: Tried to hide character index", command.operands[0], "when not loaded!")
 
         elif command.opcode == b'\x2c': # ?? Change visibility
+            if command.operands[1] in [-2,2]:
+                isShown = command.operands[1] >= 0
 
-            isShown = command.operands[1] >= 0
-
-            if command.operands[0] < len(self.imagesCharacter):
-                self.imagesCharacter[command.operands[0]].isShown = isShown
+                if command.operands[0] < len(self.imagesCharacter):
+                    self.imagesCharacter[command.operands[0]].isShown = isShown
+                else:
+                    state.debugPrint("ErrEventHandler: Cannot change visibility properties on character", command.operands[0])
             else:
-                state.debugPrint("ErrEventHandler: Cannot change visibility properties on character", command.operands[0])
+                state.debugPrint("ErrEventHandler: Unknown character visibility property", command.operands[1])
         
         elif command.opcode == b'\x30': # Rearrange characters
             if command.operands[0] < len(self.imagesCharacter):
                 self.imagesCharacter[command.operands[0]].slot = command.operands[1]
             else:
                 state.debugPrint("ErrEventHandler: Cannot change slot on character", command.operands[0])
-
-        elif command.opcode == b'\x21' or command.opcode == b'\x22': # Background-related
-            self.stack[0].executeCommand(command)
 
         # Is 31,32 outin waiting or fading?
 
@@ -560,7 +577,7 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.faderSceneSurfaceBottom.startFadeOut()
 
         elif command.opcode == b'\x37': # Set darkness
-            self.stack[0].executeCommand(command)
+            self.commandFocus.setBottomScreenDimmingFactor(command.operands[3])
 
         elif command.opcode == b'\x3f': # Set active body frame?
             if command.operands[0]  - 1 in self.pointerImagesCharacter:
@@ -661,10 +678,10 @@ if __name__ == '__main__':
     # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390
 
     # Working correctly
-    # 10060, 11100, 14010, 16070, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 11300
+    # 10060, 11100, 14010, 16070, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 11300, 13140
 
     # Almost working correctly
-    # 17240, 17080, 13140, 11200, 11280, 30020, 14110, 14180, 15020
+    # 17240, 17080, 11200, 11280, 30020, 14110, 14180, 15020
 
     # Missing features required to run correctly
     # 17140, 18440, 12190, 12240, 12270, 19070, 15260
@@ -690,5 +707,5 @@ if __name__ == '__main__':
 
     # e18 - The Story so Far...
 
-    tempDebugExitLayer.addToStack(LaytonEventHandler(16010, playerState))
+    tempDebugExitLayer.addToStack(LaytonEventHandler(10035, playerState))
     state.play(tempDebugExitLayer, playerState)

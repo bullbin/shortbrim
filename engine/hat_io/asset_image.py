@@ -11,6 +11,7 @@ except ImportError:
 
 EXPORT_EXTENSION = "png"
 EXPORT_WITH_ALPHA = True    # Not recommended for in-engine as masking is faster
+EXPORT_EXPANDED_COLOUR = True
 
 def pilPaletteToRgbTriplets(image):
     paletteData = image.getpalette()
@@ -40,6 +41,8 @@ class Colour():
         return colourOut
     
     def toList(self):
+        if EXPORT_EXPANDED_COLOUR:
+            return ([int(self.r * 255), int(self.g * 255), int(self.b * 255)])
         return ([int(self.r * 248), int(self.g * 248), int(self.b * 248)])
 
 class Tile():
