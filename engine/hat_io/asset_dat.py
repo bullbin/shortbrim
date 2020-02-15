@@ -85,6 +85,8 @@ class LaytonEventData(File):
         File.__init__(self)
         self.mapTsId = 0
         self.mapBsId = 0
+        self.faderTsActive = False
+        self.faderBsActive = False
         self.characters = []
         self.charactersPosition = []
         self.charactersShown = []
@@ -94,7 +96,9 @@ class LaytonEventData(File):
         self.mapBsId = reader.readU2()
         self.mapTsId = reader.readU2()
 
-        reader.seek(2, 1)
+        self.faderBsActive = reader.readUInt(1) == 1
+        self.faderTsActive = reader.readUInt(1) == 1
+
         for _indexChar in range(8):
             tempChar = reader.readUInt(1)
             if tempChar != 0:

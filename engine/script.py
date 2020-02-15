@@ -79,6 +79,8 @@ class gdScript(asset.File):
             elif paramId == 2:
                 tempOperands.append(unpack("<f", reader.read(4))[0])
             elif paramId == 3:
+                # TODO - What encoding? Is the last byte important?
+                # TODO - Shift-jis universally causes animation name bugs
                 tempOperands.append(reader.read(int.from_bytes(reader.read(2), 'little')).decode("ascii")[0:-1])
 
             # Flow

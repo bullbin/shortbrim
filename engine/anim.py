@@ -13,9 +13,9 @@ pygame.display.set_mode((conf.LAYTON_SCREEN_WIDTH, conf.LAYTON_SCREEN_HEIGHT * 2
 # TODO - Log better
 # TODO - Autostart gfx anim
 
-def debugPrint(line):   # Function needs to be moved from coreState to avoid cyclical dependency
+def debugPrint(*args, **kwargs): # Function needs to be moved from coreState to avoid cyclical dependency
     if conf.ENGINE_DEBUG_MODE:
-        print(line)
+        print(*args, **kwargs)
 
 def scaleSurfaceCopy(surface, scaleFactorX, scaleFactorY):
     return pygame.transform.scale(surface, (round(surface.get_width() * scaleFactorX),
@@ -603,6 +603,9 @@ class AnimatedFader():
         self.initialInverted = inverted
 
         self.reset()
+        if not(activeState):
+            self.inverted = not(self.inverted)
+
         self.isActive = activeState
         if conf.ENGINE_PERFORMANCE_MODE or mode == AnimatedFader.MODE_TRIANGLE:
             self.getStrength = self.getStrengthTriangle
@@ -747,18 +750,24 @@ class ScreenFaderSurface():
         self.faderSurface.set_alpha(round(self.fader.getStrength() * 255))
     
     def startFadeOut(self, time = TIME_FADE_TRANSITION):
-        self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False)
+        if self.fader.getStrength() == 1:   # Already faded out
+            self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, activeState=False)
+        else:
+            self.startFadeOutIfNotStarted(time=time)
     
+    def startFadeIn(self, time = TIME_FADE_TRANSITION):
+        if self.fader.getStrength() == 0:   # Already faded in
+            self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, inverted=True, activeState=False)
+        else:
+            self.startFadeInIfNotStarted(time)
+
     def startFadeOutIfNotStarted(self, time = TIME_FADE_TRANSITION):
         if self.fader.initialInverted:
-            self.startFadeOut(time=time)
+            self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False)
 
-    def startFadeIn(self, time = TIME_FADE_TRANSITION):
-        self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
-    
     def startFadeInIfNotStarted(self, time = TIME_FADE_TRANSITION):
         if not(self.fader.initialInverted):
-            self.startFadeIn(time=time)
+            self.fader = AnimatedFader(time, ScreenFaderSurface.MODE_FADE_TRANSITION, False, cycle=False, inverted=True)
 
     def getActiveStatus(self):
         return self.fader.isActive
@@ -774,12 +783,14 @@ class NuvoTextScroller():
 
     LAYTON_CONTROL_CHAR = ["#", "@", "&"]
 
-    def __init__(self, font, textInput, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
+    def __init__(self, font, textInput, functionProcessor=None, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
         self.textInput = textInput
         self.frameStep = 1000/targetFramerate
         self.timeSinceLastUpdate = 0
         self.pos = textPosOffset
         self.font = font
+
+        self.functionProcessor = functionProcessor
 
         self.indexChar = 0
         self.indexLine = 0
@@ -829,8 +840,11 @@ class NuvoTextScroller():
     def doOnWaitToTap(self):
         self.isWaitingForTap = True
 
-    def doOnTriggerAnimChange(self, animName):
-        print("animSwitch", animName)
+    def doOnTriggerAnimChange(self, functionName):
+        if self.functionProcessor != None:
+            self.functionProcessor(functionName)
+        else:
+            debugPrint("TextScroller: Called", functionName)
 
     def incrementText(self):
         nextChar = self.getNextChar()

@@ -9,10 +9,17 @@ pygame.init()
 # TODO - For every handler, ensure that executeCommand returns False, as stack-like behaviour will be encouraged UNIVERSALLY
 
 class LaytonCharacterController():
+
+    SLOT_OFFSET = {0:0, 1:0,
+                   2:0, 3:0,
+                   4:52}
+    SLOT_LEFT  = [0,3,4]
+    SLOT_RIGHT = [2]
+
     def __init__(self, body, face):
         self.isShown = True
-        self.isLeft = False
-        self.isRight = False
+        self.isFaceShown = True
+        self.slot = None
 
         self.animBody = body
         self.animFace = face
@@ -30,6 +37,16 @@ class LaytonCharacterController():
         face = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "sub", "chr" + str(index) + "_face")
         return LaytonCharacterController(body, face)
     
+    def isCharacterFacingLeft(self):
+        if self.slot in LaytonCharacterController.SLOT_LEFT:
+            return True
+        return False
+    
+    def isCharacterFacingRight(self):
+        if self.slot in LaytonCharacterController.SLOT_RIGHT:
+            return True
+        return False
+
     def update(self, gameClockDelta):
         self.screenFader.update(gameClockDelta)
         self.surfaceChar.setAlpha(round(self.screenFader.getStrength() * 255))
@@ -37,23 +54,24 @@ class LaytonCharacterController():
         self.animFace.update(gameClockDelta)
     
     def draw(self, gameDisplay):
-        if self.isShown and self.animBody.getImage() != None and (self.isLeft or self.isRight):
+        if self.isShown and self.animBody.getImage() != None and self.slot in LaytonCharacterController.SLOT_OFFSET:
             outSurface = self.animBody.getImage().copy()
-            if self.animFace.getImage() != None and self.animBody.getAnimObject() != None:
-                self.lastOffsetFace = self.animBody.getAnimObject().offsetFace
-                outSurface.blit(self.animFace.getImage(), self.animBody.getAnimObject().offsetFace)
-            elif self.animFace.getImage() != None:
-                outSurface.blit(self.animFace.getImage(), self.lastOffsetFace)
+            if self.isFaceShown:
+                if self.animFace.getImage() != None and self.animBody.getAnimObject() != None:
+                    self.lastOffsetFace = self.animBody.getAnimObject().offsetFace
+                    outSurface.blit(self.animFace.getImage(), self.animBody.getAnimObject().offsetFace)
+                elif self.animFace.getImage() != None:
+                    outSurface.blit(self.animFace.getImage(), self.lastOffsetFace)
             
             self.surfaceChar.clear()
 
-            if self.isLeft:
+            if self.isCharacterFacingLeft():
                 outSurface = pygame.transform.flip(outSurface, True, False)
                 self.surfaceChar.surface.blit(outSurface, (0,0))
-                self.surfaceChar.draw(gameDisplay, location=(0, gameDisplay.get_height() - outSurface.get_height()))
+                self.surfaceChar.draw(gameDisplay, location=(LaytonCharacterController.SLOT_OFFSET[self.slot], gameDisplay.get_height() - outSurface.get_height()))
             else:
                 self.surfaceChar.surface.blit(outSurface, (0,0))
-                self.surfaceChar.draw(gameDisplay, location=(gameDisplay.get_width() - outSurface.get_width(), gameDisplay.get_height() - outSurface.get_height()))
+                self.surfaceChar.draw(gameDisplay, location=(gameDisplay.get_width() - outSurface.get_width() - LaytonCharacterController.SLOT_OFFSET[self.slot], gameDisplay.get_height() - outSurface.get_height()))
         
     def fadeIn(self):
         self.screenFader = anim.AnimatedFader(200, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False)
@@ -102,7 +120,7 @@ class LaytonTextOverlay(state.LaytonContext):
     ALPHA_SURF_IMAGE_TAP = anim.AlphaSurface(255, dimensions=BANK_IMAGE_TAP.dimensions)
     BANK_IMAGE_TAP_FADE_DURATION = 500
 
-    def __init__(self, talkScript, voiceLine, characterControllerIndices, characterControllers, playerState):
+    def __init__(self, talkScript, voiceLine, characterControllerIndices, characterControllers, playerState, animFunctionController=None):
         state.LaytonContext.__init__(self)
         self.screenIsOverlay = True
 
@@ -115,7 +133,7 @@ class LaytonTextOverlay(state.LaytonContext):
         LaytonTextOverlay.BANK_IMAGE_WINDOW.setInitialFrameFromAnimation()
 
         talkScript = script.gdScript.fromData(talkScript)
-        self.textTalk = anim.NuvoTextScroller(playerState.getFont("fontevent"), talkScript.commands[0].operands[3], textPosOffset=(10, 140 + conf.LAYTON_SCREEN_HEIGHT), targetFramerate=60)
+        self.textTalk = anim.NuvoTextScroller(playerState.getFont("fontevent"), talkScript.commands[0].operands[3], textPosOffset=(10, 140 + conf.LAYTON_SCREEN_HEIGHT), targetFramerate=60, functionProcessor=animFunctionController)
 
         self.nameIsDrawn = False
         self.arrowIsDrawn = False
@@ -137,9 +155,9 @@ class LaytonTextOverlay(state.LaytonContext):
                 
                 if self.indexCharacter in characterControllerIndices.keys():
                     self.arrowIsDrawn = True
-                    targetController = characterControllers[characterControllerIndices[self.indexCharacter]]
-                    self.targetAnimBody = targetController.animBody
-                    self.targetAnimFace = targetController.animFace
+                    self.targetController = characterControllers[characterControllerIndices[self.indexCharacter]]
+                    self.targetAnimBody = self.targetController.animBody
+                    self.targetAnimFace = self.targetController.animFace
 
                     if talkScript.commands[0].operands[0] != "NONE":
                         self.animNameStart = talkScript.commands[0].operands[0]
@@ -154,13 +172,16 @@ class LaytonTextOverlay(state.LaytonContext):
                     else:
                         self.animNameEnd = "b1 normal"
 
-                    self.setAnimPair("*" + self.animNameStart)
+                    if self.isFormattedAsMultipartBody("*" + self.animNameStart):
+                        self.setAnimPair("*" + self.animNameStart)
+                    else:
+                        self.setAnimPair(self.animNameStart)
 
-                    if targetController.isShown and targetController.isLeft:
+                    if self.targetController.isShown and self.targetController.isCharacterFacingLeft():
                         LaytonTextOverlay.BANK_IMAGE_ARROW.setAnimationFromName("L")
                         LaytonTextOverlay.BANK_IMAGE_ARROW.pos = LaytonTextOverlay.BANK_IMAGE_ARROW_POS
                         LaytonTextOverlay.BANK_IMAGE_ARROW.setInitialFrameFromAnimation()
-                    elif targetController.isShown and targetController.isRight:
+                    elif self.targetController.isShown and self.targetController.isCharacterFacingRight():
                         LaytonTextOverlay.BANK_IMAGE_ARROW.setAnimationFromName("R")
                         LaytonTextOverlay.BANK_IMAGE_ARROW.pos = (conf.LAYTON_SCREEN_WIDTH - LaytonTextOverlay.BANK_IMAGE_ARROW_POS[0] - LaytonTextOverlay.BANK_IMAGE_ARROW.dimensions[0],
                                                                 LaytonTextOverlay.BANK_IMAGE_ARROW_POS[1])
@@ -168,14 +189,25 @@ class LaytonTextOverlay(state.LaytonContext):
                     else:
                         self.arrowIsDrawn = False
 
+    def isFormattedAsMultipartBody(self, animName):
+        if animName[0] == "*":
+            animName = animName[1:]
+        animName = animName.split(" ")
+        if len(animName) > 1 and animName[0][0] == "b":
+            return True
+        return False
+
     def faceAnimFromBodyAnim(self, animName):
         # Returns tuple, with first name being the specialised face anim name (if the body animation had an index),
         # and second without. If the first one is unavailable, use the general version
         tempAnimName = animName.split(" ")
         animNameIndex = tempAnimName[0].split("*")[-1][1:]
-        if animName[0] == "*":
-            return ("*" + tempAnimName[-1] + animNameIndex, "*" + tempAnimName[-1])
-        return (tempAnimName[-1] + animNameIndex, tempAnimName[-1])
+        if self.isFormattedAsMultipartBody(animName):
+            if animName[0] == "*":
+                return (True, "*" + tempAnimName[-1] + animNameIndex, "*" + tempAnimName[-1])
+            return (True, tempAnimName[-1] + animNameIndex, tempAnimName[-1])
+        else:
+            return (False, None, None)
 
     def setAnimPair(self, animName):
         if self.targetAnimBody != None:
@@ -183,13 +215,23 @@ class LaytonTextOverlay(state.LaytonContext):
                 self.targetAnimBody.setAnimationFromName(animName + " ")
 
         if self.targetAnimFace != None:
-            tempAnimNameSpecialised, tempAnimNameGeneral = self.faceAnimFromBodyAnim(animName)
-            faceAnims = [tempAnimNameSpecialised, tempAnimNameSpecialised + " ",
-                         tempAnimNameGeneral, tempAnimNameGeneral + " "]
+            drawFace, tempAnimNameSpecialised, tempAnimNameGeneral = self.faceAnimFromBodyAnim(animName)
+            self.targetController.isFaceShown = drawFace
+            if drawFace:
+                faceAnims = [tempAnimNameSpecialised, tempAnimNameSpecialised + " ",
+                            tempAnimNameGeneral, tempAnimNameGeneral + " "]
 
-            for animName in faceAnims:
-                if self.targetAnimFace.setAnimationFromName(animName):
-                    break
+                for animName in faceAnims:
+                    if self.targetAnimFace.setAnimationFromName(animName):
+                        break
+
+    def setNewAnim(self, animName):
+        self.animNameStart = animName
+        self.animNameEnd = animName
+        if self.tapIsDrawn:
+            self.setAnimPair(self.animNameStart)
+        else:
+            self.setAnimPair("*" + self.animNameStart)
 
     def triggerWait(self):
         self.tapIsDrawn = True
@@ -283,8 +325,6 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
         self.imagesCharacter = []
         self.pointerImagesCharacter = {}
-        self.pointerCharLeft = None
-        self.pointerCharRight = None
         self.loadEventData(self.indexEvent, extendedEventIndex, self.indexEventSub)
 
         self.stackOverrideEvents = []
@@ -300,42 +340,41 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         self.isReadyToKill = False
     
     def loadEventData(self, indexEvent, extendedEventIndex, indexEventSub):
-        #self.faderSceneSurfaceBottom.startFadeIn()
-        #self.faderSceneSurfaceTop.startFadeIn()
         self.dataEvent = asset_dat.LaytonEventData()
         if FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + extendedEventIndex + ".plz",
                                        "d" + indexEvent + "_" + indexEventSub + ".dat", version = 1) != None:
             self.dataEvent.load(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + extendedEventIndex + ".plz",
                                                             "d" + indexEvent + "_" + indexEventSub + ".dat", version = 1))
 
-        self.commandFocus.backgroundTs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "event/sub" + str(self.dataEvent.mapTsId))
+        tempBgSurface = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "event/" + conf.LAYTON_ASSET_LANG + "/sub" + str(self.dataEvent.mapTsId))
+        if tempBgSurface.get_width() == 0:
+            tempBgSurface = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "event/sub" + str(self.dataEvent.mapTsId))
+        self.commandFocus.backgroundTs = tempBgSurface
+
         self.commandFocus.backgroundBs = anim.fetchBgSurface(FileInterface.PATH_ASSET_BG + "map/main" + str(self.dataEvent.mapBsId))
         self.imagesCharacter = []
         self.pointerImagesCharacter = {}
-        self.pointerCharLeft = None
-        self.pointerCharRight = None
+
+        # if self.dataEvent.faderTsActive:
+        #     self.faderSceneSurfaceTop.startFadeIn()
+        # else:
+        #     self.faderSceneSurfaceTop.startFadeOut()
+        # 
+        # if self.dataEvent.faderBsActive:
+        #     self.faderSceneSurfaceBottom.startFadeIn()
+        # else:
+        #     self.faderSceneSurfaceBottom.startFadeOut()
 
         for indexNewChar, charIndex in enumerate(self.dataEvent.characters):
             self.pointerImagesCharacter[charIndex] = len(self.imagesCharacter)
             self.imagesCharacter.append(LaytonCharacterController.loadFromIndex(charIndex))
-
+            # print(charIndex, self.dataEvent.charactersShown[indexNewChar])
             self.imagesCharacter[indexNewChar].isShown = self.dataEvent.charactersShown[indexNewChar]
-            print(charIndex, self.dataEvent.charactersShown[indexNewChar], self.dataEvent.charactersPosition[indexNewChar])
-            if self.dataEvent.charactersPosition[indexNewChar] == 0:
-                if self.dataEvent.charactersShown[indexNewChar]:
-                    self.pointerCharLeft = indexNewChar
-                self.imagesCharacter[indexNewChar].isLeft = True
-            elif self.dataEvent.charactersPosition[indexNewChar] == 2:
-                if self.dataEvent.charactersShown[indexNewChar]:
-                    self.pointerCharRight = indexNewChar
-                self.imagesCharacter[indexNewChar].isRight = True
-            else:
-                state.debugPrint("ErrEventDataLdr: Unknown character direction", self.dataEvent.charactersPosition[indexNewChar])
+            self.imagesCharacter[indexNewChar].slot = self.dataEvent.charactersPosition[indexNewChar]
                     
     def clearCharacterImages(self):
         for character in self.imagesCharacter:
             character.isShown = False
-        pass
     
     def doOnUpdateCleared(self, gameClockDelta):
 
@@ -354,20 +393,21 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             if self.scriptNextEvent != None:
                 if self.scriptNextEventMode != "drama event":
                     state.debugPrint("WarnEventHandler: Unknown extension", self.scriptNextEventMode)
+                
                 self.indexScriptCommand = 0
                 self.scriptEvent = self.scriptNextEvent
                 self.scriptTalkBank = self.scriptNextTalkBank
-                self.scriptNextTalkBank = None
-                self.scriptNextEvent = None
                 self.indexEvent = self.nextIndexEvent
                 self.indexEventSub = self.nextIndexEventSub
 
                 _tempIndexEvent, extendedEventIndex, _tempIndexEventSub = resolveEventIntegerAsString(int((int(self.indexEvent) * 1000) + int(self.indexEventSub)))
-                
                 self.loadEventData(self.indexEvent, extendedEventIndex, self.indexEventSub)
+
                 self.nextIndexEvent = None
                 self.nextIndexEventSub = None
                 self.scriptNextEventMode = None
+                self.scriptNextTalkBank = None
+                self.scriptNextEvent = None
             else:
                 if self.isReadyToKill:
                     if self.scriptNextEventMode != None:
@@ -395,12 +435,17 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             
     def draw(self, gameDisplay):
         super().draw(gameDisplay)
-        if self.pointerCharLeft != None:
-            self.imagesCharacter[self.pointerCharLeft].draw(gameDisplay)
-        if self.pointerCharRight != None:
-            self.imagesCharacter[self.pointerCharRight].draw(gameDisplay)
+        for character in self.imagesCharacter:
+            character.draw(gameDisplay)
         self.drawFaders(gameDisplay)
 
+    def processScrollerFunction(self, functionName):
+        function = functionName.split(" ")
+        state.debugPrint("WarnEventHandler: Unimplemented function", functionName)
+        if function[0] == "setani":
+            if function[1].isdigit() and int(function[1]) < len(self.imagesCharacter):
+                pass
+        
     def executeGdScriptCommand(self, command):
 
         def fadeInBothScreens():
@@ -410,20 +455,6 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         def fadeOutBothScreens():
             self.faderSceneSurfaceTop.startFadeOut()
             self.faderSceneSurfaceBottom.startFadeOut()
-        
-        def setCharPointerLeft(indexChar):
-            if indexChar < len(self.imagesCharacter):
-                print("Set left character", indexChar)
-                self.imagesCharacter[indexChar].isRight = False
-                self.imagesCharacter[indexChar].isLeft = True
-                self.pointerCharLeft = indexChar
-        
-        def setCharPointerRight(indexChar):
-            if indexChar < len(self.imagesCharacter):
-                print("Set right character", indexChar)
-                self.imagesCharacter[indexChar].isRight = True
-                self.imagesCharacter[indexChar].isLeft = False
-                self.pointerCharRight = indexChar
 
         def setNextEvent(eventInt):
             self.nextIndexEvent, extendedEventIndex, self.nextIndexEventSub = resolveEventIntegerAsString(eventInt)
@@ -438,11 +469,10 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             fadeOutBothScreens()
 
         elif command.opcode == b'\x04': # Talk overlay
-
             tempScriptFile = self.scriptTalkBank.getFile("t" + self.indexEvent + "_" + self.indexEventSub + "_" + str(command.operands[0]) + ".gds")
             if tempScriptFile != None and len(tempScriptFile) > 0:
                 self.screenNextObject = LaytonTextOverlay(tempScriptFile, self.cacheVoiceline, self.pointerImagesCharacter,
-                                                          self.imagesCharacter, self.playerState)
+                                                          self.imagesCharacter, self.playerState, animFunctionController=self.processScrollerFunction)
                 return False
             else:
                 state.debugPrint("ErrEventHandler: Invalid talk script 't" + self.indexEvent + "_" + self.indexEventSub + "_" + str(command.operands[0]) + ".gds'")
@@ -477,59 +507,37 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
         elif command.opcode == b'\x0b': # Start puzzle
             # TODO - Program fade out
+            if int(self.indexEvent) > 19:
+                state.debugPrint("LogEventHandler: Puzzle has available linking event.")
             self.addToStack(han_nazo.LaytonPuzzleHandler(command.operands[0], self.playerState))
             return False
 
         elif command.opcode == b'\x2a': # Show cached character
             if command.operands[0] < len(self.imagesCharacter):
                 self.imagesCharacter[command.operands[0]].isShown = True
-                if self.imagesCharacter[command.operands[0]].isLeft:
-                    setCharPointerLeft(command.operands[0])
-                elif self.imagesCharacter[command.operands[0]].isRight:
-                    setCharPointerRight(command.operands[0])
             else:
                 state.debugPrint("ErrEventHandler: Tried to show character index", command.operands[0], "when not loaded!")
 
         elif command.opcode == b'\x2b': # Hide cached character
             if command.operands[0] < len(self.imagesCharacter):
                 self.imagesCharacter[command.operands[0]].isShown = False
-                if self.pointerCharLeft == command.operands[0]:
-                    self.pointerCharLeft = None
-                elif self.pointerCharRight == command.operands[0]:
-                    self.pointerCharRight = None
             else:
                 state.debugPrint("ErrEventHandler: Tried to hide character index", command.operands[0], "when not loaded!")
 
-        elif command.opcode == b'\x2c': # Change visibility and set as active
-            if command.operands[1] == 2:    # Unhide and set as active
-                self.imagesCharacter[command.operands[0]].isShown = True
-                if self.imagesCharacter[command.operands[0]].isLeft:
-                    setCharPointerLeft(command.operands[0])
-                elif self.imagesCharacter[command.operands[0]].isRight:
-                    setCharPointerRight(command.operands[0])
-            elif command.operands[1] == -2:
-                self.imagesCharacter[command.operands[0]].isShown = False
+        elif command.opcode == b'\x2c': # ?? Change visibility
+
+            isShown = command.operands[1] >= 0
+
+            if command.operands[0] < len(self.imagesCharacter):
+                self.imagesCharacter[command.operands[0]].isShown = isShown
             else:
-                state.debugPrint("ErrEventHandler: Unknown character property", command.operands[1])
+                state.debugPrint("ErrEventHandler: Cannot change visibility properties on character", command.operands[0])
         
         elif command.opcode == b'\x30': # Rearrange characters
-            if command.operands[1] == 2:
-                if self.pointerCharLeft == command.operands[0]:
-                    self.pointerCharRight = command.operands[0]
-                    self.pointerCharLeft = None
-
-                self.imagesCharacter[command.operands[0]].isRight = True
-                self.imagesCharacter[command.operands[0]].isLeft = False
-                
-            elif command.operands[1] == 0:
-                if self.pointerCharRight == command.operands[0]:
-                    self.pointerCharLeft = command.operands[0]
-                    self.pointerCharRight = None
-
-                self.imagesCharacter[command.operands[0]].isLeft = True
-                self.imagesCharacter[command.operands[0]].isRight = False
+            if command.operands[0] < len(self.imagesCharacter):
+                self.imagesCharacter[command.operands[0]].slot = command.operands[1]
             else:
-                state.debugPrint("ErrEventHandler: Unknown character direction", command.operands[1])
+                state.debugPrint("ErrEventHandler: Cannot change slot on character", command.operands[0])
 
         elif command.opcode == b'\x21' or command.opcode == b'\x22': # Background-related
             self.stack[0].executeCommand(command)
@@ -563,6 +571,9 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         elif command.opcode == b'\x6a': # Screen shake
             pass
 
+        elif command.opcode == b'\x70': # Unlock entry in Layton's diary
+            state.debugPrint("LogEventHandler: Unlocked Layton's diary entry number", command.operands[0])
+
         elif command.opcode == b'\x71': # Add mystery, spawn mystery screen and hide all characters
             self.faderSceneSurfaceTop.startFadeOut()
             self.faderSceneSurfaceBottom.startFadeOut()
@@ -578,6 +589,9 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.stackOverrideEvents.append(scr_mystery.Screen(self.playerState, fadeOutCall=fadeOutBothScreens, canQuitCall=invertQuitCall, tsFadeInCall=self.faderSceneSurfaceTop.startFadeIn, bsFadeInCall=terminateGraphicsAndFadeIn))
             return False
         
+        elif command.opcode == b'\x73': # Unlock tea, 30020
+            state.debugPrint("LogEventHandler: Unlock tea minigame", command.operands[0])
+
         elif command.opcode == b'\x7d': # Solve mystery, spawn mystery screen and hide all characters
             self.faderSceneSurfaceTop.startFadeOut()
             self.faderSceneSurfaceBottom.startFadeOut()
@@ -593,13 +607,19 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.stackOverrideEvents.append(scr_mystery.Screen(self.playerState, fadeOutCall=fadeOutBothScreens, canQuitCall=invertQuitCall, tsFadeInCall=self.faderSceneSurfaceTop.startFadeIn, bsFadeInCall=terminateGraphicsAndFadeIn))
             return False
         
-        elif command.opcode == b'\x72':
+        elif command.opcode == b'\x72': # Screen 0,1 Timed fade out
             self.faderSceneSurfaceTop.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
             self.faderSceneSurfaceBottom.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
         
-        elif command.opcode == b'\x87': # Screen0 Fade out
+        elif command.opcode == b'\x80': # Screen 0,1 Timed fade in
+            self.faderSceneSurfaceTop.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
+            self.faderSceneSurfaceBottom.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
+        
+        # 84 - Unlock photo piece? 15230
+
+        elif command.opcode == b'\x87': # Screen0 Timed fade out
             self.faderSceneSurfaceTop.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
-        elif command.opcode == b'\x88': # Screen0 Fade in
+        elif command.opcode == b'\x88': # Screen0 Timed fade in
             self.faderSceneSurfaceTop.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
 
         # CURSED AUDIO CORNER
@@ -637,14 +657,20 @@ if __name__ == '__main__':
     playerState.remainingHintCoins = 10
     tempDebugExitLayer = state.LaytonSubscreenWithFader()
     
+    # Working perfectly
+    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390
+
     # Working correctly
-    # 12110, 10060, 11100, 14010, 16070, 17150, 17160
+    # 10060, 11100, 14010, 16070, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 11300
 
     # Almost working correctly
-    # 16010, 17240, 17080, 15200, 11170
+    # 17240, 17080, 13140, 11200, 11280, 30020, 14110, 14180, 15020
 
     # Missing features required to run correctly
-    # 16050, 17140, 18440
+    # 17140, 18440, 12190, 12240, 12270, 19070, 15260
+
+    # Understanding required to implement properly
+    # 12280, 12281, 15160
 
     # e24
     # 0 - Initial puzzle event
@@ -653,5 +679,16 @@ if __name__ == '__main__':
     # 3 - Solved event
     # 4 - Quit event
 
-    tempDebugExitLayer.addToStack(LaytonEventHandler(18440, playerState))
+    # e26 - Layton's Challenges
+
+    # e30 - Tea
+    # 0 - Initial tea event
+    # 1 - Good tea
+    # 2 - Bad tea
+    # 3 - Quit
+    # 4 - Retry
+
+    # e18 - The Story so Far...
+
+    tempDebugExitLayer.addToStack(LaytonEventHandler(16010, playerState))
     state.play(tempDebugExitLayer, playerState)
