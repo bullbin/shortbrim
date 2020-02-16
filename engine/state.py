@@ -263,6 +263,10 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
         self.faderSceneSurfaceTop.startFadeIn(time=0)
         self.faderSceneSurfaceBottom.startFadeIn(time=0)
 
+        # When fading with time 0, the faders are black until next frame.
+        self.faderSceneSurfaceTop.update(0)
+        self.faderSceneSurfaceBottom.update(0)
+
         self.debugDrawFaders = enableFaders
         self.addQueue = []
         self.removeQueue = []

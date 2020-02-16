@@ -1,7 +1,9 @@
-import pygame, han_nazo, conf, state, script, anim, const, scr_mystery, han_room
-
-from file import FileInterface, resolveEventIntegerAsString
+import pygame, re
 from os import path
+
+# Bundled modules
+import han_nazo, conf, state, script, anim, const, scr_mystery, han_room
+from file import FileInterface, resolveEventIntegerAsString
 from hat_io import asset, asset_dat
 
 pygame.init()
@@ -75,6 +77,20 @@ class LaytonEventPopup(state.LaytonContext):
         self.isContextFinished = True
         pygame.event.post(pygame.event.Event(const.ENGINE_RESUME_EXECUTION_STACK, {const.PARAM:None}))
 
+class LaytonItemPopup(LaytonEventPopup):
+    def __init__(self, indexItem, playerState):
+        textItem = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt.plz", "item_" + str(indexItem) + ".txt", version=1)
+        textPopup = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt2.plz", "tx_205.txt", version=1)
+
+        if textItem != None and textPopup != None:
+            textPopup = textPopup.decode('ascii')
+            textItem = textItem.decode('ascii')
+            textPopup = textPopup.replace(r"%s", textItem)
+            LaytonEventPopup.__init__(self, textPopup, playerState)
+        else:
+            LaytonEventPopup.__init__(self, "", playerState)
+            self.killWindow()
+
 class LaytonCharacterController():
 
     SLOT_OFFSET = {0:0, 1:0,
@@ -83,26 +99,34 @@ class LaytonCharacterController():
     SLOT_LEFT  = [0,3,4]
     SLOT_RIGHT = [2]
 
-    def __init__(self, body, face):
+    def __init__(self, body, face, debugIndex=0):
         self.isShown = True
         self.isFaceShown = True
         self.slot = None
 
+        self.debugIndex = debugIndex
         self.animBody = body
         self.animFace = face
-        self.animBody.setAnimationFromName("b1 normal")
-        self.animFace.setAnimationFromName("normal")
-        self.lastOffsetFace = (0,0) # Hack for when game uses spaces in anim names which shouldn't be there
 
-        self.screenFader = anim.AnimatedFader(LaytonTextOverlay.DURATION_FADE, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, activeState=False)
-        self.surfaceChar = anim.AlphaSurface(0, dimensions=self.animBody.dimensions)
-        self.fadeIn()
+        self.lastOffsetFace = (0,0) # Hack for when game uses spaces in anim names which shouldn't be there
+        self.lastSuccessfulFaceAnimName = None
+        self.lastSuccessfulBodyAnimName = None
+
+        self.animActive = None
+        self.talkAnimModifierActive = False
+        self.setCurrentAnim("b1 normal")
 
     @staticmethod
-    def loadFromIndex(index):
+    def loadFromIndex(index, spawnAnimIndex=1):
         body = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "eventchr", "chr" + str(index))
         face = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "sub", "chr" + str(index) + "_face")
-        return LaytonCharacterController(body, face)
+        tempController = LaytonCharacterController(body, face, debugIndex=spawnAnimIndex)
+        
+        tempAnimNames = list(body.animMap.keys())
+        if spawnAnimIndex < len(tempAnimNames):
+            tempController.setCurrentAnim(tempAnimNames[spawnAnimIndex])
+
+        return tempController
     
     def isCharacterFacingLeft(self):
         if self.slot in LaytonCharacterController.SLOT_LEFT:
@@ -115,8 +139,6 @@ class LaytonCharacterController():
         return False
 
     def update(self, gameClockDelta):
-        self.screenFader.update(gameClockDelta)
-        self.surfaceChar.setAlpha(round(self.screenFader.getStrength() * 255))
         self.animBody.update(gameClockDelta)
         self.animFace.update(gameClockDelta)
     
@@ -129,19 +151,66 @@ class LaytonCharacterController():
                     outSurface.blit(self.animFace.getImage(), self.animBody.getAnimObject().offsetFace)
                 elif self.animFace.getImage() != None:
                     outSurface.blit(self.animFace.getImage(), self.lastOffsetFace)
-            
-            self.surfaceChar.clear()
 
             if self.isCharacterFacingLeft():
                 outSurface = pygame.transform.flip(outSurface, True, False)
-                self.surfaceChar.surface.blit(outSurface, (0,0))
-                self.surfaceChar.draw(gameDisplay, location=(LaytonCharacterController.SLOT_OFFSET[self.slot], gameDisplay.get_height() - outSurface.get_height()))
+                gameDisplay.blit(outSurface, (LaytonCharacterController.SLOT_OFFSET[self.slot], gameDisplay.get_height() - outSurface.get_height()))
             else:
-                self.surfaceChar.surface.blit(outSurface, (0,0))
-                self.surfaceChar.draw(gameDisplay, location=(gameDisplay.get_width() - outSurface.get_width() - LaytonCharacterController.SLOT_OFFSET[self.slot], gameDisplay.get_height() - outSurface.get_height()))
+                gameDisplay.blit(outSurface, (gameDisplay.get_width() - outSurface.get_width() - LaytonCharacterController.SLOT_OFFSET[self.slot], gameDisplay.get_height() - outSurface.get_height()))
+    
+    def setTalkAnimState(self, newState):
+        self.talkAnimModifierActive = newState
+        self.updateCurrentAnim()
+
+    def setCurrentAnim(self, animName):
+        self.isFaceShown = False
+        if len(animName) > 0 and animName[0] == "*":
+            self.talkAnimModifierActive = True
+            animName = animName[1:]
+        self.animCurrent = animName
+        if re.search("b\d+ \w*", animName) != None:             # If formatted as body anim
+            tempAnimNameGroup = animName.split(" ", 1)
+            tempFaceAnimNameIndex = tempAnimNameGroup[0].split("b")[-1]
+
+            animsToTest = []
+            tempFaceAnimGroups = [tempAnimNameGroup[-1]]
+            if tempFaceAnimNameIndex != "1":
+                tempFaceAnimGroups.insert(0, tempAnimNameGroup[-1] + tempFaceAnimNameIndex)
+            
+            if self.talkAnimModifierActive:
+                for tempGroupAnimName in tempFaceAnimGroups:
+                    animsToTest.append("*" + tempGroupAnimName)
+            animsToTest.extend(tempFaceAnimGroups)
+            if self.lastSuccessfulFaceAnimName != None:
+                animsToTest.append(self.lastSuccessfulFaceAnimName)
+
+            if self.animFace != None:
+                for faceAnimName in animsToTest:
+                    if faceAnimName in self.animFace.animMap: # Set anim if available
+                        if self.lastSuccessfulFaceAnimName != faceAnimName:
+                            self.animFace.setAnimationFromName(faceAnimName)
+                            self.lastSuccessfulFaceAnimName = faceAnimName
+                        self.isFaceShown = True
+                        break
         
-    def fadeIn(self):
-        self.screenFader = anim.AnimatedFader(200, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False)
+        if self.animBody != None:
+            animsToTest = [animName]
+            if self.talkAnimModifierActive:
+                animsToTest.insert(0, "*" + animName)
+            if self.lastSuccessfulBodyAnimName != None:
+                animsToTest.append(self.lastSuccessfulBodyAnimName)
+            for bodyAnimName in animsToTest:
+                if bodyAnimName in self.animBody.animMap:
+                    if self.lastSuccessfulBodyAnimName != bodyAnimName:
+                        self.animBody.setAnimationFromName(bodyAnimName)
+                        self.lastSuccessfulBodyAnimName = bodyAnimName
+                    break
+        
+            if self.isFaceShown and self.animBody.getAnimObject().offsetFace == (0,0):
+                self.isFaceShown = False
+        
+    def updateCurrentAnim(self):
+        self.setCurrentAnim(self.animCurrent)
 
 class LaytonEventBackground(state.LaytonContext):
 
@@ -209,10 +278,11 @@ class LaytonTextOverlay(state.LaytonContext):
         self.nameIsDrawn = False
         self.arrowIsDrawn = False
         self.tapIsDrawn = False
-        self.targetAnimBody = None
-        self.targetAnimFace = None
-        self.animNameStart = "b1 normal"
-        self.animNameEnd = "b1 normal"
+        self.targetController = None
+
+        self.enableAnimChangeEnd = False
+        self.animNameEnd = ""
+
         if len(talkScript.commands) > 0 and len(talkScript.commands[0].operands) == 4:
             # Command has been validated, start using the script
             self.indexCharacter = int.from_bytes(talkScript.commands[0].opcode, byteorder = 'little')
@@ -227,26 +297,14 @@ class LaytonTextOverlay(state.LaytonContext):
                 if self.indexCharacter in characterControllerIndices.keys():
                     self.arrowIsDrawn = True
                     self.targetController = characterControllers[characterControllerIndices[self.indexCharacter]]
-                    self.targetAnimBody = self.targetController.animBody
-                    self.targetAnimFace = self.targetController.animFace
 
-                    if talkScript.commands[0].operands[0] != "NONE":
-                        self.animNameStart = talkScript.commands[0].operands[0]
-                    else:
-                        if self.targetAnimBody.getAnim() != None:
-                            self.animNameStart = self.targetAnimBody.getAnim()
+                    self.targetController.setTalkAnimState(True)
+                    if talkScript.commands[0].operands[0] != "NONE":        # Anim name on start
+                        self.targetController.setCurrentAnim(talkScript.commands[0].operands[0])
                     
                     if talkScript.commands[0].operands[1] != "NONE":
+                        self.enableAnimChangeEnd = True
                         self.animNameEnd = talkScript.commands[0].operands[1]
-                    elif talkScript.commands[0].operands[0] != "NONE":
-                        self.animNameEnd = self.animNameStart
-                    else:
-                        self.animNameEnd = "b1 normal"
-
-                    if self.isFormattedAsMultipartBody("*" + self.animNameStart):
-                        self.setAnimPair("*" + self.animNameStart)
-                    else:
-                        self.setAnimPair(self.animNameStart)
 
                     if self.targetController.isShown and self.targetController.isCharacterFacingLeft():
                         LaytonTextOverlay.BANK_IMAGE_ARROW.setAnimationFromName("L")
@@ -259,59 +317,17 @@ class LaytonTextOverlay(state.LaytonContext):
                         LaytonTextOverlay.BANK_IMAGE_ARROW.setInitialFrameFromAnimation()
                     else:
                         self.arrowIsDrawn = False
-
-    def isFormattedAsMultipartBody(self, animName):
-        if animName[0] == "*":
-            animName = animName[1:]
-        animName = animName.split(" ")
-        if len(animName) > 1 and animName[0][0] == "b":
-            return True
-        return False
-
-    def faceAnimFromBodyAnim(self, animName):
-        # Returns tuple, with first name being the specialised face anim name (if the body animation had an index),
-        # and second without. If the first one is unavailable, use the general version
-        tempAnimName = animName.split(" ")
-        animNameIndex = tempAnimName[0].split("*")[-1][1:]
-        if self.isFormattedAsMultipartBody(animName):
-            if animName[0] == "*":
-                return (True, "*" + tempAnimName[-1] + animNameIndex, "*" + tempAnimName[-1])
-            return (True, tempAnimName[-1] + animNameIndex, tempAnimName[-1])
         else:
-            return (False, None, None)
-
-    def setAnimPair(self, animName):
-        if self.targetAnimBody != None:
-            if not(self.targetAnimBody.setAnimationFromName(animName)):
-                self.targetAnimBody.setAnimationFromName(animName + " ")
-
-        if self.targetAnimFace != None:
-            drawFace, tempAnimNameSpecialised, tempAnimNameGeneral = self.faceAnimFromBodyAnim(animName)
-            self.targetController.isFaceShown = drawFace
-            if drawFace:
-                faceAnims = [tempAnimNameSpecialised, tempAnimNameSpecialised + " ",
-                            tempAnimNameGeneral, tempAnimNameGeneral + " "]
-
-                for animName in faceAnims:
-                    if self.targetAnimFace.setAnimationFromName(animName):
-                        break
-
-    def setNewAnim(self, animName):
-        self.animNameStart = animName
-        self.animNameEnd = animName
-        if self.tapIsDrawn:
-            self.setAnimPair(self.animNameStart)
-        else:
-            self.setAnimPair("*" + self.animNameStart)
+            self.killWindow()
 
     def triggerWait(self):
         self.tapIsDrawn = True
         self.tapFader = anim.AnimatedFader(LaytonTextOverlay.BANK_IMAGE_TAP_FADE_DURATION, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False)
 
-        if self.textTalk.drawIncomplete:
-            self.setAnimPair(self.animNameStart)
-        else:
-            self.setAnimPair(self.animNameEnd)
+        if self.targetController != None:
+            self.targetController.setTalkAnimState(False)
+            if not(self.textTalk.drawIncomplete) and self.enableAnimChangeEnd:
+                self.targetController.setCurrentAnim(self.animNameEnd)
             
         LaytonTextOverlay.BANK_IMAGE_TAP.setAnimationFromName("touch")
         LaytonTextOverlay.ALPHA_SURF_IMAGE_TAP.setAlpha(0)
@@ -319,8 +335,8 @@ class LaytonTextOverlay(state.LaytonContext):
     def triggerUnwait(self):
         self.textTalk.isWaitingForTap = False
         self.tapIsDrawn = False
-        if self.targetAnimFace != None:
-            self.setAnimPair("*" + self.animNameStart)
+        if self.targetController != None:
+            self.targetController.setTalkAnimState(True)
 
     def update(self, gameClockDelta):
         if not(self.screenFader.isActive):
@@ -411,6 +427,10 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         self.isReadyToKill = False
     
     def loadEventData(self, indexEvent, extendedEventIndex, indexEventSub):
+
+        self.faderSceneSurfaceTop.startFadeIn()
+        self.faderSceneSurfaceBottom.startFadeIn()
+
         self.dataEvent = asset_dat.LaytonEventData()
         if FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + extendedEventIndex + ".plz",
                                        "d" + indexEvent + "_" + indexEventSub + ".dat", version = 1) != None:
@@ -426,21 +446,12 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         self.imagesCharacter = []
         self.pointerImagesCharacter = {}
 
-        # if self.dataEvent.faderTsActive:
-        #     self.faderSceneSurfaceTop.startFadeIn()
-        # else:
-        #     self.faderSceneSurfaceTop.startFadeOut()
-        # 
-        # if self.dataEvent.faderBsActive:
-        #     self.faderSceneSurfaceBottom.startFadeIn()
-        # else:
-        #     self.faderSceneSurfaceBottom.startFadeOut()
-
         for indexNewChar, charIndex in enumerate(self.dataEvent.characters):
             self.pointerImagesCharacter[charIndex] = len(self.imagesCharacter)
-            self.imagesCharacter.append(LaytonCharacterController.loadFromIndex(charIndex))
+            self.imagesCharacter.append(LaytonCharacterController.loadFromIndex(charIndex, spawnAnimIndex=self.dataEvent.charactersInitialAnimationIndex[indexNewChar]))
             self.imagesCharacter[indexNewChar].isShown = self.dataEvent.charactersShown[indexNewChar]
             self.imagesCharacter[indexNewChar].slot = self.dataEvent.charactersPosition[indexNewChar]
+            # print(charIndex, self.imagesCharacter[indexNewChar].isShown, self.dataEvent.charactersInitialAnimationIndex[indexNewChar])
                     
     def clearCharacterImages(self):
         for character in self.imagesCharacter:
@@ -513,7 +524,7 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         function = functionName.split(" ")
         if function[0] == "setani":
             if function[1].isdigit() and int(function[1]) in self.pointerImagesCharacter.keys():
-                pass
+                self.imagesCharacter[self.pointerImagesCharacter[int(function[1])]].setCurrentAnim(function[2].replace("_", " "))
             else:
                 state.debugPrint("WarnEventHandler: setani command incorrectly formatted! Sent", functionName)
         else:
@@ -641,7 +652,7 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
         elif command.opcode == b'\x3f': # Set active body frame?
             if command.operands[0] in self.pointerImagesCharacter.keys():
-                self.imagesCharacter[self.pointerImagesCharacter[command.operands[0]]].animBody.setAnimationFromName(command.operands[1])
+                self.imagesCharacter[self.pointerImagesCharacter[command.operands[0]]].setCurrentAnim(command.operands[1])
             else:
                 state.debugPrint("ErrEventHandler: Character", command.operands[0], "doesn't exist to bind animation '" + command.operands[1] + "' to!")
 
@@ -690,17 +701,8 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         
         elif command.opcode == b'\x77':
             # TODO - Add item to inventory
-            textItem = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt.plz", "item_" + str(command.operands[0]) + ".txt", version=1)
-            textPopup = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt2.plz", "tx_205.txt", version=1)
-
-            if textItem != None and textPopup != None:
-                textPopup = textPopup.decode('ascii')
-                textItem = textItem.decode('ascii')
-                textPopup = textPopup.replace(r"%s", textItem)
-                self.screenNextObject = LaytonEventPopup(textPopup, self.playerState)
-                return False
-            else:
-                state.debugPrint("ErrEventHandler: Popup could not be spawned!")
+            self.screenNextObject = LaytonItemPopup(command.operands[0], self.playerState)
+            return False
 
         elif command.opcode == b'\x80': # Screen 0,1 Timed fade in
             self.faderSceneSurfaceTop.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
@@ -749,19 +751,21 @@ if __name__ == '__main__':
     tempDebugExitLayer = state.LaytonSubscreenWithFader()
     
     # Working perfectly
-    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390, 10035, 16070
+    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390, 10035, 16070, 11100, 11300, 13140
 
     # Working correctly
-    # 10060, 11100, 14010, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 11300, 13140
+    # 10060, 14010, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 15020
 
     # Almost working correctly
-    # 17240, 17080, 11200, 11280, 30020, 14110, 14180, 15020
+    # 17240, 17080, 11200, 11280, 30020, 14110, 14180
 
     # Missing features required to run correctly
     # 17140, 18440, 12190, 12240, 12270, 19070, 15260
 
     # Understanding required to implement properly
     # 12280, 12281, 15160
+
+    # Immediately after arriving at Folsense - objective style talk box like in 10030
 
     # e24
     # 0 - Initial puzzle event
@@ -780,6 +784,6 @@ if __name__ == '__main__':
     # 4 - Retry
 
     # e18 - The Story so Far...
-
-    tempDebugExitLayer.addToStack(LaytonEventHandler(16010, playerState))
+    # 14180
+    tempDebugExitLayer.addToStack(LaytonEventHandler(15260, playerState))
     state.play(tempDebugExitLayer, playerState)

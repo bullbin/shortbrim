@@ -114,6 +114,7 @@ class AnimationBasicSequence():
         self.indexImages = []
         self.name = "Create an Animation"
         self.offsetFace = (0,0)
+        self.indexAnimFace = 0
     def __str__(self):
         return "Animation Details\nName:\t" + self.name + "\nFrmIdx:\t" + str(self.indexFrames) + "\nImgIdx:\t" + str(self.indexImages) + "\nUnkFrm:\t" + str(self.frameDuration) + "\n"
 
@@ -167,7 +168,7 @@ class LaytonAnimatedImage(File):
                     tempDimensions[indexDimension].append(reader.readU2())
             for indexAnim in range(len(self.anims)):
                 self.anims[indexAnim].offsetFace = (tempDimensions[0][indexAnim], tempDimensions[1][indexAnim])
-                unk = reader.read(1)
+                self.anims[indexAnim].indexAnimFace = reader.readUInt(1)
             self.variableName = reader.readPaddedString(128, 'shift-jis')
             if reader.hasDataRemaining():
                 print("Did not reach end of image file!")

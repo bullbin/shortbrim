@@ -72,7 +72,7 @@ class AnimatedFrameCollection():
 
     ROM_FRAMETIME_MULTIPLIER = (1000 / 60) * 1 #(5 / 3)
 
-    def __init__(self, framerate, indices=[], loop=True, isFramerateTimeArray=False, faceOffset=(None,None)):
+    def __init__(self, framerate, indices=[], loop=True, isFramerateTimeArray=False, faceOffset=(None,None), faceIndex=None):
         self.framerate = framerate
         self.isActive = True
         self.loop = loop
@@ -80,6 +80,7 @@ class AnimatedFrameCollection():
         self.currentIndex = 0
         self.timeSinceLastUpdate = 0
         self.offsetFace = faceOffset
+        self.indexAnimFace = faceIndex
 
         if isFramerateTimeArray:
             if type(framerate) != list or len(framerate) == 0:
@@ -248,7 +249,7 @@ class AnimatedImage():
                 if assetImage.alphaMask != None:
                     self.frames[indexImage].set_colorkey(assetImage.alphaMask)
             for anim in assetImage.anims:
-                self.animMap[anim.name] = AnimatedFrameCollection(anim.frameDuration, indices=anim.indexImages, isFramerateTimeArray=True, faceOffset=anim.offsetFace)
+                self.animMap[anim.name] = AnimatedFrameCollection(anim.frameDuration, indices=anim.indexImages, isFramerateTimeArray=True, faceOffset=anim.offsetFace, faceIndex=anim.indexAnimFace)
         else:
             print("Failed to fetch image!!")
 
@@ -602,6 +603,9 @@ class AnimatedFader():
         self.inverted = inverted
         self.initialInverted = inverted
 
+        if self.durationCycle == 0:
+            activeState = False
+
         self.reset()
         if not(activeState):
             self.inverted = not(self.inverted)
@@ -632,9 +636,6 @@ class AnimatedFader():
                     if self.doFullCycle:
                         if self.inverted == self.initialInverted:
                             self.isActive = False
-                    elif self.durationElapsed == 0 and self.durationCycle == 0:
-                        self.isActive = False
-                        break
                     else:
                         self.isActive = False
     
