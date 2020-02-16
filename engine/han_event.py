@@ -9,10 +9,71 @@ pygame.init()
 # TODO - For every handler, ensure that executeCommand returns False, as stack-like behaviour will be encouraged UNIVERSALLY
 
 # Item window
-# Command 77
-# Bank data_lt2/ani/system/prize_window.arc
 # Bank data_lt2/ani/menu/bag/item_icon.arc
-# Bank item_<n>.txt txt.plz
+
+class LaytonEventPopup(state.LaytonContext):
+
+    DURATION_FADE = 500
+    BANK_IMAGE_WINDOW = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "system", "prize_window2")
+    BANK_IMAGE_WINDOW_POS = ((conf.LAYTON_SCREEN_WIDTH - BANK_IMAGE_WINDOW.dimensions[0]) // 2,
+                             ((conf.LAYTON_SCREEN_HEIGHT - BANK_IMAGE_WINDOW.dimensions[1]) // 2) + conf.LAYTON_SCREEN_HEIGHT)
+
+    BANK_IMAGE_TAP = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI, "cursor_wait")
+    BANK_IMAGE_TAP_POS = (BANK_IMAGE_WINDOW.dimensions[0] - 16, BANK_IMAGE_WINDOW.dimensions[1] - 18)
+    ALPHA_SURF_IMAGE_TAP = anim.AlphaSurface(255, dimensions=BANK_IMAGE_WINDOW.dimensions)
+    BANK_IMAGE_TAP_FADE_DURATION = 500
+
+    def __init__(self, textPopup, playerState):
+        state.LaytonContext.__init__(self)
+        self.screenIsOverlay = True
+        self.screenOutSurface = anim.AlphaSurface(0)
+        self.screenOutSurface.surface.fill((0,0,0,0))
+        self.screenFader = anim.AnimatedFader(LaytonEventPopup.DURATION_FADE, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False)
+        self.tapFader = anim.AnimatedFader(LaytonEventPopup.BANK_IMAGE_TAP_FADE_DURATION, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, activeState=False)
+
+        LaytonEventPopup.BANK_IMAGE_WINDOW.setAnimationFromName("gfx")
+        LaytonEventPopup.BANK_IMAGE_WINDOW.setInitialFrameFromAnimation()
+        LaytonEventPopup.BANK_IMAGE_TAP.setAnimationFromName("touch")
+
+        self.textScroller = anim.NuvoTextScroller(playerState.getFont("fontevent"), textPopup, textPosOffset=(0, 0), targetFramerate=60)
+        self.textScroller.skip()
+
+    def draw(self, gameDisplay):
+        LaytonEventPopup.BANK_IMAGE_WINDOW.draw(self.screenOutSurface.surface)
+        self.textScroller.draw(self.screenOutSurface.surface)
+        LaytonEventPopup.ALPHA_SURF_IMAGE_TAP.clear()
+        LaytonEventPopup.BANK_IMAGE_TAP.draw(LaytonEventPopup.ALPHA_SURF_IMAGE_TAP.surface)
+        LaytonEventPopup.ALPHA_SURF_IMAGE_TAP.draw(self.screenOutSurface.surface, LaytonEventPopup.BANK_IMAGE_TAP_POS)
+
+        self.screenOutSurface.draw(gameDisplay, location=LaytonEventPopup.BANK_IMAGE_WINDOW_POS)
+    
+    def update(self, gameClockDelta):
+        if not(self.screenFader.isActive):
+            LaytonEventPopup.BANK_IMAGE_WINDOW.update(gameClockDelta)
+            LaytonEventPopup.BANK_IMAGE_TAP.update(gameClockDelta)
+            LaytonTextOverlay.ALPHA_SURF_IMAGE_TAP.setAlpha(round(self.tapFader.getStrength() * 255))
+            self.tapFader.update(gameClockDelta)
+        else:
+            self.screenFader.update(gameClockDelta)
+
+        if self.screenFader.initialInverted and not(self.screenFader.isActive): # Kill if fade out is finished
+            self.killWindow()
+        else:
+            self.screenOutSurface.setAlpha(round(self.screenFader.getStrength() * 255))
+    
+    def handleEvent(self, event):
+        if not(self.screenFader.initialInverted) and not(self.screenFader.isActive):
+            if event.type == pygame.MOUSEBUTTONUP:
+                if self.screenFader.isActive:
+                    self.screenFader.isActive = False
+                else:
+                    self.screenFader = anim.AnimatedFader(LaytonEventPopup.DURATION_FADE, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=False, inverted=True)
+                return True
+        return False
+    
+    def killWindow(self):
+        self.isContextFinished = True
+        pygame.event.post(pygame.event.Event(const.ENGINE_RESUME_EXECUTION_STACK, {const.PARAM:None}))
 
 class LaytonCharacterController():
 
@@ -450,12 +511,11 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
     def processScrollerFunction(self, functionName):
         function = functionName.split(" ")
-        state.debugPrint("WarnEventHandler: Unimplemented function", functionName)
         if function[0] == "setani":
-            if function[1].isdigit() and int(function[1]) < len(self.imagesCharacter):
+            if function[1].isdigit() and int(function[1]) in self.pointerImagesCharacter.keys():
                 pass
             else:
-                state.debugPrint("WarnEventHandler: setani command incorrectly formatted! Wanted", functionName)
+                state.debugPrint("WarnEventHandler: setani command incorrectly formatted! Sent", functionName)
         else:
             state.debugPrint("WarnEventHandler: Unimplemented function", functionName)
         
@@ -580,8 +640,8 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.commandFocus.setBottomScreenDimmingFactor(command.operands[3])
 
         elif command.opcode == b'\x3f': # Set active body frame?
-            if command.operands[0]  - 1 in self.pointerImagesCharacter:
-                self.imagesCharacter[self.pointerImagesCharacter[command.operands[0] - 1]].animBody.setAnimationFromName(command.operands[1])
+            if command.operands[0] in self.pointerImagesCharacter.keys():
+                self.imagesCharacter[self.pointerImagesCharacter[command.operands[0]]].animBody.setAnimationFromName(command.operands[1])
             else:
                 state.debugPrint("ErrEventHandler: Character", command.operands[0], "doesn't exist to bind animation '" + command.operands[1] + "' to!")
 
@@ -628,6 +688,20 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.faderSceneSurfaceTop.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
             self.faderSceneSurfaceBottom.startFadeOut(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
         
+        elif command.opcode == b'\x77':
+            # TODO - Add item to inventory
+            textItem = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt.plz", "item_" + str(command.operands[0]) + ".txt", version=1)
+            textPopup = FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "txt/" + conf.LAYTON_ASSET_LANG + "/txt2.plz", "tx_205.txt", version=1)
+
+            if textItem != None and textPopup != None:
+                textPopup = textPopup.decode('ascii')
+                textItem = textItem.decode('ascii')
+                textPopup = textPopup.replace(r"%s", textItem)
+                self.screenNextObject = LaytonEventPopup(textPopup, self.playerState)
+                return False
+            else:
+                state.debugPrint("ErrEventHandler: Popup could not be spawned!")
+
         elif command.opcode == b'\x80': # Screen 0,1 Timed fade in
             self.faderSceneSurfaceTop.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
             self.faderSceneSurfaceBottom.startFadeIn(time=command.operands[0] * conf.ENGINE_FRAME_INTERVAL)
@@ -675,10 +749,10 @@ if __name__ == '__main__':
     tempDebugExitLayer = state.LaytonSubscreenWithFader()
     
     # Working perfectly
-    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390
+    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390, 10035, 16070
 
     # Working correctly
-    # 10060, 11100, 14010, 16070, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 11300, 13140
+    # 10060, 11100, 14010, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 11300, 13140
 
     # Almost working correctly
     # 17240, 17080, 11200, 11280, 30020, 14110, 14180, 15020
@@ -707,5 +781,5 @@ if __name__ == '__main__':
 
     # e18 - The Story so Far...
 
-    tempDebugExitLayer.addToStack(LaytonEventHandler(10035, playerState))
+    tempDebugExitLayer.addToStack(LaytonEventHandler(16010, playerState))
     state.play(tempDebugExitLayer, playerState)

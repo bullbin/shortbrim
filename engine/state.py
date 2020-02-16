@@ -331,14 +331,21 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
 
 class AltClock():
 
-    PYGAME_GET_FPS_AVERAGE_CALLS = 10
+    PYGAME_GET_FPS_AVERAGE_CALLS    = 10
+    PLATFORM_CLOCK_PRECISION_SEC    = 0.0015     # 1.5ms found best on Windows 10. YMMV
 
     def __init__(self):
         self.prevFrame = time.perf_counter()
         self.frameTimeHistory = []
 
         if conf.ENGINE_DEBUG_MODE:
-            if conf.ENGINE_FORCE_BUSY_WAIT:
+            if conf.ENGINE_USE_HYBRID_TIMER:
+                def tick(gameClockInterval):
+                    self.frameTimeHistory.append(self.tickAltTimerHybrid(gameClockInterval))
+                    if len(self.frameTimeHistory) > AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
+                        self.frameTimeHistory = self.frameTimeHistory[-AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:]
+                    return self.frameTimeHistory[-1]
+            elif conf.ENGINE_FORCE_BUSY_WAIT:
                 def tick(gameClockInterval):
                     self.frameTimeHistory.append(self.tickAltTimerQuality(gameClockInterval))
                     if len(self.frameTimeHistory) > AltClock.PYGAME_GET_FPS_AVERAGE_CALLS:
@@ -352,7 +359,9 @@ class AltClock():
                     return self.frameTimeHistory[-1]
             self.tick = tick
         else:
-            if conf.ENGINE_FORCE_BUSY_WAIT:
+            if conf.ENGINE_USE_HYBRID_TIMER:
+                self.tick = self.tickAltTimerHybrid
+            elif conf.ENGINE_FORCE_BUSY_WAIT:
                 self.tick = self.tickAltTimerQuality
             else:
                 self.tick = self.tickAltTimerPerformance
@@ -369,6 +378,17 @@ class AltClock():
         timeSleep = gameClockInterval - (time.perf_counter() - lastPrevFrame)
         if timeSleep > 0:
             time.sleep(timeSleep)
+        self.prevFrame = time.perf_counter()
+        return (time.perf_counter() - lastPrevFrame) * 1000
+
+    def tickAltTimerHybrid(self, gameClockInterval):
+        lastPrevFrame = self.prevFrame
+        timeIdle = gameClockInterval - (time.perf_counter() - lastPrevFrame)
+        timeSleep = timeIdle - AltClock.PLATFORM_CLOCK_PRECISION_SEC    # More stable frametimes if inaccuracy subtracted rather than sleep period calculated
+        if timeSleep > 0:           # Sleep some multiple of known-good precision
+            time.sleep(timeSleep)
+        while (time.perf_counter() - lastPrevFrame) < gameClockInterval: # Busy-wait remaining frame time
+            pass
         self.prevFrame = time.perf_counter()
         return (time.perf_counter() - lastPrevFrame) * 1000
 

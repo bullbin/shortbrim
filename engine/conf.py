@@ -8,9 +8,13 @@ LAYTON_2 = 1
 
 ENGINE_FPS                      = 60
 ENGINE_FRAME_INTERVAL           = 1000 / ENGINE_FPS
-ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive, but ensures stable frametimes; best with original timer
-ENGINE_FORCE_USE_ALT_TIMER      = True     # Enforces alternate timer with lower overhead and support for arbitrary framerates
-ENGINE_PERFORMANCE_MODE         = False    # Reduces graphical accuracy in favour of performance
+
+ENGINE_FORCE_BUSY_WAIT          = False     # Performance-intensive. Spins CPU instead of sleeping to ensure very stable frametimes.
+ENGINE_FORCE_USE_ALT_TIMER      = True      # Enforces alternate timer with slightly lower overhead and support for arbitrary framerates.
+ENGINE_USE_HYBRID_TIMER         = True      # Alt-Timer only. Balances CPU spinning and sleeping for stable frametimes and low CPU usage.
+                                            # Recommended and prioritised over busy waiting.
+
+ENGINE_PERFORMANCE_MODE         = False     # Reduces graphical accuracy in favour of performance
 ENGINE_ENABLE_CLOCK_BYPASS      = True      # Decreases wait accuracy in favour of hiding engine stutter
 
 ENGINE_GAME_VARIANT             = LAYTON_2
