@@ -52,10 +52,12 @@ class LaytonPlayerState():
 
         self.puzzletTutorialsCompleted = []
         self.currentRoom = 0
-        self.currentObjective = 10
+        self.currentObjective = 5
         self.remainingHintCoins = 0
         self.hintCoinsFound = []
         self.fonts = {}
+
+        self.indicesPhotosCollected = []
 
         for fontName, fontEncoding, xFontSpacing, yFontSpacing, altFontSize in [("font18", "shift-jis", 1, 1, 17), ("fontevent", "cp1252", 1, 4, 17), ("fontq", "cp1252", 1, 2, 17)]:
             if conf.GRAPHICS_USE_GAME_FONTS:
@@ -252,6 +254,7 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
     def __init__(self, enableFaders = True):
         LaytonSubscreen.__init__(self)
         self.waitFader                  = anim.AnimatedFader(1, anim.AnimatedFader.MODE_TRIANGLE, False, cycle=False, activeState=False)
+        self.waitUntilTap               = False
         self.faderSceneSurfaceTop       = anim.ScreenFaderSurface()
         self.faderSceneSurfaceBottom    = anim.ScreenFaderSurface()
 
@@ -292,7 +295,7 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
             self.updateStackIfQueuePrepared()
 
     def isUpdateBlocked(self):
-        return self.faderSceneSurfaceTop.getActiveStatus() or self.faderSceneSurfaceBottom.getActiveStatus() or self.waitFader.isActive
+        return self.faderSceneSurfaceTop.getActiveStatus() or self.faderSceneSurfaceBottom.getActiveStatus() or self.waitFader.isActive or self.waitUntilTap
     
     def doOnUpdatedBlocked(self, gameClockDelta):
         self.waitFader.update(gameClockDelta)
@@ -332,6 +335,16 @@ class LaytonSubscreenWithFader(LaytonSubscreen):
         else:
             self.doOnUpdateCleared(gameClockDelta)
         self.updateSubscreenMethods(gameClockDelta)
+    
+    def triggerWaitUntilTap(self):
+        self.waitUntilTap = True
+
+    def handleEvent(self, event):
+        if self.waitUntilTap:
+            if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEBUTTONUP:
+                self.waitUntilTap = False
+        else:
+            return super().handleEvent(event)
 
 class AltClock():
 

@@ -178,6 +178,7 @@ class AnimatedImage():
     def __init__(self, frameRootPath, frameName, x=0,y=0, fromImport=True, importAnimPair=True, usesAlpha=False, frameRootExtension= conf.FILE_DECOMPRESSED_EXTENSION_IMAGE):
         self.pos = (x,y)
         self.frames = []
+        self.variables = []
         self.animMap = {}
         self.animActive = None
         self.animActiveFrame = None
@@ -244,6 +245,7 @@ class AnimatedImage():
             assetData.decompress()
             assetImage = asset_image.LaytonAnimatedImage()
             assetImage.load(assetData.data, isArj=isArj)
+            self.variables = assetImage.variables
             for indexImage, image in enumerate(assetImage.images):
                 self.frames.append(pygame.image.fromstring(image.convert("RGB").tobytes("raw", "RGB"), image.size, "RGB").convert())
                 if assetImage.alphaMask != None:

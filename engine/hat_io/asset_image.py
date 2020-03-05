@@ -45,6 +45,17 @@ class Colour():
             return ([int(self.r * 255), int(self.g * 255), int(self.b * 255)])
         return ([int(self.r * 248), int(self.g * 248), int(self.b * 248)])
 
+class ImageVariable():
+    def __init__(self, name):
+        self.name = name
+        self.data = []
+    
+    def addData(self, data):
+        if len(self.data) == 8:
+            return False
+        self.data.append(data)
+        return True
+
 class Tile():
     def __init__(self, data=None):
         self.data = data
@@ -126,7 +137,9 @@ class LaytonAnimatedImage(File):
         self.alphaMask = None
 
         self.variableName = ""
-        self.variables = {"Var1", "Var2", "Var3", "Var4", "Var5", "Var6", "Var7", "Var8", "Var9", "Var10", "Var11", "Var12", "Var13", "Var14", "Var15", "Var16"}
+        self.variables = []
+        for indexVar in range(16):
+            self.variables.append(ImageVariable("Var" + str(indexVar + 1)))
     
     def load(self, data, isArj=False):
         reader = binary.BinaryReader(data = data)
@@ -156,11 +169,12 @@ class LaytonAnimatedImage(File):
             if unk != b'\x34\x12':
                 print("Variable magic failed, still reading forwards...")
 
-            self.variables = {}
+            self.variables      = []
             for _indexVar in range(16):
-                self.variables[reader.readPaddedString(16, 'shift-jis')] = None
-            for key in list(self.variables.keys()):
-                self.variables[key] = reader.read(16)
+                self.variables.append(ImageVariable(reader.readPaddedString(16, 'shift-jis')))
+            for _indexData in range(8):
+                for indexVar in range(16):
+                    self.variables[indexVar].addData(reader.readS2())
 
             tempDimensions = [[],[]]
             for indexDimension in range(2):
@@ -190,7 +204,15 @@ class LaytonAnimatedImage(File):
         for indexAnim in range(countAnims):
             self.anims.append(AnimationBasicSequence())
             tempName = ((reader.read(30)).decode("ascii")).split("\x00")[0]
-            self.anims[indexAnim].name = tempName
+
+            nameCorrection = ""
+            for nameCorrectionSection in tempName.split(" "):
+                if len(nameCorrectionSection) > 0:
+                    if len(nameCorrection) == 0:
+                        nameCorrection = nameCorrectionSection
+                    else:
+                        nameCorrection = nameCorrection + " " + nameCorrectionSection
+            self.anims[indexAnim].name = nameCorrection
 
         for indexAnim in range(countAnims):
             countFrames = reader.readU4()
