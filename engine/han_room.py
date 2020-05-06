@@ -1,4 +1,4 @@
-import pygame, state, conf, anim, script, han_event
+import pygame, state, conf, anim, script, han_drama_event
 from hat_io import asset_dat
 from file import FileInterface
 from os import path
@@ -54,7 +54,7 @@ class LaytonHelperEventHandlerSpawner(state.LaytonContext):
                 self.eventBlackoutFader.update(gameClockDelta)
                 if not(self.eventBlackoutFader.isActive) and self.eventBlackoutFader.getStrength() == 1:
                     self.faderSurface.fill((0,0,0,255))
-                    self.screenNextObject = han_event.LaytonEventHandler(self.indexEvent, self.playerState)
+                    self.screenNextObject = han_drama_event.LaytonEventHandler(self.indexEvent, self.playerState)
                     self.isContextFinished = True
             else:
                 self.iconBounceWaitDuration += gameClockDelta
@@ -209,6 +209,11 @@ class LaytonRoomGraphics(state.LaytonContext):
     HINT_FLIP_BS.durationCycle = HINT_FLIP_TIME // 10
     HINT_FLIP_DISTANCE = 25
 
+    ANIM_MOVE_MODE = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "map", "movemode")
+    ANIM_MOVE_MODE.pos = (conf.LAYTON_SCREEN_WIDTH - ANIM_MOVE_MODE.dimensions[0],
+                          (conf.LAYTON_SCREEN_HEIGHT * 2) - ANIM_MOVE_MODE.dimensions[1])
+    ANIM_MOVE_MODE.setAnimationFromName("off")
+
     def __init__(self, placeData, roomIndex, playerState):
         state.LaytonContext.__init__(self)
         self.screenBlockInput       = True
@@ -232,6 +237,13 @@ class LaytonRoomGraphics(state.LaytonContext):
         self.isHintCoinLocked = False
         self.hintCoinLockedIndex = None
         self.hintCoinSpawnLoc = None
+
+        self.isInMoveMode = False
+        self.moveModeExitSprites = {}
+        
+        for indexSprite in range(8):
+            self.moveModeExitSprites[indexSprite] = anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "map", "exit_" + str(indexSprite))
+            self.moveModeExitSprites[indexSprite].setAnimationFromName("gfx")
         
         for animPos, animName in placeData.objAnim:
             self.animObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "bgani", animName[0:-4],
@@ -239,6 +251,8 @@ class LaytonRoomGraphics(state.LaytonContext):
             self.animObjects[-1].setAnimationFromName("gfx")
 
         for eventData in placeData.objEvent:
+            print(str(eventData.idEventObj), eventData.idEvent)
+            # Error on offset with event objects, 256 out sometimes. Bad flag?
             if eventData.idEventObj > 0:
                 self.eventObjects.append(anim.AnimatedImage(FileInterface.PATH_ASSET_ANI + "eventobj", "obj_" + str(eventData.idEventObj),
                                                         x = eventData.bounding.posCorner[0], y = eventData.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT))
@@ -265,6 +279,12 @@ class LaytonRoomGraphics(state.LaytonContext):
         if self.isHintCoinLocked:
             LaytonRoomGraphics.HINT_FLIP_BS.draw(gameDisplay)
 
+        LaytonRoomGraphics.ANIM_MOVE_MODE.draw(gameDisplay)
+        if self.isInMoveMode:
+            for roomExit in self.placeData.exits:
+                self.moveModeExitSprites[roomExit.imageId].pos = (roomExit.bounding.posCorner[0], roomExit.bounding.posCorner[1] + conf.LAYTON_SCREEN_HEIGHT)
+                self.moveModeExitSprites[roomExit.imageId].draw(gameDisplay)
+
     def update(self, gameClockDelta):
 
         # TODO - Potential game-speed issues if framerate is running too slow, as tObj anim starts without considering leftover fader time
@@ -288,49 +308,69 @@ class LaytonRoomGraphics(state.LaytonContext):
                 self.hintCoinLockedIndex = None
                 self.hintCoinSpawnLoc = None
                 self.isHintCoinLocked = False
+        
+        LaytonRoomGraphics.ANIM_MOVE_MODE.update(gameClockDelta)
+        for indexSprite in range(8):
+            self.moveModeExitSprites[indexSprite].update(gameClockDelta)
     
     def handleEvent(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and not(self.isHintCoinLocked):
-            self.animTapDraw = True
+            if LaytonRoomGraphics.ANIM_MOVE_MODE.wasClicked(event.pos):
+                if self.isInMoveMode:
+                    self.isInMoveMode = False
+                else:
+                    self.isInMoveMode = True
 
-            for animObject in self.placeData.objEvent:
-                if animObject.bounding.wasClicked((event.pos[0], event.pos[1] - conf.LAYTON_SCREEN_HEIGHT)):
-                    boundingBoxCenterPos = (animObject.bounding.posCorner[0] + animObject.bounding.sizeBounding[0] // 2, animObject.bounding.posCorner[1] + animObject.bounding.sizeBounding[1] // 2)
-                    self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.idEvent, boundingBoxCenterPos, self.playerState)
-                    state.debugPrint("WarnGraphicsCommand: Spawned event handler for ID " + str(animObject.idEvent))
-                    self.animTapDraw = False
-                    return True
-            for eventTobj in self.eventTap:
-                if eventTobj.wasClicked(event.pos):
-                    self.screenNextObject = eventTobj.getContext(self.playerState)
-                    self.animTapDraw = False
-                    return True
+            if self.isInMoveMode:
+                for roomExit in self.placeData.exits:
+                    if roomExit.bounding.wasClicked((event.pos[0], event.pos[1] - conf.LAYTON_SCREEN_HEIGHT)):
+                        if type(roomExit) == asset_dat.ExitEvent:
+                            state.debugPrint("LogRoomHandler: Event", roomExit.eventId)
+                        else:
+                            state.debugPrint("LogRoomHandler: Room", roomExit.roomIndex, roomExit.roomSubIndex)
+                        self.isInMoveMode = False
+                        break
+            elif not(LaytonRoomGraphics.ANIM_MOVE_MODE.wasClicked(event.pos)):
+                self.animTapDraw = True
 
-            hintCoinIndex = 0
-            for _eventHintTobjIndex in range(len(self.eventHint)):
-                if self.eventHint[hintCoinIndex].wasClicked(event.pos):
-                    self.playerState.hintCoinsFound.append(self.eventHintId.pop(hintCoinIndex))
-                    self.playerState.remainingHintCoins += 1
-                    self.hintCoinLockedIndex = hintCoinIndex
-                    self.hintCoinSpawnLoc = (self.eventHint[hintCoinIndex].pos[0] + (self.eventHint[hintCoinIndex].dimensions[0] - LaytonRoomGraphics.HINT_FLIP_BS.dimensions[0]) // 2,
-                                             self.eventHint[hintCoinIndex].pos[1] + (self.eventHint[hintCoinIndex].dimensions[1] - LaytonRoomGraphics.HINT_FLIP_BS.dimensions[1]) // 2)
+                for animObject in self.placeData.objEvent:
+                    if animObject.bounding.wasClicked((event.pos[0], event.pos[1] - conf.LAYTON_SCREEN_HEIGHT)):
+                        boundingBoxCenterPos = (animObject.bounding.posCorner[0] + animObject.bounding.sizeBounding[0] // 2, animObject.bounding.posCorner[1] + animObject.bounding.sizeBounding[1] // 2)
+                        self.screenNextObject = LaytonHelperEventHandlerSpawner(animObject.idEvent, boundingBoxCenterPos, self.playerState)
+                        state.debugPrint("WarnGraphicsCommand: Spawned event handler for ID " + str(animObject.idEvent))
+                        self.animTapDraw = False
+                        return True
+                for eventTobj in self.eventTap:
+                    if eventTobj.wasClicked(event.pos):
+                        self.screenNextObject = eventTobj.getContext(self.playerState)
+                        self.animTapDraw = False
+                        return True
 
-                    LaytonRoomGraphics.HINT_FLIP_BS.setAnimationFromName("gfx")
-                    LaytonRoomGraphics.HINT_FLIP_BS.loopingDisable()
-                    self.hintAnimFader = anim.AnimatedFader(LaytonRoomGraphics.HINT_FLIP_TIME, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=True)
+                hintCoinIndex = 0
+                for _eventHintTobjIndex in range(len(self.eventHint)):
+                    if self.eventHint[hintCoinIndex].wasClicked(event.pos):
+                        self.playerState.hintCoinsFound.append(self.eventHintId.pop(hintCoinIndex))
+                        self.playerState.remainingHintCoins += 1
+                        self.hintCoinLockedIndex = hintCoinIndex
+                        self.hintCoinSpawnLoc = (self.eventHint[hintCoinIndex].pos[0] + (self.eventHint[hintCoinIndex].dimensions[0] - LaytonRoomGraphics.HINT_FLIP_BS.dimensions[0]) // 2,
+                                                self.eventHint[hintCoinIndex].pos[1] + (self.eventHint[hintCoinIndex].dimensions[1] - LaytonRoomGraphics.HINT_FLIP_BS.dimensions[1]) // 2)
 
-                    self.isHintCoinLocked = True
-                    self.animTapDraw = False
-                    hintCoinIndex -= 1
-                    return True
-                if hintCoinIndex < 0:
-                    break
-                hintCoinIndex += 1
+                        LaytonRoomGraphics.HINT_FLIP_BS.setAnimationFromName("gfx")
+                        LaytonRoomGraphics.HINT_FLIP_BS.loopingDisable()
+                        self.hintAnimFader = anim.AnimatedFader(LaytonRoomGraphics.HINT_FLIP_TIME, anim.AnimatedFader.MODE_SINE_SMOOTH, False, cycle=True)
 
-            if self.animTapDraw:
-                LaytonRoomGraphics.animTap.pos = (event.pos[0] - (LaytonRoomGraphics.animTap.dimensions[0] // 2),
-                                                  event.pos[1] - (LaytonRoomGraphics.animTap.dimensions[1] // 2))
-                LaytonRoomGraphics.animTap.setAnimationFromName("New Animation")
+                        self.isHintCoinLocked = True
+                        self.animTapDraw = False
+                        hintCoinIndex -= 1
+                        return True
+                    if hintCoinIndex < 0:
+                        break
+                    hintCoinIndex += 1
+
+                if self.animTapDraw:
+                    LaytonRoomGraphics.animTap.pos = (event.pos[0] - (LaytonRoomGraphics.animTap.dimensions[0] // 2),
+                                                    event.pos[1] - (LaytonRoomGraphics.animTap.dimensions[1] // 2))
+                    LaytonRoomGraphics.animTap.setAnimationFromName("New Animation")
         return False
 
 class LaytonRoomHandler(state.LaytonSubscreen):
@@ -358,6 +398,6 @@ if __name__ == '__main__':
     playerState.remainingHintCoins = 10
 
     tempDebugExitLayer = state.LaytonSubscreenWithFader()
-    tempDebugExitLayer.addToStack(LaytonRoomHandler(4, 1, playerState))
+    tempDebugExitLayer.addToStack(LaytonRoomHandler(2, 0, playerState))
 
     state.play(tempDebugExitLayer, playerState) # 48 hidden puzzle

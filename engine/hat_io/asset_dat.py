@@ -29,12 +29,26 @@ class PlaceEvent():
         self.idEventObj = eventObjId
         self.idEvent = eventId
 
+class ExitRoom():
+    def __init__(self, boundary, imageId, roomIndex, roomSubIndex):
+        self.bounding = boundary
+        self.imageId = imageId
+        self.roomIndex = roomIndex
+        self.roomSubIndex = roomSubIndex
+
+class ExitEvent():
+    def __init__(self, boundary, imageId, eventId):
+        self.bounding = boundary
+        self.imageId = imageId
+        self.eventId = eventId
+
 class LaytonPlaceData(File):
 
     def __init__(self):
         File.__init__(self)
         
         self.mapPos = (0,0)
+        self.roomId = 0
         self.mapTsId = 0
         self.mapBgId = 0
         self.hints = []
@@ -42,10 +56,11 @@ class LaytonPlaceData(File):
         self.objAnim = []
         self.objEvent = []
         self.objTap = []
+        self.exits = []
 
     def load(self, data):
         reader = binary.BinaryReader(data=data)
-        tempId = reader.readU4()
+        self.roomId = reader.readU4()
         reader.seek(20, 1)
         self.mapPos = (reader.readUInt(1), reader.readUInt(1))
         self.mapBgId = reader.readUInt(1)
@@ -78,6 +93,21 @@ class LaytonPlaceData(File):
             tempEventId = reader.readUInt(2)
             if tempBoundary.posCorner != (0,0) and tempBoundary.sizeBounding != (0,0):
                 self.objEvent.append(PlaceEvent(tempBoundary, tempEventObjId, tempEventId))
+        
+        for _indexExit in range(12):
+            tempBoundary = Boundary((reader.readUInt(1), reader.readUInt(1)),
+                                    (reader.readUInt(1), reader.readUInt(1)))
+            tempImageId = reader.readUInt(1)
+            tempExitType = reader.readUInt(1)
+            reader.seek(4, 1)
+            if tempBoundary.posCorner != (0,0) and tempBoundary.sizeBounding != (0,0):
+                if tempExitType < 2:
+                    tempRoomIndex = reader.readUInt(1)
+                    tempRoomSubIndex = reader.readUInt(1)
+                    self.exits.append(ExitRoom(tempBoundary, tempImageId, tempRoomIndex, tempRoomSubIndex))
+                else:
+                    tempEventId = reader.readUInt(2)
+                    self.exits.append(ExitEvent(tempBoundary, tempImageId, tempEventId))
 
 class LaytonEventData(File):
 

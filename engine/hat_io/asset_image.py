@@ -78,7 +78,7 @@ class Tile():
                 pixelY += 1
                 pixelX = 0
             for _indexSubPixel in range(int(1/(bpp/8))):
-                image.putpixel((pixelX, pixelY), (pixelByte & ((2**bpp) - 1)) % len(palette))
+                image.putpixel((pixelX, pixelY), (pixelByte & ((2**bpp) - 1)) % (len(palette) // 3))
                 pixelByte = pixelByte >> bpp
                 pixelX += 1
         return image
@@ -98,7 +98,7 @@ class Tile():
                             pixelByte = pixelByte & ((2**bpp) - 1)
                         else:
                             pixelByte = self.data[pixelIndex]
-                        image.putpixel((w + wt * 8, h + ht * 8), pixelByte % len(palette))
+                        image.putpixel((w + wt * 8, h + ht * 8), pixelByte % (len(palette) // 3))
                         pixelIndex += 1
         return image
 

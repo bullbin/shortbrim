@@ -1,5 +1,15 @@
 import pygame
 
+LANGUAGE_PERMITTED = ["fr",
+                      "en",
+                      "ch",
+                      "ge",
+                      "du",
+                      "it",
+                      "sp",
+                      "ko",
+                      "jp"]
+
 PARAM = "data"
 
 ANIM_SET_ANIM                   = pygame.USEREVENT + 1

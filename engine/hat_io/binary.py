@@ -3,6 +3,9 @@
 from struct import unpack, pack
 
 class BinaryReader():
+
+    # TODO - Validate writing data (min)
+
     def __init__(self, filename='', data=b''):
         if filename != '':
             try:

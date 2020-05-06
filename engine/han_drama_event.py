@@ -1,10 +1,10 @@
-import pygame, re
+import pygame
 from os import path
 
 # Bundled modules
 import han_nazo, conf, state, script, anim, const, scr_mystery, han_room
 from file import FileInterface, resolveEventIntegerAsString
-from hat_io import asset, asset_dat
+from hat_io import asset, asset_dat, asset_dlz
 from random import randint
 
 pygame.init()
@@ -134,7 +134,7 @@ class LaytonCharacterController():
                    2:0,     3:0,
                    4:52,    5:52,
                    6:0}
-    SLOT_LEFT  = [0,3,4]
+    SLOT_LEFT  = [0,3,4]    # Verified against game binary
     SLOT_RIGHT = [2,5,6]
 
     def __init__(self, body, face, indexSpawnAnim=None, debugIndex=0):
@@ -200,7 +200,7 @@ class LaytonCharacterController():
 
             if self.slot > LaytonCharacterController.SLOT_MAX:
                 drawPointingLeft(outSurface, self.offset[0])
-            elif self.slot not in LaytonCharacterController.SLOT_OFFSET: # Central
+            elif self.slot not in LaytonCharacterController.SLOT_LEFT and self.slot not in LaytonCharacterController.SLOT_RIGHT: # Central
                 drawPointingLeft(outSurface, (conf.LAYTON_SCREEN_WIDTH - (outSurface.get_width() + self.offset[0])) // 2)
             else:
                 if self.isCharacterPointingRight():
@@ -437,6 +437,10 @@ class LaytonCharTextOverlay(LaytonTextOverlay):
 
         self.enableAnimChangeEnd = False
         self.animNameEnd = ""
+        self.voicelineMainIndex = voiceLine
+        self.voicelineSubIndex = 0
+        
+        self.startNewVoiceline(self.voicelineMainIndex, self.voicelineSubIndex)
 
         if talkScript != None and len(talkScript.commands) > 0 and len(talkScript.commands[0].operands) == 4:
             LaytonTextOverlay.__init__(self, talkScript.commands[0].operands[3], playerState, animFunctionController=animFunctionController)
@@ -497,7 +501,12 @@ class LaytonCharTextOverlay(LaytonTextOverlay):
         super().triggerUnwait()
         if self.targetController != None:
             self.targetController.setTalkAnimState(True)
+        self.voicelineSubIndex += 1
+        self.startNewVoiceline(self.voicelineMainIndex, self.voicelineSubIndex)
     
+    def startNewVoiceline(self, indexMain, subIndex):
+        pass
+
     def updateBankImages(self, gameClockDelta):
         super().updateBankImages(gameClockDelta)
         LaytonCharTextOverlay.BANK_IMAGE_ARROW.update(gameClockDelta)
@@ -506,12 +515,23 @@ class LaytonGoalTextOverlay(LaytonTextOverlay):
     def __init__(self, text, playerState, animFunctionController=None):
         LaytonTextOverlay.__init__(self, text, playerState, windowType = LaytonTextOverlay.TYPE_GOAL, animFunctionController=animFunctionController)
         self.textTalk.skip()
+        self.textTalk.pos = (self.textTalk.pos[0], self.textTalk.pos[1] + 2)
     
     def triggerUnwait(self):
         super().triggerUnwait()
         self.textTalk.skip()
 
 class LaytonEventHandler(state.LaytonSubscreenWithFader):
+
+    tempBankFile = asset.File(data=FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "rc/goal_inf.dlz"))
+    tempBankFile.decompressLz10()   # Bug workaround; fails compression check otherwise
+    tempBankTriggers = asset_dlz.LaytonDlz()
+    tempBankTriggers.loadWithName(tempBankFile.data, "goal_inf.dlz")
+
+    BANK_GOAL_TRIGGER_MAP = {}
+    for entry in tempBankTriggers.entries:
+        # print(entry.idEvent, entry.idGoal, entry.triggerType)
+        BANK_GOAL_TRIGGER_MAP[entry.idEvent] = (entry.triggerType, entry.idGoal)
 
     def __init__(self, eventIndex, playerState, globalTsFader=None, globalBsFader=None):
         state.LaytonSubscreenWithFader.__init__(self)
@@ -536,7 +556,7 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
 
         self.stackOverrideEvents = []
 
-        self.cacheVoiceline = None
+        self.indexVoiceline = None
         
         self.scriptNextEvent = None
         self.scriptNextEventMode = None
@@ -557,7 +577,11 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.dataEvent.load(FileInterface.getPackedData(FileInterface.PATH_ASSET_ROOT + "event/ev_d" + extendedEventIndex + ".plz",
                                                             "d" + indexEvent + "_" + indexEventSub + ".dat", version = 1))
         
-        # TODO - Check if eventID in goal_inf.dlz, and update goal accordingly
+        # TODO - Use trigger condition from goal_inf
+        intIndexEvent = int(indexEvent + indexEventSub)
+        if intIndexEvent in LaytonEventHandler.BANK_GOAL_TRIGGER_MAP:
+            self.playerState.currentObjective = LaytonEventHandler.BANK_GOAL_TRIGGER_MAP[intIndexEvent][1]
+            state.debugPrint("LogEventHandler: Update objective to", self.playerState.currentObjective)
 
         self.commandFocus.setBackgroundTopScreen("event/" + conf.LAYTON_ASSET_LANG + "/sub" + str(self.dataEvent.mapTsId))
         if self.commandFocus.backgroundTs == None:
@@ -668,6 +692,8 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             self.scriptNextTalkBank = asset.LaytonPack(version=1)
             self.scriptNextTalkBank.load(FileInterface.getData(FileInterface.PATH_ASSET_ROOT + "event/" + conf.LAYTON_ASSET_LANG + "/ev_t" + self.nextIndexEvent + ".plz"))
 
+        # TODO - Fix regression, 10030 where as faders is already active, faders fail to reactivate
+
         if command.opcode == b'\x02': # Screen0,1 Fade in
             fadeInBothScreens()
         elif command.opcode == b'\x03': # Screen0,1 Fade out
@@ -676,8 +702,9 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
         elif command.opcode == b'\x04': # Talk overlay
             tempScriptFile = self.scriptTalkBank.getFile("t" + self.indexEvent + "_" + self.indexEventSub + "_" + str(command.operands[0]) + ".gds")
             if tempScriptFile != None and len(tempScriptFile) > 0:
-                self.screenNextObject = LaytonCharTextOverlay(tempScriptFile, self.cacheVoiceline, self.pointerImagesCharacter,
+                self.screenNextObject = LaytonCharTextOverlay(tempScriptFile, self.indexVoiceline, self.pointerImagesCharacter,
                                                               self.imagesCharacter, self.playerState, animFunctionController=self.processScrollerFunction)
+                self.indexVoiceline = None
                 return False
             else:
                 state.debugPrint("ErrEventHandler: Invalid talk script 't" + self.indexEvent + "_" + self.indexEventSub + "_" + str(command.operands[0]) + ".gds'")
@@ -861,10 +888,15 @@ class LaytonEventHandler(state.LaytonSubscreenWithFader):
             else:
                 state.debugPrint("ErrEventHandler: Goal text", "next_" + str(self.playerState.currentObjective) + ".txt", "doesn't exist!")
 
+        # 20023
+        # b'\x95' Photo pieces removal?
+        # 10140
+        # b'\x49' Specific objective popup?
+
         # CURSED AUDIO CORNER
         # Sampled channel
         elif command.opcode == b'\x5c': # Play voiceline
-            self.cacheVoiceline = None
+            self.indexVoiceline = None
             state.debugPrint("LogEventAudio: Voiceline", command.operands[0])
         elif command.opcode == b'\x5d': # Play sound effect (ST_<n>)
             state.debugPrint("LogEventAudio: ST_" + ("%03d" % command.operands[0]))
@@ -903,10 +935,10 @@ if __name__ == '__main__':
     tempDebugExitLayer = state.LaytonSubscreenWithFader()
     
     # Working perfectly
-    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 14480, 14490, 15250, 15390, 10035, 16070, 11100, 11300, 13140
+    # 10080, 15200, 13120, 13150, 13180, 12110, 12220, 12290, 14230, 12110, 14490, 12110, 15390, 10035, 12110, 11100, 11300, 13140, 17050
 
     # Working correctly
-    # 10060, 14010, 17150, 17160, 16010, 11170, 17050, 13190, 12310, 15020, 15260, 18440
+    # 10060, 14010, 17150, 17160, 16010, 11170, 13190, 12310, 15020, 15260, 18440
 
     # Almost working correctly
     # 17240, 17080, 11200, 11280, 30020, 14110, 14180, 12190
@@ -934,6 +966,10 @@ if __name__ == '__main__':
     # 4 - Retry
 
     # e18 - The Story so Far...
-    # 14180, 10030 (end), 11100, 11300, 13140, 14110
-    tempDebugExitLayer.addToStack(LaytonEventHandler(15020, playerState))
+    # 14180, 11100, 11300, 13140, 14110
+    # 16010, 20003, 20023
+    # 21020
+    # Event where Chelmey takes photo
+    # 18390
+    tempDebugExitLayer.addToStack(LaytonEventHandler(10085, playerState))
     state.play(tempDebugExitLayer, playerState)

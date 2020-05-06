@@ -8,6 +8,8 @@ from file import FileInterface
 if conf.ENGINE_FORCE_USE_ALT_TIMER:
     import time
 
+DEBUG_SPEEDSTEP_MODIFIER = 4
+
 def debugPrint(*args, **kwargs):
     if conf.ENGINE_DEBUG_MODE:
         print(*args, **kwargs)
@@ -434,6 +436,8 @@ def play(rootHandler, playerState):
         else:
             tick = gameClock.tick
 
+    enableSpeedModifier = False
+
     while isActive:
         
         rootHandler.update(gameClockDelta)
@@ -476,6 +480,10 @@ def play(rootHandler, playerState):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 isActive = False
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
+                enableSpeedModifier = True
+            elif event.type == pygame.KEYUP and event.key == pygame.K_TAB:
+                enableSpeedModifier = False
             elif event.type == const.ENGINE_SKIP_CLOCK:
                 if conf.ENGINE_ENABLE_CLOCK_BYPASS:
                     gameClockBypass = True
@@ -487,3 +495,5 @@ def play(rootHandler, playerState):
         if gameClockBypass and gameClockDelta > conf.ENGINE_FRAME_INTERVAL:
             gameClockDelta = conf.ENGINE_FRAME_INTERVAL
             debugPrintLog("State: Clock bypassed on this frame!")
+        if enableSpeedModifier:
+            gameClockDelta *= DEBUG_SPEEDSTEP_MODIFIER

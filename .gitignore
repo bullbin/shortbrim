@@ -9,3 +9,7 @@ tools/.vscode/settings.json
 *.arc
 *.arj
 *.sav
+*.ml*
+*.dlz
+*.fbp
+*.txt

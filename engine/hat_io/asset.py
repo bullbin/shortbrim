@@ -108,6 +108,7 @@ class File():
         self.data = compList[0]
 
     def detectDecompressionMethod(self, byteMagic, bytesLen, offsetIn=0):
+        # TODO - goal_inf.dlz is shorter; there's got to be a better way to detect compressed files
         if int.from_bytes(bytesLen, byteorder = 'little') >= len(self.data) - offsetIn:
             # Pass the sanitisation check
             if byteMagic == File.COMP_HUFFMAN_8_BIT or byteMagic == File.COMP_HUFFMAN_4_BIT:
@@ -126,7 +127,10 @@ class File():
                 decompressMethod = self.detectDecompressionMethod(self.data[4], self.data[5:8], offsetIn=4)
                 offsetIn = 4
             if decompressMethod != None:
-                return decompressMethod(offsetIn = offsetIn)
+                try:
+                    return decompressMethod(offsetIn = offsetIn)
+                except:
+                    return False
         return False
 
     def compressHuffman(self, useHalfByteBlocks = False, addHeader=False):

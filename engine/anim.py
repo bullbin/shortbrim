@@ -253,7 +253,7 @@ class AnimatedImage():
             for anim in assetImage.anims:
                 self.animMap[anim.name] = AnimatedFrameCollection(anim.frameDuration, indices=anim.indexImages, isFramerateTimeArray=True, faceOffset=anim.offsetFace, faceIndex=anim.indexAnimFace)
         else:
-            print("Failed to fetch image!!")
+            debugPrint("ErrAnimatedImage: Failed to fetch image!")
 
     def fromImages(self, animText):
         if path.exists(animText):
@@ -786,7 +786,7 @@ class NuvoTextScroller():
 
     LAYTON_CONTROL_CHAR = ["#", "@", "&"]
 
-    def __init__(self, font, textInput, functionProcessor=None, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
+    def __init__(self, font, textInput, functionProcessor=None, pauseProcessor=None, textPosOffset=(0,0), targetFramerate = conf.ENGINE_FPS):
         self.textInput = textInput
         self.frameStep = 1000/targetFramerate
         self.timeSinceLastUpdate = 0
@@ -794,6 +794,7 @@ class NuvoTextScroller():
         self.font = font
 
         self.functionProcessor = functionProcessor
+        self.pauseProcessor = pauseProcessor
 
         self.indexChar = 0
         self.indexLine = 0
