@@ -1,4 +1,6 @@
 # shortbrim
+**This has been succeeded by [widebrim](https://github.com/bullbin/widebrim), a more complete engine recreation that can do everything this can do and much, much more. This remains as a reference, please use that instead!**
+
 Depreciated Python-based engine reimplementation for early NDS Layton games.
 
 # What this is, and what this isn't
@@ -30,10 +32,9 @@ Expect bugs, and identical behaviour to the games themselves is not guarenteed.
 Have fun exploring various files inside the game, looking at individual room states, playing individual events, etc.
 Feel free to use any research about assets, loading routines, events, pathing and binary formats.
 
-**shortbrim** has since been adapted into a library, **madhatter**.
-The engine was rewritten as **widebrim**, which is accurate and based on reverse-engineering, but is LAYTON2 specific.
+**shortbrim** has since been adapted into a library, [**madhatter**](https://github.com/bullbin/madhatter).
+The engine was rewritten as [**widebrim**](https://github.com/bullbin/widebrim), which is accurate and based on reverse-engineering, but is LAYTON2 specific.
 **widebrim** has full story support so the game can be played properly.
-It will be open sourced when it is ready. In the meantime, please enjoy **shortbrim**!
 
 If you use any parts of this code, please credit me or the original contributor! Alternatively if you need clarification, send an issue or contact me.
 
